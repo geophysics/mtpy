@@ -1,0 +1,529 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Interface to BIRRP &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="index.html" />
+    <link rel="prev" title="Welcome to MTpy’s documentation!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to MTpy’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-MTpy.core.BIRRPTools">
+<span id="interface-to-birrp"></span><h1>Interface to BIRRP<a class="headerlink" href="#module-MTpy.core.BIRRPTools" title="Permalink to this headline">¶</a></h1>
+<p>Module of tool that can be applied to BIRRP outputs</p>
+<p>Created on %(date)s</p>
+<p>&#64;author: %(Jared Peacock)s</p>
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.bbcalfunc">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">bbcalfunc</tt><big>(</big><em>bbfile</em>, <em>nfreqlst</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#bbcalfunc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.bbcalfunc" title="Permalink to this definition">¶</a></dt>
+<dd><p>bbcalfunc(bbfile,nfreqlst) will generate a function fitting the 
+calibration data in bbfile to the frequencies in nfreqlst using a cubic
+interpolation algorithm.  The output is the real and imaginary functions
+as a function of the nfreqlst in units of microV/nT.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.bbconvz">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">bbconvz</tt><big>(</big><em>z</em>, <em>freq</em>, <em>bbfile</em>, <em>dlgain</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#bbconvz"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.bbconvz" title="Permalink to this definition">¶</a></dt>
+<dd><p>bbconvz(dirpath,bbfile,dlgain)will convert the .rf output files of BIRRP 
+into correct units using broadband calibrations given by file bbcalfile that
+has format log(freq),breal,bimag. dlgain is the data logger gain (verylow=
+2.5,low=1,high=.1) The output is period,freq,z[[zijr,ziji,zije]].
+Note that it assumes the efields are already converted.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.callBIRRP">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">callBIRRP</tt><big>(</big><em>scriptfile</em>, <em>birrploc</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#callBIRRP"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.callBIRRP" title="Permalink to this definition">¶</a></dt>
+<dd><p>callBIRRP(scriptfile,birrploc) will call BIRRP from a command window and 
+run the script file provided.</p>
+<dl class="docutils">
+<dt>Inputs: </dt>
+<dd><p class="first">scriptfile = full path script file
+birrploc = path to BIRRP on your computer, can be the full path to a</p>
+<blockquote class="last">
+<div>BIRRP executable C:BIRRPirrp5.exe</div></blockquote>
+</dd>
+<dt>Outputs:</dt>
+<dd>bfpath = path to BIRRP output files</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.convertBIRRPoutputs">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">convertBIRRPoutputs</tt><big>(</big><em>bfpath</em>, <em>stationinfofile</em>, <em>station</em>, <em>rrstation=None</em>, <em>bbfile=None</em>, <em>birrpdict=None</em>, <em>ffactor=1</em>, <em>edipath=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#convertBIRRPoutputs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.convertBIRRPoutputs" title="Permalink to this definition">¶</a></dt>
+<dd><p>convertBIRRPoutputs(bfpath,stationinfodict) will take the outputs of BIRRP
+and manipulate them into .edi, .dat, .coh, .imp files as well as generate 
+plots of apparent resistivity and phase and coherence.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">bfpath = path to BIRRP output files
+stationinfodict = dictionary containing pertanent information with keys:</p>
+<p class="last">station = station to process
+rrstation = remote reference station name
+bbfile = broad band calibration file path
+birrpdict = dictionary of birrp parameters used
+ffactor = scaling factor for apparent resistivities and phase
+edipath = path to save edifile to</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>cohfile
+datfile
+edifile
+impfile</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.finishBeep">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">finishBeep</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#finishBeep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.finishBeep" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.lpconvz">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">lpconvz</tt><big>(</big><em>z</em>, <em>dlgain=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#lpconvz"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.lpconvz" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert the magnetic field from counts to units of microV/nT.
+bfield is a list of numbers. dlain is amount of gain applied
+by data logger(verylow=2.5,low=1, high=.1)</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>bfield = 1D array of long period data
+dlgain = data logger gain (very low= 2.5,low = 1, high = .1)</dd>
+<dt>Outputs:</dt>
+<dd>bfieldc = scaled bfield 1D array</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.plotBFfiles">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">plotBFfiles</tt><big>(</big><em>edifile</em>, <em>cohfile=None</em>, <em>cfilelst=None</em>, <em>save='y'</em>, <em>ffactor=1</em>, <em>show='n'</em>, <em>sdict=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#plotBFfiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.plotBFfiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotFiles(edifile,cohfile,cfilelst) will plot the apparent resisitivty
+and phase calculated from edifile as 2 seperate plots for the different 
+polarizations.  It will plot the coherency between components and if input
+will plot the time series.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>edifile = full path to edifile
+cohfile = full path to coherence file
+cfilelst = list of paths to combined files
+saveyn= &#8216;y&#8217; to save plots, &#8216;n&#8217; to not save plots
+seeyn = &#8216;y&#8217; if you want to see the plots, &#8216;n&#8217; if you just want to save</dd>
+</dl>
+<p>Outputs:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.read2c2">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">read2c2</tt><big>(</big><em>filename</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#read2c2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.read2c2" title="Permalink to this definition">¶</a></dt>
+<dd><p>read2c2(filename) will read in a .2c2 file output from BIRRP and return a list 
+containing [period],[freq],[coh],[zcoh]. Note if any of the coherences are 
+negative a value of 0 will be given to them.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readProDict">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readProDict</tt><big>(</big><em>processinginfofile</em>, <em>dirpath</em>, <em>filtered=None</em>, <em>rrfiltered=None</em>, <em>kwargs=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readProDict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readProDict" title="Permalink to this definition">¶</a></dt>
+<dd><p>readProDict will read in the information from processing infofile and output
+as a list of dictionaries.  
+Inputs:</p>
+<blockquote>
+<div>processinginfofile=tab delimited text file with appropriate information.
+dirpath = directory path to where station folders are</div></blockquote>
+<dl class="docutils">
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>plst = list of dictionaries with key words related to headers of txt </dt>
+<dd>file</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readcoh">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readcoh</tt><big>(</big><em>filename</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readcoh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readcoh" title="Permalink to this definition">¶</a></dt>
+<dd><p>readcoh(filename) will read a coherence file writen by writecoh.  The 
+output is period,frequency,coh1,zcoh1,coh2,zcoh2,coh3,zcoh3</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readdat">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readdat</tt><big>(</big><em>filename</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readdat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readdat" title="Permalink to this definition">¶</a></dt>
+<dd><p>readdat(filename) will read in a .dat file written by writedat and output 
+ofil, period,[resistivity,resistivityerr],[phase,phaseerr]</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readimp">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readimp</tt><big>(</big><em>filename</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readimp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readimp" title="Permalink to this definition">¶</a></dt>
+<dd><p>readimp(filename) will read in the impedances from a .imp file written 
+by writeimp. the output is ofil,period,z[zr,zi]</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readini">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readini</tt><big>(</big><em>inifilename</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readini"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readini" title="Permalink to this definition">¶</a></dt>
+<dd><p>readini(inifilename) will read in an inifile and return a dictionary of 
+initial parameters for the burpinterface program.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readj">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readj</tt><big>(</big><em>jfn, egain=1, dlgain=1, dlen=[50, 50], magtype='bb', bbfile='c:\\Peacock\\PHD\\BIRRP\\bbconv.txt', ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readj"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readj" title="Permalink to this definition">¶</a></dt>
+<dd><p>readj will read in the .j file output by BIRRP, which is better than 
+reading in the .irj.rf files.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.readrf">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">readrf</tt><big>(</big><em>dirpath, egain=1, dlgain=1, dlen=[1, 1], magtype='bb', bbfile='c:\\Peacock\\PHD\\BIRRP\\bbconv.txt', ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#readrf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.readrf" title="Permalink to this definition">¶</a></dt>
+<dd><p>readrf(dirpath) will read in .irj.rf file output by BIRRP that reside in 
+the folder nominated by dirpath. Returns: period, freq, 
+z[ijreal,ijimag,ijvar] as array.  If any of the numbers are NaN or +Inf they
+are set to zero</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.runBIRRPpp">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">runBIRRPpp</tt><big>(</big><em>dirpath</em>, <em>processingdict</em>, <em>stationinfofile</em>, <em>birrploc</em>, <em>ffactor=1</em>, <em>edipath=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#runBIRRPpp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.runBIRRPpp" title="Permalink to this definition">¶</a></dt>
+<dd><p>runBIRRPpp will processes a station from start to finish on seperate 
+processors</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">dirpath = full path to station folders
+processinginfodict = dictionary of processing info</p>
+<dl class="docutils">
+<dt>stationinfofile = full path to station info file containing info about</dt>
+<dd>survey parameters</dd>
+</dl>
+<p class="last">birrploc = location of BIRRP and bbconv.csv
+ffactor = factor to scale apparent resistivities and phases
+edipath = common folder to copy edifiles</p>
+</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>dictionary with keys:</dt>
+<dd>cohfile
+datfile
+edifile
+impfile
+logfile
+scriptfile</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.scriptfilePrep">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">scriptfilePrep</tt><big>(</big><em>prepdict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#scriptfilePrep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.scriptfilePrep" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>scriptfilePrep(prepdict) will calculate parameters, combine files and </dt>
+<dd><dl class="first last docutils">
+<dt>convert if need be. Keys for prepdict are:</dt>
+<dd><p class="first">dirpath = dirpath to station folders -&gt; d:Data
+cdirpath = full path to time series files if not entered will default to</p>
+<blockquote>
+<div>dirpathstationday</div></blockquote>
+<dl class="last docutils">
+<dt>cdirpathr = full path to remote reference time series if not entered</dt>
+<dd>dirpath</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>rstationday</dt>
+<dd><blockquote class="first">
+<div><p>station = station name
+day = UTC day string of length 3 -&gt; 035
+rrstation = remote reference station name
+cacherate = length of data files string of hhmmss -&gt; 1 hour data files</p>
+<blockquote>
+<div>is 010000, 10 min is 001000</div></blockquote>
+<p>start = start time for combining files in hhmmss
+stop = stop time for combining files in hhmmss
+rrstart = start time of remote reference in hhmmss
+rrstop = stop time of remote reference in hhmmss
+dec = decimation factor (0 for no decimation, needs to be an integer)
+df = sampling frequency in Hz
+magori = orientation of magnetic components as N,E,Z -&gt; for measured BX</p>
+<blockquote>
+<div>to East input as [BY,BX,BZ] omit BZ if not measured</div></blockquote>
+<dl class="docutils">
+<dt>elecori = orientation of electric components as N,E -&gt; for EX measured</dt>
+<dd>to N input as [EX,EY]</dd>
+<dt>rrmagori = orientation of remote reference magnetometers as N,E,Z omit</dt>
+<dd>Z if not measured</dd>
+</dl>
+<p>filtered = &#8216;Filtered&#8217; if filtered, don&#8217;t enter if not filtered
+rrfiltered = &#8216;Filtered&#8217; if remote reference is filtered 
+fdict = dictionary for adaptive notch filter see</p>
+<blockquote>
+<div>MTtools.adaptiveNotchFilter() for details</div></blockquote>
+</div></blockquote>
+<dl class="last docutils">
+<dt>returns procesing dictionary with keys:</dt>
+<dd>cfilelst = list of files combined full path
+rrcfilelst = list of remote reference files combined full path
+station = station
+deltat = sampling rate (+) for time (-) for frequency
+nfft = max window length
+nsctmax = max number of windows
+nskipr = number of points to skip for remote reference</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.sigfigs">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">sigfigs</tt><big>(</big><em>numstr</em>, <em>digits=8</em>, <em>fmt='g'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#sigfigs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.sigfigs" title="Permalink to this definition">¶</a></dt>
+<dd><p>sigfigs(numstr,digits=8,fmt=&#8217;g&#8217;) will return a string with the proper 
+amount of significant digits for the input number, can be str or float.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.sil">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">sil</tt><big>(</big><em>iniline</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#sil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.sil" title="Permalink to this definition">¶</a></dt>
+<dd><p>sil(iniline) will split a single line written in an .ini file
+for burpinterface and return the list of strings.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writeLogfile">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writeLogfile</tt><big>(</big><em>bfpath</em>, <em>station</em>, <em>cohfile</em>, <em>datfile</em>, <em>impfile</em>, <em>scriptfile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writeLogfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writeLogfile" title="Permalink to this definition">¶</a></dt>
+<dd><p>writeLogfile will write a log file of how a station was processed</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writeScriptfile">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writeScriptfile</tt><big>(</big><em>processingdict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writeScriptfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writeScriptfile" title="Permalink to this definition">¶</a></dt>
+<dd><p>writeScriptfile(processingdict will write a script file for BIRRP using 
+info in processingdict which is a dictionary with keys:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>cfilelst = list of combined filenames (full path) ordered as:</dt>
+<dd>[electric N, electric E, mag N, mag E, mag Z] can omit Z if not 
+measured</dd>
+<dt>rrcfilelst = list of combined remote reference filenames (full </dt>
+<dd>path) ordered as: [mag N, mag E, mag Z] omit z if not measured</dd>
+</dl>
+<p>station = station name
+magtype = bb for broadband lp for longperiod
+any BIRRP parameters you desire, (if not input default values will be 
+assigned) namely:</p>
+<blockquote>
+<div><p>ilev = processing mode 0 for basic and 1 for advanced RR-2 stage
+nout = Number of Output time series (2 or 3-&gt; for BZ)
+ninp = Number of input time series for E-field (1,2,3) 
+nref = Number of reference channels (2 for MT)
+nrr = bounded remote reference (0) or 2 stage bounded influence (1)
+tbw = Time bandwidth for Sepian sequence
+deltat = Sampling rate (+) for (s), (-) for (Hz)
+nfft = Length of FFT (should be even)
+nsctinc = section increment divisor (2 to divide by half)
+nsctmax = Number of windows used in FFT
+nf1 = 1st frequency to extract from FFT window (&gt;=3)
+nfinc = frequency extraction increment 
+nfsect = number of frequencies to extract
+mfft = AR filter factor, window divisor (2 for half)
+uin = Quantile factor determination
+ainlin =  Residual rejection factor low end (usually 0)
+ainuin = Residual rejection factor high end (.95-.99)
+c2threshb = Coherence threshold for magnetics (0 if undesired)
+c2threshe = Coherence threshold for electrics (0 if undesired)
+nz= Threshold for Bz (0=separate from E, 1=E threshold, 2=E and B)</p>
+<blockquote>
+<div>Input if 3 B components else None</div></blockquote>
+<p>c2thresh1= Squared coherence for Bz, input if NZ=0, Nout=3
+perlo = longest period to apply coherence threshold over
+perhi = shortes period to apply coherence threshold over
+ofil = Output file root(usually three letters, can add full path)
+nlev = Output files (0=Z; 1=Z,qq; 2=Z,qq,w; 3=Z,qq,w,d)
+nprej = number of frequencies to reject
+prej = frequencies to reject (+) for period, (-) for frequency
+npcs = Number of independent data to be processed (1 for one</p>
+<blockquote>
+<div>segement)</div></blockquote>
+<p>nar = Prewhitening Filter (3&lt; &gt;15) or 0 if not desired&#8217;,
+imode = Output file mode (0=ascii; 1=binary; 2=headerless ascii;</p>
+<blockquote>
+<div>3=ascii in TS mode&#8217;,</div></blockquote>
+<dl class="docutils">
+<dt>jmode = nput file mode (0=user defined; 1=start time </dt>
+<dd>YYYY-MM-DD HH:MM:SS)&#8217;,</dd>
+<dt>nread = Number of points to be read for each data set  </dt>
+<dd>(if segments&gt;1 -&gt; npts1,npts2...)&#8217;,</dd>
+</dl>
+<p>nfil = Filter parameters (0=none; &gt;0=input parameters; &lt;0=filename
+nskip = Skip number of points in time series (0) if no skip,</p>
+<blockquote>
+<div>(if segements &gt;1 -&gt; input1,input2...)&#8217;,</div></blockquote>
+<dl class="docutils">
+<dt>nskipr = Number of points to skip over (0) if none,</dt>
+<dd>(if segements &gt;1 -&gt; input1,input2...)&#8217;,</dd>
+<dt>thetae = Rotation angles for electrics (relative to geomagnetic </dt>
+<dd>North)(N,E,rot)&#8217;,</dd>
+<dt>thetab = Rotation angles for magnetics (relative to geomagnetic </dt>
+<dd>North)(N,E,rot)&#8217;,</dd>
+<dt>thetar = Rotation angles for calculation (relative to geomagnetic </dt>
+<dd>North)(N,E,rot)&#8217;</dd>
+</dl>
+</div></blockquote>
+<p>=&gt; see BIRRP Manual for more details on the parameters
+=&gt; see A. D. Chave and D. J. Thomson [1989,2003,2004] for more</p>
+<blockquote>
+<div>information on Bounded influence and robust processing.</div></blockquote>
+</div></blockquote>
+<dl class="docutils">
+<dt>ouputs:</dt>
+<dd>scriptfile (full path typically(dirpathstationdayCombSTtoETddecBF)
+birrpdict = dictionary of all birrp parameters in script file</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writecoh">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writecoh</tt><big>(</big><em>dirpath</em>, <em>tsp='   '</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writecoh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writecoh" title="Permalink to this definition">¶</a></dt>
+<dd><p>writecoh(dirpath) will write a coherence file using the BIRRP outputs 
+residing in the dirpath folder.  The output file is tab delimited and if any 
+values are negative they are put to 0. Each value has 7 significant digits.
+Returns written to filename.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writedat">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writedat</tt><big>(</big><em>dirpath, egain=10, dlgain=1, dlen=[50, 50], magtype='bb', bbfile='c:\\Peacock\\PHD\\BIRRP\\bbconv.txt', tsp='   ', ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writedat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writedat" title="Permalink to this definition">¶</a></dt>
+<dd><p>writebbdat(dirpath,magtype,df,dlgain,bbfile=None) will write a .dat 
+(resistivity and phase) file from .rf output 
+files from birrp after converting the broadband magnetic channels. dirpath
+is where the .rf files reside, bb file is where the conversion file
+resides and df is the sampling frequency. Returns written to filename.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writeedi">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writeedi</tt><big>(</big><em>dirpath</em>, <em>station</em>, <em>stationinfofile=None</em>, <em>rrstation=None</em>, <em>birrpdict=None</em>, <em>bbfile='c:\\Peacock\\PHD\\BIRRP\\bbconv.txt'</em>, <em>tsp='   '</em>, <em>ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writeedi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writeedi" title="Permalink to this definition">¶</a></dt>
+<dd><p>writeedi2(dirpath,stationinfofile,station,bbfile=
+r&#8217;c:PeacockPHDBIRRPbconv.txt&#8217;) will write an .edi file for a station 
+processed by BIRRP given the station info file, station and bbfile if
+applicable. Returns the full path to the .edi file.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writeimp">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writeimp</tt><big>(</big><em>dirpath, egain=10, dlgain=1, dlen=[50, 50], magtype='bb', bbfile='c:\\Peacock\\PHD\\BIRRP\\bbconv.txt', tsp='   ', ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writeimp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writeimp" title="Permalink to this definition">¶</a></dt>
+<dd><p>writebbimp(dirpath,magtype,dlgain,bbfile=None)writes a tab delimited .imp 
+file of converted impedances from.rf outputs of BIRRP and calibrates using 
+file bbfile and dlgain which is the data logger gain 
+(verylow=2.5,low=1,high=.1). Returns written to filename.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.BIRRPTools.writeini">
+<tt class="descclassname">MTpy.core.BIRRPTools.</tt><tt class="descname">writeini</tt><big>(</big><em>filepath</em>, <em>argsdict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/BIRRPTools.html#writeini"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.BIRRPTools.writeini" title="Permalink to this definition">¶</a></dt>
+<dd><p>writeini(filepath,station,argsdict) will write an .ini file from the to
+the filepath as station.ini.  The argsdict must be len 40 or will not write,
+the variables should be: dict[defdirpath,station,magtype,lpyn,eyn,mcomps,magdec,
+df,cacherate, dlength,dlgain,egain,lpbzcor,bbcal,magori,birrploc,ilev,nout,
+ninp,tbw,nfft,nsctmax,uin,ainuin,c2threshe,nz,c2threshe1,ofil,
+nlev,nar,imode,jmode,nfil,complstr,thetae,thetab,thetaf].</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to MTpy&#8217;s documentation!</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/core.BIRRPTools.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to MTpy’s documentation!"
+             >previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
