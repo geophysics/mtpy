@@ -1,0 +1,637 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>TFtools: times series analysis &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="index.html" />
+    <link rel="next" title="BIRRPTools: an interface to BIRRP" href="core.BIRRPTools.html" />
+    <link rel="prev" title="Welcome to MTpy’s documentation!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.BIRRPTools.html" title="BIRRPTools: an interface to BIRRP"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to MTpy’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-MTpy.core.TFtools">
+<span id="tftools-times-series-analysis"></span><h1>TFtools: times series analysis<a class="headerlink" href="#module-MTpy.core.TFtools" title="Permalink to this headline">¶</a></h1>
+<p>Created on Mon May 03 14:53:54 2010</p>
+<p>&#64;author: a1185872</p>
+<dl class="function">
+<dt id="MTpy.core.TFtools.dctrend">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">dctrend</tt><big>(</big><em>f</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#dctrend"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.dctrend" title="Permalink to this definition">¶</a></dt>
+<dd><p>dctrend(f) will remove a dc trend from the function f.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>f = array to dctrend</dd>
+<dt>Outputs:</dt>
+<dd>fdc = array f with dc component removed</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.decimatef">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">decimatef</tt><big>(</big><em>f</em>, <em>m</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#decimatef"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.decimatef" title="Permalink to this definition">¶</a></dt>
+<dd><p>Will decimate a function by the factor m. First an 8th order Cheybechev 
+type I filter with a cuttoff frequency of .8/m  is applied in both 
+directions to minimize any phase distortion and remove any aliasing. Note 
+decimation values above 10 will typically result in bad coefficients, 
+therefore if you decimation is more than 10 just repeat the decimation until
+the desired decimation is reached.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>f = array to be decimated
+m = decimation factor</dd>
+<dt>Outputs:</dt>
+<dd>fdec = array f decimated by factor m</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.dwindow">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">dwindow</tt><big>(</big><em>window</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#dwindow"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.dwindow" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the derivative of the given window</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>window = some sort of window function</dd>
+<dt>Output:</dt>
+<dd>dwin = derivative of window</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.gausswin">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">gausswin</tt><big>(</big><em>winlen</em>, <em>alpha=2.5</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#gausswin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.gausswin" title="Permalink to this definition">¶</a></dt>
+<dd><p>gausswin will compute a gaussian window of length winlen with a variance of
+alpha</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>winlen = length of desired window
+alpha = 1/standard deviation of window, ie full width half max of window</dd>
+<dt>Outputs:</dt>
+<dd>gwin = gaussian window</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.modifiedb">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">modifiedb</tt><big>(</big><em>fx</em>, <em>tstep=2**5</em>, <em>nfbins=2**10</em>, <em>df=1.0</em>, <em>nh=2**8-1</em>, <em>beta=.2</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#modifiedb"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.modifiedb" title="Permalink to this definition">¶</a></dt>
+<dd><p>will calculate the modified b distribution as defined by cosh(n)^-2 beta 
+for a function fx.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>fx = array from which modifiedb will be calculated if computing cross</dt>
+<dd>spectra input as [fx1,fx2]</dd>
+</dl>
+<p class="last">tstep = time step between windows 
+nfbins = number of frequencies 
+df = sampling frequency (Hz)
+nh = length of time-domain smoothing window (needs to be odd)
+beta = smoothing coefficient</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = modifiedB estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.normalizeL2">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">normalizeL2</tt><big>(</big><em>f</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#normalizeL2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.normalizeL2" title="Permalink to this definition">¶</a></dt>
+<dd><p>normalizeL2(f) will return the function f normalized by the L2 norm -&gt;
+f/(sqrt(sum(abs(x_i)^2))).</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>f = array to be normalized</dd>
+<dt>Outputs:</dt>
+<dd>fnorm = array f normalized in L2 sense</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.padzeros">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">padzeros</tt><big>(</big><em>f</em>, <em>npad=None</em>, <em>padpattern=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#padzeros"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.padzeros" title="Permalink to this definition">¶</a></dt>
+<dd><p>padzeros(f) will return a function that is padded with zeros to the next
+power of 2 for faster processing for fft or to length npad if given.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>f = array to pad 
+npad = length to pad to defaults to next power of two
+padpattern = pattern to pad with default is zero</dd>
+<dt>Outputs:</dt>
+<dd>fpad = array f padded to length npad with padpattern</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.plotAll">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">plotAll</tt><big>(</big><em>fx</em>, <em>tfarray</em>, <em>tlst</em>, <em>flst</em>, <em>fignum=1</em>, <em>starttime=0</em>, <em>timeinc='hrs'</em>, <em>dt=1.0</em>, <em>title=None</em>, <em>vmm=None</em>, <em>cmap=None</em>, <em>aspect=None</em>, <em>interpolation=None</em>, <em>cbori=None</em>, <em>cbshrink=None</em>, <em>cbaspect=None</em>, <em>cbpad=None</em>, <em>normalize='n'</em>, <em>scale='log'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#plotAll"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.plotAll" title="Permalink to this definition">¶</a></dt>
+<dd><p>plottf(tfarray,tlst,flst,fignum=1) will plot a calculated tfarray with 
+limits corresponding to tlst and flst. Can have:</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">starttime = starttime measured in timeincrement 
+timeincrement = &#8216;hrs&#8217;,&#8217;min&#8217; or &#8216;sec&#8217; 
+vmm = [vmin,vmax] a list for min and max 
+title = title string 
+cmap = colormap scheme default is jet, type help on matplotlib.cm 
+aspect = aspect of plot, default is auto, can be &#8216;equal&#8217; or a scalar 
+interpolation = type of color interpolation, type help on</p>
+<blockquote>
+<div>matplotlib.pyplot.imshow</div></blockquote>
+<p class="last">cbori = colorbar orientation &#8216;horizontal&#8217; or &#8216;vertical&#8217; 
+cbshrink = percentage of 1 for shrinking colorbar 
+cbaspect = aspect ratio of long to short dimensions 
+cbpad = pad between colorbar and axis
+normalization = y or n, y for normalization n for none</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>plot</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.plottf">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">plottf</tt><big>(</big><em>tfarray</em>, <em>tlst</em>, <em>flst</em>, <em>fignum=1</em>, <em>starttime=0</em>, <em>timeinc='hrs'</em>, <em>dt=1.0</em>, <em>title=None</em>, <em>vmm=None</em>, <em>cmap=None</em>, <em>aspect=None</em>, <em>interpolation=None</em>, <em>cbori=None</em>, <em>cbshrink=None</em>, <em>cbaspect=None</em>, <em>cbpad=None</em>, <em>powscale='log'</em>, <em>normalize='n'</em>, <em>yscale='log'</em>, <em>period='n'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#plottf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.plottf" title="Permalink to this definition">¶</a></dt>
+<dd><p>plottf(tfarray,tlst,flst,fignum=1) will plot a calculated tfarray with 
+limits corresponding to tlst and flst.</p>
+<p>Inputs:</p>
+<blockquote>
+<div><p>starttime = starttime measured in timeincrement 
+tinc = &#8216;hrs&#8217;,&#8217;min&#8217; or &#8216;sec&#8217; 
+vmm = [vmin,vmax] a list for min and max 
+title = title string 
+cmap = colormap scheme default is jet, type help on matplotlib.cm 
+aspect = aspect of plot, default is auto, can be &#8216;equal&#8217; or a scalar 
+interpolation = type of color interpolation, type help on</p>
+<blockquote>
+<div>matplotlib.pyplot.imshow</div></blockquote>
+<p>cbori = colorbar orientation &#8216;horizontal&#8217; or &#8216;vertical&#8217; 
+cbshrink = percentage of 1 for shrinking colorbar 
+cbaspect = aspect ratio of long to short dimensions 
+cbpad = pad between colorbar and axis
+powscale = linear or log for power
+normalize = y or n, yes for normalization, n for no
+yscale = linear or log plot yscale
+period = &#8216;y&#8217; or &#8216;n&#8217; to plot in period instead of frequency</p>
+</div></blockquote>
+<dl class="docutils">
+<dt>Outputs:</dt>
+<dd>plot</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.reassignedSmethod">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">reassignedSmethod</tt><big>(</big><em>fx</em>, <em>nh=127</em>, <em>tstep=16</em>, <em>nfbins=512</em>, <em>df=1.0</em>, <em>alpha=4</em>, <em>thresh=0.01</em>, <em>L=5</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#reassignedSmethod"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.reassignedSmethod" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>reassignedSmethod(fx,nh=2**7-2,tstep=2**4,nfbins=2**9,df=1.0,alpha=4,</dt>
+<dd>thresh=.05,L=5)</dd>
+</dl>
+<p>will calulate the reassigned S-method as described by Djurovic[1999] by 
+using the spectrogram to estimate the reassignment</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">fx = 1-d array to be processed
+nh = window length for each time instance
+tstep = step between time instances
+nfbins = number of frequency bins, note output will be nfbins/2 due to</p>
+<blockquote>
+<div>symmetry of the FFT</div></blockquote>
+<p>df = sampling rate (Hz)
+alpha = inverse of full-width half max of gaussian window, smaller</p>
+<blockquote>
+<div>numbers mean broader windows</div></blockquote>
+<dl class="last docutils">
+<dt>thresh = threshold for reassignment, lower numbers more points</dt>
+<dd>reassigned, higer numbers less points reassigned</dd>
+<dt>L = length of window for S-method calculation, higher numbers tend </dt>
+<dd>tend toward WVD</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd>rtfarray = reassigned S-method shape of (nfbins/2,len(fx)/tstep)
+tlst = list of time instances where rtfarray was calculated 
+flst = positive frequencies
+sm = S-method array</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.reassignedstft">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">reassignedstft</tt><big>(</big><em>fx</em>, <em>nh=63</em>, <em>tstep=32</em>, <em>nfbins=1024</em>, <em>df=1.0</em>, <em>alpha=4</em>, <em>threshold=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#reassignedstft"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.reassignedstft" title="Permalink to this definition">¶</a></dt>
+<dd><p>reassignedstft(fx,nh=2**5-1,tstep=2**8,nfbins=2**10,df=1.0,alpha=20) will 
+compute the reassigned spectrogram by estimating the center of gravity of 
+the signal and condensing dispersed energy back to that location.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">fx = time series to be analyzed
+nh = length of gaussian window, should be odd
+tstep = time step for each window calculation
+nfbins = number of frequency bins to calculate, note result will be</p>
+<blockquote>
+<div>length nfbins/2</div></blockquote>
+<p class="last">df = sampling frequency (Hz)
+alpha = reciprocal of full width half max of gaussian window
+threshold = threshold value for reassignment</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>rtfarray = reassigned spectrogram in units of amplitude
+tlst = array of time instances where windows were calculated for ploting
+flst = array of frequencies for plotting
+stft = standard spectrogram in units of amplitude</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.robustSmethod">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">robustSmethod</tt><big>(</big><em>fx</em>, <em>L=5</em>, <em>nh=128</em>, <em>tstep=32</em>, <em>nfbins=1024</em>, <em>df=1.0</em>, <em>robusttype='median'</em>, <em>sigmal=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#robustSmethod"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.robustSmethod" title="Permalink to this definition">¶</a></dt>
+<dd><p>robustSmethod(fx,L=15,nh=2**7,tstep=2**5,nfbins=2**10,df=1.0) computes the 
+robust Smethod via the robust spectrogram.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>fx = array of data, if computing cross-spectra input as [fa,fb]
+L = frequency smoothing window if robusttype=&#8217;median&#8217;
+nh = window length for STFT
+tstep = time step for each STFT to be computed
+nfbins = number of frequency bins to be calculate
+df = sampling frequency
+robusttype = type of robust STFT calculation can be &#8216;median&#8217; or &#8216;L&#8217;
+simgal = full-width half max of gaussian window applied in frequency</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = robust S-method estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.robuststftL">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">robuststftL</tt><big>(</big><em>fx</em>, <em>alpha=0.325</em>, <em>nh=256</em>, <em>tstep=32</em>, <em>df=1.0</em>, <em>nfbins=1024</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#robuststftL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.robuststftL" title="Permalink to this definition">¶</a></dt>
+<dd><p>robuststftL(fx,nh=2**8,tstep=2**5,ng=1,df=1.0) will output an array of the
+time-frequency robust spectrogram by estimating the vector median and 
+summing terms estimated by alpha coefficients.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>fx = the function to have a spectrogram computed for 
+alpha = robust parameter [0,.5] -&gt; 0 gives spectrogram, .5 gives median stft
+nh = window length for each time step 
+tstep = time step between short windows 
+df = sampling frequency
+nfbins = number of frequency bins</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = robust L-estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.robuststftMedian">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">robuststftMedian</tt><big>(</big><em>fx</em>, <em>nh=256</em>, <em>tstep=32</em>, <em>df=1.0</em>, <em>nfbins=1024</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#robuststftMedian"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.robuststftMedian" title="Permalink to this definition">¶</a></dt>
+<dd><p>robuststftMedian(fx,nh=2**8,tstep=2**5,ng=1,df=1.0) will output an array 
+of the time-frequency robust spectrogram calculated using the vector median
+simplification.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>fx = the function to have a spectrogram computed for 
+nh = window length for each time step 
+tstep = time step between short windows 
+df = sampling frequency
+nfbins = number of frequency bins</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = WVD estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.robustwvd">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">robustwvd</tt><big>(</big><em>fx</em>, <em>nh=127</em>, <em>ng=15</em>, <em>tstep=16</em>, <em>nfbins=256</em>, <em>df=1.0</em>, <em>sigmanh=None</em>, <em>sigmang=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#robustwvd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.robustwvd" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>robustwvd(fx,tstep=2**5,nfbins=2**10,df=1.0,nh=2**8-1,ng=2**5-1,</dt>
+<dd>sigmanh=None,sigmang=None)</dd>
+</dl>
+<p>will calculate the smoothed pseudo Wigner-Ville distribution for a function
+fx. smoothed with Gaussians windows to get best localization.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>fx = array to estimate spwvd, input as [fx1,fx2] if computing cross</dt>
+<dd>spectra</dd>
+</dl>
+<p class="last">tstep = time step between windows
+nfbins = number of frequencies 
+df = sampling frequency (Hz)
+ng = length of time-domain smoothing window (needs to be odd)
+nh = length of frequency-domain smoothing window (needs to be odd) 
+sigmanh = std of window h, ie full width half max of gaussian 
+sigmang = std of window g, ie full width half max of gaussian</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = SPWVD estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.sfilter">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">sfilter</tt><big>(</big><em>f</em>, <em>fcutoff=10.0</em>, <em>w=10.0</em>, <em>dt=0.001</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#sfilter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.sfilter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Will apply a sinc filter of width w to the function f by multipling in
+the frequency domain. Returns filtered function</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>f = array to filter
+fcuttoff = cutoff frequency
+w = length of filter
+dt = sampling time (s)</dd>
+<dt>Outputs:</dt>
+<dd>filtfunc = filtered function</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.smethod">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">smethod</tt><big>(</big><em>fx</em>, <em>L=11</em>, <em>nh=256</em>, <em>tstep=128</em>, <em>ng=1</em>, <em>df=1.0</em>, <em>nfbins=1024</em>, <em>sigmaL=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#smethod"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.smethod" title="Permalink to this definition">¶</a></dt>
+<dd><p>smethod(fx,L=11,nh=2**8,tstep=2**7,ng=1,df=1.0,nfbins=2**10) will calculate
+the smethod by estimating the STFT first and computing the WV of window 
+length L in the frequency domain.  For larger L more of WV estimation, if 
+L=0 get back STFT</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>fx = the function to have a S-methoc computed for, if computing cross</dt>
+<dd>spectra input as [fx1,fx2]</dd>
+</dl>
+<p class="last">L = window length in frequency domain
+nh = window length for each time step 
+tstep = time step between short windows 
+ng = smoothing window along frequency plane should be odd
+df = sampling frequency 
+nfbins = number of frequency bins</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = S-method estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.specwv">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">specwv</tt><big>(</big><em>fx</em>, <em>tstep=32</em>, <em>nfbins=1024</em>, <em>nhs=256</em>, <em>nhwv=511</em>, <em>ngwv=7</em>, <em>df=1.0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#specwv"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.specwv" title="Permalink to this definition">¶</a></dt>
+<dd><p>specwv(f,tstep=2**5,nfbins=2**10,nh=2**8-1,ng=1,df=1.0) will calculate 
+the Wigner-Ville distribution mulitplied by the STFT windowed by the common 
+gaussian window h for a function f.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>fx = array to compute the specwv
+tstep = time step between windows 
+nfbins = number of frequencies 
+nhs = length of time-domain smoothing window for STFT should be even
+nhwv = length of time-domain smoothing window for WV (needs to be odd) 
+ngwv = lenght of frequency-domain smoothing window (needs to be odd) 
+df = sampling frequency (Hz)</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = SPECWV estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.spwvd">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">spwvd</tt><big>(</big><em>fx</em>, <em>tstep=32</em>, <em>nfbins=1024</em>, <em>df=1.0</em>, <em>nh=None</em>, <em>ng=None</em>, <em>sigmat=None</em>, <em>sigmaf=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#spwvd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.spwvd" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>spwvd(fx,tstep=2**5,nfbins=2**10,df=1.0,nh=2**8-1,ng=2**5-1,sigmat=None,</dt>
+<dd>sigmaf=None)</dd>
+</dl>
+<p>will calculate the smoothed pseudo Wigner-Ville distribution for a function
+fx. smoothed with Gaussians windows to get best localization.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>fx = array to estimate spwvd, input as [fx1,fx2] if computing cross</dt>
+<dd>spectra</dd>
+</dl>
+<p class="last">tstep = time step between windows
+nfbins = number of frequencies 
+df = sampling frequency (Hz)
+ng = length of time-domain smoothing window (needs to be odd)
+nh = length of frequency-domain smoothing window (needs to be odd) 
+sigmat = std of window h, ie full width half max of gaussian 
+sigmaf = std of window g, ie full width half max of gaussian</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = SPWVD estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.stfbss">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">stfbss</tt><big>(</big><em>X</em>, <em>nsources=5</em>, <em>ng=31</em>, <em>nh=511</em>, <em>tstep=63</em>, <em>df=1.0</em>, <em>nfbins=1024</em>, <em>tftol=1e-08</em>, <em>normalize=True</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#stfbss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.stfbss" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>btfssX,nsources=5,ng=2**5-1,nh=2**9-1,tstep=2**6-1,df=1.0,nfbins=2**10,</dt>
+<dd>tftol=1.E-8,normalize=True)</dd>
+</dl>
+<p>estimates sources using a blind source algorithm based on spatial 
+time-frequency distributions.  At the moment this algorithm uses the SPWVD 
+to estimate TF distributions.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>X = m x n array of time series, where m is number of time series and n</dt>
+<dd>is length of each time series</dd>
+</dl>
+<p>nsources = number of estimated sources
+ng = frequency window length
+nh = time window length
+tstep = time step increment
+df = sampling frequency (Hz)
+nfbins = number of frequencies
+tftol = tolerance for a time-frequency point to be estimated as a cross</p>
+<blockquote>
+<div>term or as an auto term, the higher the number the more auto
+terms.</div></blockquote>
+<dl class="last docutils">
+<dt>normalization = True or False, True to normalize, False if already </dt>
+<dd>normalized</dd>
+</dl>
+</dd>
+</dl>
+<p>Outputs:</p>
+<blockquote>
+<div>Se = estimated individual signals up to a permutation and scale
+Ae = estimated mixing matrix as X=A*S</div></blockquote>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.stft">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">stft</tt><big>(</big><em>fx</em>, <em>nh=256</em>, <em>tstep=128</em>, <em>ng=1</em>, <em>df=1.0</em>, <em>nfbins=1024</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#stft"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.stft" title="Permalink to this definition">¶</a></dt>
+<dd><p>stft(fx,nh=2**8,tstep=2**7,ng=1,df=1.0) will calculate the spectrogam of
+the given function by calculating the fft of a window of length nh at each
+time instance with an interval of tstep.  The frequency resolution is nfbins
+Can compute the cross STFT by inputting fx as [fx1,fx2]</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>fx = the function to have a spectrogram computed for can be two functions</dt>
+<dd>input as [fx1,fx2]</dd>
+</dl>
+<p class="last">nh = window length for each time step 
+tstep = time step between short windows 
+ng = smoothing window along frequency plane should be odd
+df = sampling frequency 
+nfbins = number of frequency bins</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = spectrogram in units of amplitude 
+tlst = time instance array where each window was calculated
+flst = frequency array containing only positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.wvd">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">wvd</tt><big>(</big><em>fx</em>, <em>nh=255</em>, <em>tstep=32</em>, <em>nfbins=1024</em>, <em>df=1.0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#wvd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.wvd" title="Permalink to this definition">¶</a></dt>
+<dd><p>wvd(f,nh=2**8-1,tstep=2**5,nfbins=2**10,df=1.0) will calculate the 
+Wigner-Ville distribution for a function f. Can compute the cross spectra
+by inputting fx as [fx1,fx2]</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>fx = array for which WVD will be calculated, input as [fx1,fx2] for </dt>
+<dd>cross-spectra calculation</dd>
+</dl>
+<p class="last">nh = window length, needs to be odd so centered on zero
+tstep = time step between windows
+nfbins = number of frequencies
+df = sampling frequency (Hz)</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>tfarray = WVD estimation of array fx
+tlst = time instances of each calculation
+flst = array of positive frequencies</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.TFtools.wvdas">
+<tt class="descclassname">MTpy.core.TFtools.</tt><tt class="descname">wvdas</tt><big>(</big><em>fx</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/TFtools.html#wvdas"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.TFtools.wvdas" title="Permalink to this definition">¶</a></dt>
+<dd><p>wvdas(fx) will compute the analytic signal for WVVD as defined by     J. M. O&#8217; Toole, M. Mesbah, and B. Boashash, (2008), &#8220;A New Discrete Analytic    Signal for Reducing Aliasing in the Discrete Wigner-Ville Distribution&#8221;,     IEEE Trans.  on Signal Processing,</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>fx = signal to compute anlytic signal for with length N</dd>
+<dt>Outputs:</dt>
+<dd>fxa = analytic signal of fx with length 2*N</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to MTpy&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="core.BIRRPTools.html"
+                        title="next chapter">BIRRPTools: an interface to BIRRP</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/core.TFtools.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.BIRRPTools.html" title="BIRRPTools: an interface to BIRRP"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to MTpy’s documentation!"
+             >previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Stephan Thiel, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

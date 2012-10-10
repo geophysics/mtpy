@@ -1,7 +1,7 @@
-BIRRPTools: an interface to BIRRP
+WS3DTools: working with WS3DMTINV
 ---------------------------------
 
-.. automodule:: MTpy.core.BIRRPTools
+.. automodule:: MTpy.core.WS3DTools
    :members:
    :show-inheritance: 
    :private-members:

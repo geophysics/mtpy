@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>MTpy.core.WinglinkTools &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">MTpy 0.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for MTpy.core.WinglinkTools</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Created on Mon Aug 22 15:19:30 2011</span>
+
+<span class="sd">@author: a1185872</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">matplotlib.gridspec</span> <span class="kn">as</span> <span class="nn">gridspec</span>
+<span class="kn">from</span> <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">MultipleLocator</span>
+
+<div class="viewcode-block" id="readOutputFile"><a class="viewcode-back" href="../../../core.WinglinkTools.html#MTpy.core.WinglinkTools.readOutputFile">[docs]</a><span class="k">def</span> <span class="nf">readOutputFile</span><span class="p">(</span><span class="n">outputfile</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;readOutputFile will read an output file from winglink and output data</span>
+<span class="sd">    in the form of a dictionary.</span>
+<span class="sd">    </span>
+<span class="sd">    Input:</span>
+<span class="sd">        outputfile = the full path and filename of outputfile</span>
+<span class="sd">        </span>
+<span class="sd">    Output:</span>
+<span class="sd">        idict = dictionary with keys of station name</span>
+<span class="sd">                each idict[station name] is a dictionary with keys </span>
+<span class="sd">                corresponding to modeled and observed responses:</span>
+<span class="sd">                    &#39;obsresxy&#39;,&#39;obsphasexy&#39;,&#39;modresxy&#39;,&#39;modphasexy&#39;,&#39;obsresyx&#39;,</span>
+<span class="sd">                    &#39;obsphaseyx&#39;,&#39;modresyx&#39;,&#39;modphaseyx&#39;,&#39;obshzres&#39;,</span>
+<span class="sd">                    &#39;obshzphase&#39;,&#39;modhzres&#39;,&#39;modhzphase&#39;,&#39;period&#39;</span>
+<span class="sd">        rplst = list of dictionaries for each station with keywords:</span>
+<span class="sd">            &#39;station&#39; = station name</span>
+<span class="sd">            &#39;offset&#39; = relative offset,</span>
+<span class="sd">            &#39;resxy&#39; = TE resistivity and error as row 0 and 1 respectively,</span>
+<span class="sd">            &#39;resyx&#39;= TM resistivity and error as row 0 and 1 respectively,</span>
+<span class="sd">            &#39;phasexy&#39;= TE phase and error as row 0 and 1 respectively,</span>
+<span class="sd">            &#39;phaseyx&#39;= Tm phase and error as row 0 and 1 respectively,</span>
+<span class="sd">            &#39;realtip&#39;= Real Tipper and error as row 0 and 1 respectively,</span>
+<span class="sd">            &#39;imagtip&#39;= Imaginary Tipper and error as row 0 and 1 respectively</span>
+<span class="sd">        plst = periodlst as the median of all stations.</span>
+<span class="sd">        stationlst = list of stations in order from profile</span>
+<span class="sd">        title = list of parameters for plotting as [title,profile,inversiontype]</span>
+<span class="sd">                    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">ofid</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="n">outputfile</span><span class="p">,</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">=</span><span class="n">ofid</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+    
+    <span class="n">idict</span><span class="o">=</span><span class="p">{}</span>
+    <span class="n">stationlst</span><span class="o">=</span><span class="p">[]</span>
+    
+    <span class="c">#get title line</span>
+    <span class="n">titleline</span><span class="o">=</span><span class="n">lines</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;&quot;&#39;</span><span class="p">,</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+    <span class="n">titleline</span><span class="o">=</span><span class="n">titleline</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+    <span class="n">title</span><span class="o">=</span><span class="n">titleline</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">profile</span><span class="o">=</span><span class="n">titleline</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">inversiontype</span><span class="o">=</span><span class="n">lines</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+    
+    <span class="n">dkeys</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;obsresyx&#39;</span><span class="p">,</span><span class="s">&#39;obsphaseyx&#39;</span><span class="p">,</span><span class="s">&#39;modresyx&#39;</span><span class="p">,</span><span class="s">&#39;modphaseyx&#39;</span><span class="p">,</span><span class="s">&#39;obsresxy&#39;</span><span class="p">,</span>
+           <span class="s">&#39;obsphasexy&#39;</span><span class="p">,</span><span class="s">&#39;modresxy&#39;</span><span class="p">,</span><span class="s">&#39;modphasexy&#39;</span><span class="p">,</span><span class="s">&#39;obshzres&#39;</span><span class="p">,</span><span class="s">&#39;obshzphase&#39;</span><span class="p">,</span>
+           <span class="s">&#39;modhzres&#39;</span><span class="p">,</span><span class="s">&#39;modhzphase&#39;</span><span class="p">,</span><span class="s">&#39;period&#39;</span><span class="p">]</span>
+    
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">[</span><span class="mi">3</span><span class="p">:]:</span>
+        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;Data for station&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">station</span><span class="o">=</span><span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">]</span><span class="o">=</span><span class="p">{}</span>
+            <span class="n">stationlst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station</span><span class="p">)</span>
+            <span class="k">print</span> <span class="s">&#39;Read in station: &#39;</span><span class="p">,</span><span class="n">station</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">dkeys</span><span class="p">:</span>
+                <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="p">[]</span>
+        <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;RMS&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;rms&#39;</span><span class="p">]</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39; = &#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;==&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">linelst</span><span class="o">=</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">linelst</span><span class="p">)</span><span class="o">==</span><span class="nb">len</span><span class="p">(</span><span class="n">dkeys</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">kk</span><span class="p">,</span><span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dkeys</span><span class="p">):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;phase&#39;</span><span class="p">)</span><span class="o">&gt;=</span><span class="mi">0</span><span class="p">:</span>
+                            <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">linelst</span><span class="p">[</span><span class="n">kk</span><span class="p">]))</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">linelst</span><span class="p">[</span><span class="n">kk</span><span class="p">]))</span>
+                    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                        <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">pass</span>
+    
+    <span class="c">#get data into a more useful format that takes into account any masking of </span>
+    <span class="c">#data points.</span>
+    
+    <span class="c">#get the median of period lists for survey</span>
+    <span class="n">plst</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">station</span> <span class="ow">in</span> <span class="n">stationlst</span><span class="p">]),</span>
+                   <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="c">#length of period</span>
+    <span class="n">nperiod</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">plst</span><span class="p">)</span>
+    
+    <span class="c">#make a dictionary of period indicies</span>
+    <span class="n">pdict</span><span class="o">=</span><span class="nb">dict</span><span class="p">([(</span><span class="s">&#39;</span><span class="si">%2.4g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">key</span><span class="p">,</span><span class="n">ii</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span><span class="p">,</span><span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">plst</span><span class="p">)])</span>
+    
+    <span class="c">#make a dictionary of indicies for spots to put res_ij and phase_ij </span>
+    <span class="n">wldict</span><span class="o">=</span><span class="p">{}</span>
+    <span class="k">for</span> <span class="n">dkey</span> <span class="ow">in</span> <span class="n">dkeys</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dkey</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;obs&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">wldict</span><span class="p">[</span><span class="n">dkey</span><span class="p">]</span><span class="o">=</span><span class="p">(</span><span class="n">dkey</span><span class="p">[</span><span class="mi">3</span><span class="p">:],</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">dkey</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;mod&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">wldict</span><span class="p">[</span><span class="n">dkey</span><span class="p">]</span><span class="o">=</span><span class="p">(</span><span class="n">dkey</span><span class="p">[</span><span class="mi">3</span><span class="p">:],</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="c">#make empty arrays to put things into</span>
+    <span class="n">asize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">nperiod</span><span class="p">)</span>
+    <span class="n">rplst</span><span class="o">=</span><span class="p">[{</span><span class="s">&#39;station&#39;</span><span class="p">:</span><span class="n">station</span><span class="p">,</span>
+            <span class="s">&#39;resxy&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">asize</span><span class="p">),</span>
+            <span class="s">&#39;resyx&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">asize</span><span class="p">),</span>
+            <span class="s">&#39;phasexy&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">asize</span><span class="p">),</span>
+            <span class="s">&#39;phaseyx&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">asize</span><span class="p">),</span>
+            <span class="s">&#39;hzres&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">asize</span><span class="p">),</span>
+            <span class="s">&#39;hzphase&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">asize</span><span class="p">),</span>
+            <span class="p">}</span> <span class="k">for</span> <span class="n">ii</span><span class="p">,</span><span class="n">station</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">stationlst</span><span class="p">)]</span>
+    
+    <span class="c">#put information into the corresponding arrays</span>
+    <span class="k">for</span> <span class="n">rpdict</span> <span class="ow">in</span> <span class="n">rplst</span><span class="p">:</span>
+        <span class="n">station</span><span class="o">=</span><span class="n">rpdict</span><span class="p">[</span><span class="s">&#39;station&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nperiod</span><span class="p">):</span>
+            <span class="n">ii</span><span class="o">=</span><span class="n">pdict</span><span class="p">[</span><span class="s">&#39;</span><span class="si">%2.4g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">][</span><span class="n">kk</span><span class="p">]]</span>
+            <span class="k">for</span> <span class="n">dkey</span> <span class="ow">in</span> <span class="n">dkeys</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">rkey</span><span class="p">,</span><span class="n">jj</span><span class="o">=</span><span class="n">wldict</span><span class="p">[</span><span class="n">dkey</span><span class="p">]</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">rpdict</span><span class="p">[</span><span class="n">rkey</span><span class="p">][</span><span class="n">jj</span><span class="p">,</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="n">dkey</span><span class="p">][</span><span class="n">kk</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+                    <span class="n">rpdict</span><span class="p">[</span><span class="n">rkey</span><span class="p">][</span><span class="n">jj</span><span class="p">,</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="mi">1</span>   
+    <span class="k">return</span> <span class="n">idict</span><span class="p">,</span><span class="n">rplst</span><span class="p">,</span><span class="n">plst</span><span class="p">,</span><span class="n">stationlst</span><span class="p">,[</span><span class="n">title</span><span class="p">,</span><span class="n">profile</span><span class="p">,</span><span class="n">inversiontype</span><span class="p">]</span>
+    </div>
+<div class="viewcode-block" id="plotResponses"><a class="viewcode-back" href="../../../core.WinglinkTools.html#MTpy.core.WinglinkTools.plotResponses">[docs]</a><span class="k">def</span> <span class="nf">plotResponses</span><span class="p">(</span><span class="n">outputfile</span><span class="p">,</span><span class="n">maxcol</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span><span class="n">plottype</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">,</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    plotResponse will plot the responses modeled from winglink against the </span>
+<span class="sd">    observed data.</span>
+<span class="sd">    </span>
+<span class="sd">    Inputs:</span>
+<span class="sd">        outputfile = full path and filename to output file</span>
+<span class="sd">        maxcol = maximum number of columns for the plot</span>
+<span class="sd">        plottype = &#39;all&#39; to plot all on the same plot</span>
+<span class="sd">                   &#39;1&#39; to plot each respones in a different figure</span>
+<span class="sd">                   station to plot a single station or enter as a list of </span>
+<span class="sd">                   stations to plot a few stations [station1,station2].  Does</span>
+<span class="sd">                   not have to be verbatim but should have similar unique </span>
+<span class="sd">                   characters input pb01 for pb01cs in outputfile</span>
+<span class="sd">    Outputs:</span>
+<span class="sd">        None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">idict</span><span class="p">,</span><span class="n">rplst</span><span class="p">,</span><span class="n">plst</span><span class="p">,</span><span class="n">stationlst</span><span class="p">,</span><span class="n">titlelst</span><span class="o">=</span><span class="n">readOutputFile</span><span class="p">(</span><span class="n">outputfile</span><span class="p">)</span>
+    <span class="n">nstations</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">idict</span><span class="p">)</span>
+    
+    <span class="c">#plot all responses onto one plot</span>
+    <span class="k">if</span> <span class="n">plottype</span><span class="o">==</span><span class="s">&#39;all&#39;</span><span class="p">:</span>
+        <span class="n">maxcol</span><span class="o">=</span><span class="mi">8</span>         
+        <span class="n">nrows</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">nstations</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">maxcol</span><span class="p">)))</span>
+        
+        <span class="n">fig</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,[</span><span class="mi">14</span><span class="p">,</span><span class="mi">10</span><span class="p">])</span>
+        <span class="n">gs</span><span class="o">=</span><span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpec</span><span class="p">(</span><span class="n">nrows</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">wspace</span><span class="o">=.</span><span class="mi">15</span><span class="p">,</span><span class="n">left</span><span class="o">=.</span><span class="mo">03</span><span class="p">)</span>
+        <span class="n">count</span><span class="o">=</span><span class="mi">0</span>
+        <span class="k">for</span> <span class="n">rr</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nrows</span><span class="p">):</span>
+            <span class="n">g1</span><span class="o">=</span><span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpecFromSubplotSpec</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="n">maxcol</span><span class="p">,</span><span class="n">subplot_spec</span><span class="o">=</span><span class="n">gs</span><span class="p">[</span><span class="n">rr</span><span class="p">],</span>
+                                                    <span class="n">hspace</span><span class="o">=.</span><span class="mi">15</span><span class="p">,</span><span class="n">wspace</span><span class="o">=.</span><span class="mo">05</span><span class="p">)</span>
+            <span class="n">count</span><span class="o">=</span><span class="n">rr</span><span class="o">*</span><span class="p">(</span><span class="n">maxcol</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">cc</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">maxcol</span><span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">station</span><span class="o">=</span><span class="n">stationlst</span><span class="p">[</span><span class="n">count</span><span class="o">+</span><span class="n">cc</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="c">#plot resistivity</span>
+                <span class="n">axr</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">Subplot</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span><span class="n">g1</span><span class="p">[:</span><span class="mi">4</span><span class="p">,</span><span class="n">cc</span><span class="p">])</span>
+                <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">axr</span><span class="p">)</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsresxy&#39;</span><span class="p">],</span>
+                           <span class="s">&#39;s&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">)</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modresxy&#39;</span><span class="p">],</span>
+                           <span class="s">&#39;*&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsresyx&#39;</span><span class="p">],</span>
+                           <span class="s">&#39;o&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">)</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modresyx&#39;</span><span class="p">],</span>
+                           <span class="s">&#39;x&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">)</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">station</span><span class="o">+</span><span class="s">&#39;; rms= </span><span class="si">%.2f</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;rms&#39;</span><span class="p">],</span>
+                              <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+                <span class="n">axr</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)])</span>
+                <span class="k">if</span> <span class="n">cc</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">axr</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">)])</span>
+                    
+                
+                <span class="c">#plot phase</span>
+                <span class="n">axp</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">Subplot</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span><span class="n">g1</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:,</span><span class="n">cc</span><span class="p">])</span>
+                <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">axp</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsphasexy&#39;</span><span class="p">]),</span>
+                             <span class="s">&#39;s&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modphasexy&#39;</span><span class="p">]),</span>
+                             <span class="s">&#39;*&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsphaseyx&#39;</span><span class="p">]),</span>
+                             <span class="s">&#39;o&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modphaseyx&#39;</span><span class="p">]),</span>
+                             <span class="s">&#39;x&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">90</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_major_locator</span><span class="p">(</span><span class="n">MultipleLocator</span><span class="p">(</span><span class="mi">30</span><span class="p">))</span>
+                <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_minor_locator</span><span class="p">(</span><span class="n">MultipleLocator</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+        
+                <span class="k">if</span> <span class="n">cc</span><span class="o">==</span><span class="mi">0</span> <span class="ow">and</span> <span class="n">rr</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">axr</span><span class="o">.</span><span class="n">legend</span><span class="p">([</span><span class="s">&#39;$Obs_{xy}$&#39;</span><span class="p">,</span><span class="s">&#39;$Mod_{xy}$&#39;</span><span class="p">,</span><span class="s">&#39;$Obs_{yx}$&#39;</span><span class="p">,</span>
+                                <span class="s">&#39;$Mod_{yx}$&#39;</span><span class="p">],</span>
+                                <span class="n">loc</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">markerscale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">borderaxespad</span><span class="o">=.</span><span class="mo">05</span><span class="p">,</span>
+                                <span class="n">labelspacing</span><span class="o">=.</span><span class="mi">08</span><span class="p">,</span>
+                                <span class="n">handletextpad</span><span class="o">=.</span><span class="mi">15</span><span class="p">,</span><span class="n">borderpad</span><span class="o">=.</span><span class="mo">05</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cc</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">axr</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">&#39;App. Res. ($\Omega \cdot m$)&#39;</span><span class="p">,</span>
+                                   <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+                    <span class="n">axp</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">&#39;Phase (deg)&#39;</span><span class="p">,</span>
+                                   <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+                    <span class="n">axr</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_coords</span><span class="p">(</span><span class="o">-.</span><span class="mi">08</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+                    <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_coords</span><span class="p">(</span><span class="o">-.</span><span class="mi">08</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+        
+                <span class="k">if</span> <span class="n">cc</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">axr</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">)])</span>
+                    <span class="n">axp</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">)])</span>
+                <span class="k">if</span> <span class="n">rr</span><span class="o">==</span><span class="n">nrows</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                    <span class="n">axp</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s">&#39;Period (s)&#39;</span><span class="p">,</span>
+                                   <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+                                   
+    <span class="c">#plot each respones in a different figure</span>
+    <span class="k">elif</span> <span class="n">plottype</span><span class="o">==</span><span class="s">&#39;1&#39;</span><span class="p">:</span>
+        <span class="n">gs</span><span class="o">=</span><span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpec</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="n">wspace</span><span class="o">=.</span><span class="mo">05</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span><span class="n">station</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">stationlst</span><span class="p">):</span>
+            <span class="n">fig</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,[</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">])</span>
+            
+            <span class="c">#plot resistivity</span>
+            <span class="n">axr</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[:</span><span class="mi">4</span><span class="p">,:])</span>
+            
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsresxy&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;s&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modresxy&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;*&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsresyx&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;o&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modresyx&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;x&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">station</span><span class="o">+</span><span class="s">&#39;; rms= </span><span class="si">%.2f</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;rms&#39;</span><span class="p">],</span>
+                          <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)])</span>
+                            
+            <span class="c">#plot phase</span>
+            <span class="n">axp</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:,:])</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsphasexy&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;s&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modphasexy&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;*&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsphaseyx&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;o&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modphaseyx&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;x&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">90</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_major_locator</span><span class="p">(</span><span class="n">MultipleLocator</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_minor_locator</span><span class="p">(</span><span class="n">MultipleLocator</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+            
+            <span class="n">axr</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">&#39;App. Res. ($\Omega \cdot m$)&#39;</span><span class="p">,</span>
+                           <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">&#39;Phase (deg)&#39;</span><span class="p">,</span>
+                           <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s">&#39;Period (s)&#39;</span><span class="p">,</span><span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">legend</span><span class="p">([</span><span class="s">&#39;$Obs_{xy}$&#39;</span><span class="p">,</span><span class="s">&#39;$Mod_{xy}$&#39;</span><span class="p">,</span><span class="s">&#39;$Obs_{yx}$&#39;</span><span class="p">,</span>
+                                <span class="s">&#39;$Mod_{yx}$&#39;</span><span class="p">],</span>
+                                <span class="n">loc</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">markerscale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">borderaxespad</span><span class="o">=.</span><span class="mo">05</span><span class="p">,</span>
+                                <span class="n">labelspacing</span><span class="o">=.</span><span class="mi">08</span><span class="p">,</span>
+                                <span class="n">handletextpad</span><span class="o">=.</span><span class="mi">15</span><span class="p">,</span><span class="n">borderpad</span><span class="o">=.</span><span class="mo">05</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_coords</span><span class="p">(</span><span class="o">-.</span><span class="mo">05</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_coords</span><span class="p">(</span><span class="o">-.</span><span class="mo">05</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+    
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pstationlst</span><span class="o">=</span><span class="p">[]</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">plottype</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">plottype</span><span class="o">=</span><span class="p">[</span><span class="n">plottype</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">station</span> <span class="ow">in</span> <span class="n">stationlst</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">pstation</span> <span class="ow">in</span> <span class="n">plottype</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">station</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">pstation</span><span class="p">)</span><span class="o">&gt;=</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&#39;plotting &#39;</span><span class="p">,</span><span class="n">station</span>
+                    <span class="n">pstationlst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station</span><span class="p">)</span>
+
+        <span class="n">gs</span><span class="o">=</span><span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpec</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="n">wspace</span><span class="o">=.</span><span class="mo">05</span><span class="p">,</span><span class="n">left</span><span class="o">=.</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span><span class="n">station</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">pstationlst</span><span class="p">):</span>
+            <span class="n">fig</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,[</span><span class="mi">7</span><span class="p">,</span><span class="mi">7</span><span class="p">])</span>
+            
+            <span class="c">#plot resistivity</span>
+            <span class="n">axr</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[:</span><span class="mi">4</span><span class="p">,:])</span>
+            
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsresxy&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;s&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modresxy&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;*&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsresyx&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;o&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modresyx&#39;</span><span class="p">],</span>
+                       <span class="s">&#39;x&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">station</span><span class="o">+</span><span class="s">&#39;; rms= </span><span class="si">%.2f</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;rms&#39;</span><span class="p">],</span>
+                          <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)])</span>
+                            
+            <span class="c">#plot phase</span>
+            <span class="n">axp</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:,:])</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsphasexy&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;s&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;b&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modphasexy&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;*&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;obsphaseyx&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;o&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;period&#39;</span><span class="p">],</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idict</span><span class="p">[</span><span class="n">station</span><span class="p">][</span><span class="s">&#39;modphaseyx&#39;</span><span class="p">]),</span>
+                         <span class="s">&#39;x&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">,</span><span class="n">mfc</span><span class="o">=</span><span class="s">&#39;m&#39;</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">90</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_major_locator</span><span class="p">(</span><span class="n">MultipleLocator</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_minor_locator</span><span class="p">(</span><span class="n">MultipleLocator</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+            
+            <span class="n">axr</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">&#39;App. Res. ($\Omega \cdot m$)&#39;</span><span class="p">,</span>
+                           <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">&#39;Phase (deg)&#39;</span><span class="p">,</span>
+                           <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s">&#39;Period (s)&#39;</span><span class="p">,</span><span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;size&#39;</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="s">&#39;weight&#39;</span><span class="p">:</span><span class="s">&#39;bold&#39;</span><span class="p">})</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">legend</span><span class="p">([</span><span class="s">&#39;$Obs_{xy}$&#39;</span><span class="p">,</span><span class="s">&#39;$Mod_{xy}$&#39;</span><span class="p">,</span><span class="s">&#39;$Obs_{yx}$&#39;</span><span class="p">,</span>
+                                <span class="s">&#39;$Mod_{yx}$&#39;</span><span class="p">],</span>
+                                <span class="n">loc</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">markerscale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">borderaxespad</span><span class="o">=.</span><span class="mo">05</span><span class="p">,</span>
+                                <span class="n">labelspacing</span><span class="o">=.</span><span class="mi">08</span><span class="p">,</span>
+                                <span class="n">handletextpad</span><span class="o">=.</span><span class="mi">15</span><span class="p">,</span><span class="n">borderpad</span><span class="o">=.</span><span class="mo">05</span><span class="p">)</span>
+            <span class="n">axr</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_coords</span><span class="p">(</span><span class="o">-.</span><span class="mo">05</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+            <span class="n">axp</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_coords</span><span class="p">(</span><span class="o">-.</span><span class="mo">05</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+            </div>
+<div class="viewcode-block" id="readModelFile"><a class="viewcode-back" href="../../../core.WinglinkTools.html#MTpy.core.WinglinkTools.readModelFile">[docs]</a><span class="k">def</span> <span class="nf">readModelFile</span><span class="p">(</span><span class="n">modelfile</span><span class="p">,</span><span class="n">profiledirection</span><span class="o">=</span><span class="s">&#39;ew&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    readModelFile reads in the XYZ txt file output by Winglink.    </span>
+<span class="sd">    </span>
+<span class="sd">    Inputs:</span>
+<span class="sd">        modelfile = fullpath and filename to modelfile</span>
+<span class="sd">        profiledirection = &#39;ew&#39; for east-west predominantly, &#39;ns&#39; for </span>
+<span class="sd">                            predominantly north-south.  This gives column to </span>
+<span class="sd">                            fix</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">mfid</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="n">modelfile</span><span class="p">,</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
+    <span class="n">lines</span><span class="o">=</span><span class="n">mfid</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>    
+    <span class="n">nlines</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>    
+    
+    <span class="n">X</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nlines</span><span class="p">)</span>
+    <span class="n">Y</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nlines</span><span class="p">)</span>
+    <span class="n">Z</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nlines</span><span class="p">)</span>
+    <span class="n">rho</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nlines</span><span class="p">)</span>
+    <span class="n">clst</span><span class="o">=</span><span class="p">[]</span>
+    <span class="c">#file starts from the bottom of the model grid in X Y Z Rho coordinates</span>
+    <span class="k">if</span> <span class="n">profiledirection</span><span class="o">==</span><span class="s">&#39;ew&#39;</span><span class="p">:</span>        
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span><span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lines</span><span class="p">):</span>
+            <span class="n">linestr</span><span class="o">=</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="n">X</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">linestr</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">Y</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">linestr</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Z</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">linestr</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="n">rho</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">linestr</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">ii</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">X</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">&lt;</span><span class="n">X</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">clst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+
+    <span class="n">clst</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">clst</span><span class="p">)</span>
+    <span class="n">cspot</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">remainder</span><span class="p">(</span><span class="n">clst</span><span class="p">,</span><span class="n">clst</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">!=</span><span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+
+    <span class="k">return</span> <span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">Z</span><span class="p">,</span><span class="n">rho</span><span class="p">,</span><span class="n">clst</span>
+            
+    
+        
+    </div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">MTpy 0.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Stephan Thiel, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

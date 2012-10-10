@@ -1,0 +1,1321 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>OCCAMTools: an interface to Scripp’s Occam inversion program &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="index.html" />
+    <link rel="next" title="WS3DTools: working with WS3DMTINV" href="core.WS3DTools.html" />
+    <link rel="prev" title="Z: calculate properties of impedance tensors" href="core.Z.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.WS3DTools.html" title="WS3DTools: working with WS3DMTINV"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="core.Z.html" title="Z: calculate properties of impedance tensors"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-MTpy.core.OCCAMTools">
+<span id="occamtools-an-interface-to-scripp-s-occam-inversion-program"></span><h1>OCCAMTools: an interface to Scripp&#8217;s Occam inversion program<a class="headerlink" href="#module-MTpy.core.OCCAMTools" title="Permalink to this headline">¶</a></h1>
+<p>Created on Tue Aug 23 11:54:38 2011</p>
+<p>&#64;author: a1185872</p>
+<dl class="class">
+<dt id="MTpy.core.OCCAMTools.Occam2DData">
+<em class="property">class </em><tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">Occam2DData</tt><big>(</big><em>datafn=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>datafn=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.OCCAMTools'</em><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.make2DdataFile">
+<tt class="descname">make2DdataFile</tt><big>(</big><em>edipath</em>, <em>mmode='both'</em>, <em>savepath=None</em>, <em>stationlst=None</em>, <em>title=None</em>, <em>thetar=0</em>, <em>resxyerr=10</em>, <em>resyxerr=10</em>, <em>phasexyerr=5</em>, <em>phaseyxerr=5</em>, <em>ss='   '</em>, <em>fmt='%2.6f'</em>, <em>freqstep=1</em>, <em>plotyn='y'</em>, <em>lineori='ew'</em>, <em>tippererr=None</em>, <em>ftol=0.05</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.make2DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.make2DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>make2DdataFile will make a data file for occam2D.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd><p class="first">edipath = path to edifiles
+mmode = modes to invert for.  Can be:</p>
+<blockquote>
+<div>&#8216;both&#8217; -&gt; will model both TE and TM modes
+&#8216;TM&#8217;   -&gt; will model just TM mode
+&#8216;TE&#8217;   -&gt; will model just TE mode</div></blockquote>
+<dl class="docutils">
+<dt>savepath = path to save the data file to, this can include the name of</dt>
+<dd><dl class="first last docutils">
+<dt>the data file, if not the file will be named:</dt>
+<dd>savepathData.dat or edipathData.dat if savepath=None</dd>
+</dl>
+</dd>
+<dt>stationlst = list of stations to put in the data file, doesn&#8217;t need to</dt>
+<dd>be in order, the relative distance will be calculated
+internally.  If stationlst=None, it will be assumed all the
+files in edipath will be input into the data file</dd>
+</dl>
+<p>title = title input into the data file
+thetar = rotation angle (deg) of the edifiles if you want to align the</p>
+<blockquote>
+<div>components with the profile.  Angle is on the unit circle with 
+an orientation that north is 0 degree, east -90.</div></blockquote>
+<dl class="docutils">
+<dt>resxyerr = percent error in the res_xy component (TE), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+<dt>resyxerr = percent error in the res_yx component (TM), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+<dt>phasexyerr = percent error in the phase_xy component (TE), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+<dt>phaseyxerr = percent error in the phase_yx component (TM), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+</dl>
+<p>ss = is the spacing parameter for the data file
+fmt = format of the numbers for the data file, see string formats for</p>
+<blockquote>
+<div>a full description</div></blockquote>
+<dl class="docutils">
+<dt>freqstep = take frequencies at this step, so if you want to take every</dt>
+<dd>third frequency enter 3.  
+Can input as a list of specific frequencies.  Note that the
+frequencies must match the frequencies in the EDI files,
+otherwise they will not be input.</dd>
+</dl>
+<p>plotyn = y or n to plot the stations on the profile line.
+lineori = predominant line orientation with respect to geographic north</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>ew for east-west line-&gt; will orientate so first station is </dt>
+<dd>farthest to the west</dd>
+<dt>ns for north-south line-&gt; will orientate so first station is </dt>
+<dd>farthest to the south</dd>
+</dl>
+</div></blockquote>
+<dl class="last docutils">
+<dt>tippererr = error for tipper in percent.  If this value is entered than</dt>
+<dd>the tipper will be included in the inversion, if the value
+is None than the tipper will not be included.</dd>
+</dl>
+</dd>
+<dt>Output:</dt>
+<dd>datfilename = full path of data file</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.maskPoints">
+<tt class="descname">maskPoints</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.maskPoints"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.maskPoints" title="Permalink to this definition">¶</a></dt>
+<dd><p>maskPoints will take in points found from plotMaskPoints and rewrite 
+the data file to nameRW.dat.  Be sure to run plotMaskPoints first</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.plot2DResponses">
+<tt class="descname">plot2DResponses</tt><big>(</big><em>respfn=None</em>, <em>wlfn=None</em>, <em>maxcol=8</em>, <em>plottype='1'</em>, <em>ms=2</em>, <em>fs=10</em>, <em>phaselimits=(-5</em>, <em>95)</em>, <em>colormode='color'</em>, <em>reslimits=None</em>, <em>plotnum=1</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.plot2DResponses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.plot2DResponses" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotResponse will plot the responses modeled from winglink against the 
+observed data.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">respfn = full path to response file
+datafn = full path to data file
+wlfn = full path to a winglink data file used for a similar</p>
+<blockquote>
+<div>inversion.  This will be plotted on the response
+plots for comparison of fits.</div></blockquote>
+<p>maxcol = maximum number of columns for the plot
+plottype = &#8216;all&#8217; to plot all on the same plot</p>
+<blockquote>
+<div>&#8216;1&#8217; to plot each respones in a different figure
+station to plot a single station or enter as a list of 
+stations to plot a few stations [station1,station2].  
+Does not have to be verbatim but should have similar
+unique characters input pb01 for pb01cs in outputfile</div></blockquote>
+<p>ms = marker size 
+phaselimits = limits of phase in degrees (min,max)
+colormode = &#8216;color&#8217; for color plots</p>
+<blockquote>
+<div>&#8216;bw&#8217; for black and white plots</div></blockquote>
+<dl class="last docutils">
+<dt>reslimits = resistivity limits on a log scale (</dt>
+<dd>log10(min),log10(max))</dd>
+<dt>plotnum = 1 to plot both TE and TM in the same plot</dt>
+<dd>2 to plot TE and TM in separate subplots</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.plotAllResponses">
+<tt class="descname">plotAllResponses</tt><big>(</big><em>station</em>, <em>fignum=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.plotAllResponses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.plotAllResponses" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot all the responses of occam inversion from data file.  This assumes
+the response curves are in the same folder as the datafile.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>datafile = full path to occam data file</dd>
+<dt>Output:</dt>
+<dd>Plot</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.plotMaskPoints">
+<tt class="descname">plotMaskPoints</tt><big>(</big><em>plottype=None</em>, <em>reserrinc=0.2</em>, <em>phaseerrinc=5</em>, <em>marker='o'</em>, <em>colormode='color'</em>, <em>dpi=300</em>, <em>ms=2</em>, <em>reslimits=None</em>, <em>phaselimits=(-5</em>, <em>95)</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.plotMaskPoints"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.plotMaskPoints" title="Permalink to this definition">¶</a></dt>
+<dd><p>An interactive plotting tool to mask points an add errorbars</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.plotPseudoSection">
+<tt class="descname">plotPseudoSection</tt><big>(</big><em>respfn=None, fignum=1, rcmap='jet_r', pcmap='jet', rlim=((0, 4), (0, 4)), plim=((0, 90), (0, 90)), ml=2, stationid=[0, 4]</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.plotPseudoSection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.plotPseudoSection" title="Permalink to this definition">¶</a></dt>
+<dd><p>plots a pseudo section of the data</p>
+<p>datafn = full path to data file
+respfn = full path to response file</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.read2DRespFile">
+<tt class="descname">read2DRespFile</tt><big>(</big><em>respfn</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.read2DRespFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.read2DRespFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>read2DRespFile will read in a response file and combine the data with info 
+from the data file.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>respfn = full path to the response file
+datafn = full path to data file</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first docutils">
+<dt>for each data array, the rows are ordered as:</dt>
+<dd>0 -&gt; input data
+1 -&gt; input error
+2 -&gt; model output
+3 -&gt; relative error (data-model)/(input error)</dd>
+<dt>rplst = list of dictionaries for each station with keywords:</dt>
+<dd><p class="first">&#8216;station&#8217; = station name
+&#8216;offset&#8217; = relative offset,
+&#8216;resxy&#8217; = TE resistivity 
+&#8216;resyx&#8217;= TM resistivity 
+&#8216;phasexy&#8217;= TE phase 
+&#8216;phaseyx&#8217;= TM phase a
+&#8216;realtip&#8217;= Real Tipper 
+&#8216;imagtip&#8217;= Imaginary Tipper</p>
+<p class="last">Note: that the resistivity will be in log10 space.  Also, there are
+2 extra rows in the data arrays, this is to put the response from
+the inversion.</p>
+</dd>
+<dt>stationlst = list of stations in order from one side of the profile</dt>
+<dd>to the other.</dd>
+</dl>
+<p class="last">freq = list of frequencies used in the inversion
+title = title, could be useful for plotting.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.read2DdataFile">
+<tt class="descname">read2DdataFile</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.read2DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.read2DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>read2DdataFile will read in data from a 2D occam data file.  </dt>
+<dd>Only supports the first 6 data types of occam2D</dd>
+<dt>Input: </dt>
+<dd>datafn = full path to data file</dd>
+<dt>Output:</dt>
+<dd><dl class="first docutils">
+<dt>rplst = list of dictionaries for each station with keywords:</dt>
+<dd><p class="first">&#8216;station&#8217; = station name
+&#8216;offset&#8217; = relative offset,
+&#8216;resxy&#8217; = TE resistivity and error as row 0 and 1 ressectively,
+&#8216;resyx&#8217;= TM resistivity and error as row 0 and 1 respectively,
+&#8216;phasexy&#8217;= TE phase and error as row 0 and 1 respectively,
+&#8216;phaseyx&#8217;= Tm phase and error as row 0 and 1 respectively,
+&#8216;realtip&#8217;= Real Tipper and error as row 0 and 1 respectively,
+&#8216;imagtip&#8217;= Imaginary Tipper and error as row 0 and 1 respectively</p>
+<p class="last">Note: that the resistivity will be in log10 space.  Also, there are
+2 extra rows in the data arrays, this is to put the response from
+the inversion.</p>
+</dd>
+<dt>stationlst = list of stations in order from one side of the profile</dt>
+<dd>to the other.</dd>
+</dl>
+<p class="last">freq = list of frequencies used in the inversion
+title = title, could be useful for plotting.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DData.rewrite2DdataFile">
+<tt class="descname">rewrite2DdataFile</tt><big>(</big><em>edipath=None</em>, <em>thetar=0</em>, <em>resxyerr='prev'</em>, <em>resyxerr='prev'</em>, <em>phasexyerr='prev'</em>, <em>phaseyxerr='prev'</em>, <em>tippererr=None</em>, <em>mmode='both'</em>, <em>flst=None</em>, <em>removestation=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DData.rewrite2DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DData.rewrite2DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>rewrite2DDataFile will rewrite an existing data file so you can redefine 
+some of the parameters, such as rotation angle, or errors for the different
+components or only invert for one mode or add one or add tipper or remove
+tipper.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">datafn = full path to data file to rewrite</p>
+<p>rotz = rotation angle with positive clockwise</p>
+<dl class="docutils">
+<dt>resxyerr = error for TE mode resistivity (percent) or &#8216;data&#8217; for data </dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>resyxerr = error for TM mode resistivity (percent) or &#8216;data&#8217; for data</dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>phasexyerr = error for TE mode phase (percent) or &#8216;data&#8217; for data</dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>phaseyxerr = error for TM mode phase (percent) or &#8216;data&#8217; for data</dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>tippererr = error for tipper (percent) input only if you want to invert</dt>
+<dd>for the tipper or &#8216;data&#8217; for data errors
+or prev to take errors from data file.</dd>
+<dt>mmodes = &#8216;both&#8217; for both TE and TM</dt>
+<dd>&#8216;TE&#8217; for TE
+&#8216;TM&#8217; for TM</dd>
+<dt>flst = frequency list in Hz to rewrite, needs to be similar to the </dt>
+<dd>datafile, cannot add frequencies</dd>
+</dl>
+<p class="last">removestation = list of stations to remove if desired</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel">
+<em class="property">class </em><tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">Occam2DModel</tt><big>(</big><em>iterfn</em>, <em>meshfn=None</em>, <em>inmodelfn=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#MTpy.core.OCCAMTools.Occam2DData" title="MTpy.core.OCCAMTools.Occam2DData"><tt class="xref py py-class docutils literal"><span class="pre">MTpy.core.OCCAMTools.Occam2DData</span></tt></a></p>
+<p>This class deals with the model side of Occam inversions, including 
+plotting the model, the L-curve, depth profiles.  It will also be able to 
+build a mesh and regularization grid at some point.</p>
+<p>It inherits Occam2DData and the data can be extracted from the method
+get2DData().  After this call you can use all the methods of Occam2DData,
+such as plotting the model responses and pseudo sections.</p>
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>iterfn</em>, <em>meshfn=None</em>, <em>inmodelfn=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.OCCAMTools'</em><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.get2DData">
+<tt class="descname">get2DData</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.get2DData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.get2DData" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.get2DModel">
+<tt class="descname">get2DModel</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.get2DModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.get2DModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>get2DModel will create an array based on the FE mesh and fill the 
+values found from the regularization grid.  This way the array can 
+be manipulated as a 2D object and plotted as an image or a mesh.</p>
+<dl class="docutils">
+<dt>Outputs:</dt>
+<dd>self.2Dmodel -&gt; model array with log resistivity values
+self.plotx -&gt; horizontal distance of FE mesh (m) blocks
+self.ploty -&gt; depth of vertical nodes of FE mesh (m)</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.plot2DModel">
+<tt class="descname">plot2DModel</tt><big>(</big><em>datafn=None</em>, <em>xpad=1.0</em>, <em>ypad=1.0</em>, <em>mpad=0.5</em>, <em>spad=1.0</em>, <em>ms=60</em>, <em>stationid=None</em>, <em>fdict={'rotation': 60</em>, <em>'weight': 'normal'</em>, <em>'size': 8}</em>, <em>dpi=300</em>, <em>ylimits=None</em>, <em>xminorticks=5</em>, <em>yminorticks=1</em>, <em>climits=(0</em>, <em>4)</em>, <em>cmap='jet_r'</em>, <em>fs=8</em>, <em>femesh='off'</em>, <em>regmesh='off'</em>, <em>aspect='auto'</em>, <em>title='on'</em>, <em>meshnum='off'</em>, <em>blocknum='off'</em>, <em>blkfdict={'size': 3}</em>, <em>fignum=1</em>, <em>plotdimensions=(10</em>, <em>10)</em>, <em>grid='off'</em>, <em>yscale='km'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.plot2DModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.plot2DModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotModel will plot the model output by occam in the iteration file.</p>
+<p>Inputs:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>datafn = full path to data file.  If none is input it will use the</dt>
+<dd>data file found in the iteration file.</dd>
+</dl>
+<p>xpad = padding in the horizontal direction of model</p>
+<dl class="docutils">
+<dt>ypad = padding the in the vertical direction of the top of the model</dt>
+<dd>to fit the station names and markers</dd>
+<dt>mpad = marker pad to fit right at the surface, haven&#8217;t found a better</dt>
+<dd>way of doing this automatically yet</dd>
+<dt>spad = padding of station names away from the top of the model, this</dt>
+<dd>is kind of awkward at the moment especially if you zoom into 
+the model, it usually looks retarded and doesn&#8217;t fit</dd>
+</dl>
+<p>ms = marker size in ambiguous points</p>
+<dl class="docutils">
+<dt>stationid = index of station names to plot -&gt; ex. pb01sdr would be </dt>
+<dd>stationid=(0,4) to plot pb01</dd>
+<dt>fdict = font dictionary for the station names, can have keys:</dt>
+<dd>&#8216;size&#8217; = font size
+&#8216;rotation&#8217; = angle of rotation (deg) of font
+&#8216;weight&#8217; = weight of font 
+&#8216;color&#8217; = color of font
+&#8216;style&#8217; = style of font ex. &#8216;italics&#8217;</dd>
+</dl>
+<p>plotdimensions = x-y dimensions of the figure (10,10) in inches</p>
+<p>dpi = dot per inch of figure, should be 300 for publications</p>
+<p>ylimits = limits of depth scale (km). ex, ylimits=(0,30)</p>
+<p>xminorticks = location of minor tick marks for the horizontal axis</p>
+<p>yminorticks = location of minor tick marks for vertical axis</p>
+<p>climits = limits of log10(resistivity). ex. climits=(0,4)</p>
+<p>cmap = color map to plot the model image</p>
+<p>fs = font size of axis labels</p>
+<p>femesh = &#8216;on&#8217; to plot finite element forward modeling mesh (black)</p>
+<p>regmesh = &#8216;on&#8217; to plot regularization mesh (blue)</p>
+<dl class="docutils">
+<dt>aspect = aspect ratio of the figure, depends on your line length and</dt>
+<dd>the depth you want to investigate</dd>
+<dt>title = &#8216;on&#8217; to put the RMS and Roughness as the title, or input a </dt>
+<dd>string that will be added to the RMS and roughness, or put 
+None to not put a title on the plot and print out RMS and 
+roughness</dd>
+</dl>
+<p>meshnum = &#8216;on&#8217; to plot FE mesh block numbers</p>
+<p>fignum = figure number to plot to</p>
+<p>blocknum = &#8216;on&#8217; to plot numbers on the regularization blocks</p>
+<p>blkfdict = font dictionary for the numbering of regularization blocks</p>
+<dl class="docutils">
+<dt>grid = major for major ticks grid</dt>
+<dd>minor for a grid of the minor ticks
+both for a grid with major and minor ticks</dd>
+</dl>
+<p>yscale = &#8216;km&#8217; for depth in km or &#8216;m&#8217; for depth in meters</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.plotDepthModel">
+<tt class="descname">plotDepthModel</tt><big>(</big><em>dpi=300</em>, <em>depth=10000</em>, <em>plottype='1'</em>, <em>yscale='log'</em>, <em>plotdimensions=(3</em>, <em>6)</em>, <em>plotnum=1</em>, <em>fignum=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.plotDepthModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.plotDepthModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>will plot a depth section profile for a given set of stations.</p>
+<p>Inputs:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>plotnum = 1 to plot in different figures, &#8216;all&#8217; to plot in all into</dt>
+<dd>one figure.</dd>
+</dl>
+<p>dpi = dpi of figure</p>
+<p>depth = max depth to estimate the profile</p>
+<dl class="docutils">
+<dt>stationnames = list of station names corresponding to the starting</dt>
+<dd>block numbers</dd>
+</dl>
+<p>yscale = &#8216;log&#8217; for logarithmic or &#8216;linear&#8217; for linear</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.plotL2Curve">
+<tt class="descname">plotL2Curve</tt><big>(</big><em>fnstem=None</em>, <em>fignum=1</em>, <em>dpi=300</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.plotL2Curve"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.plotL2Curve" title="Permalink to this definition">¶</a></dt>
+<dd><p>PlotL2Curve will plot the RMS vs iteration number for the given 
+inversion folder and roughness vs iteration number</p>
+<dl class="docutils">
+<dt>Inputs: </dt>
+<dd><dl class="first docutils">
+<dt>fnstem = filename stem to look for in case multiple inversions were</dt>
+<dd>run in the same folder.  If none then searches for anything
+ending in .iter</dd>
+</dl>
+<p class="last">fignum = figure number
+dpi = dpi of the figure</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.read2DInmodel">
+<tt class="descname">read2DInmodel</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.read2DInmodel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.read2DInmodel" title="Permalink to this definition">¶</a></dt>
+<dd><p>read an INMODEL file for occam 2D</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>inmodelfn = full path to INMODEL file</dd>
+<dt>Output:</dt>
+<dd><dl class="first last docutils">
+<dt>rows = list of combined data blocks where first number of each list</dt>
+<dd>represents the number of combined mesh layers for this 
+regularization block.  The second number is the number of 
+columns in the regularization block layer</dd>
+<dt>cols = list of combined mesh columns for the regularization layer.</dt>
+<dd>The sum of this list must be equal to the number of mesh
+columns.</dd>
+<dt>headerdict = dictionary of all the header information including the</dt>
+<dd>binding offset</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.read2DIter">
+<tt class="descname">read2DIter</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.read2DIter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.read2DIter" title="Permalink to this definition">¶</a></dt>
+<dd><p>read2DIter will read an iteration file and combine that info from the 
+datafn and return a dictionary of variables.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>iterfn = full path to iteration file if iterpath=None.  If </dt>
+<dd>iterpath is input then iterfn is just the name
+of the file without the full path.</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>idict = dictionary of parameters, keys are verbatim from the file, </dt>
+<dd>except for the key &#8216;model&#8217; which is the contains the model
+numbers in a 1D array.</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.Occam2DModel.read2DMesh">
+<tt class="descname">read2DMesh</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#Occam2DModel.read2DMesh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.Occam2DModel.read2DMesh" title="Permalink to this definition">¶</a></dt>
+<dd><p>read a 2D meshfn</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>meshfn = full path to mesh file</dd>
+<dt>Output:</dt>
+<dd>hnodes = array of horizontal nodes (column locations (m))
+vnodes = array of vertical nodes (row locations(m))
+mdata = free parameters</dd>
+<dt>Things to do:</dt>
+<dd>incorporate fixed values</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker">
+<em class="property">class </em><tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">OccamPointPicker</tt><big>(</big><em>axlst</em>, <em>linelst</em>, <em>errlst</em>, <em>reserrinc=0.05</em>, <em>phaseerrinc=0.02</em>, <em>marker='h'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#OccamPointPicker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>This class will help the user interactively pick points to mask and add 
+error bars.</p>
+<p>To mask just a single point right click over the point and a gray point 
+will appear indicating it has been masked</p>
+<p>To mask both the apparent resistivity and phase left click over the point.
+Gray points will appear over both the apparent resistivity and phase.  
+Sometimes the points don&#8217;t exactly matchup, haven&#8217;t quite worked that bug
+out yet, but not to worry it picks out the correct points</p>
+<p>To add error bars to a point click the middle or scroll bar button.  This
+only adds error bars to the point and does not reduce them so start out
+with reasonable errorbars.  You can change the increment that the error
+bars are increased with reserrinc and phaseerrinc.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>axlst = list of the resistivity and phase axis that have been plotted</dt>
+<dd>as [axrte,axrtm,axpte,axptm]</dd>
+</dl>
+<p>linelst = list of lines used to plot the responses, not the error bars</p>
+<dl class="docutils">
+<dt>errlst = list of the errorcaps and errorbar lines as </dt>
+<dd>[[cap1,cap2,bar],...]</dd>
+</dl>
+<p>reserrinc = percent increment to increase the errorbars</p>
+<p class="last">phaseerrinc = percent increment to increase the errorbars</p>
+</dd>
+</dl>
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.__call__">
+<tt class="descname">__call__</tt><big>(</big><em>event</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#OccamPointPicker.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>When the function is called the mouse events will be recorder for 
+picking points to mask or change error bars.</p>
+<p>Left mouse button will mask both resistivity and phase point</p>
+<p>Right mouse button will mask just the point selected</p>
+<p>middle mouse button will increase the error bars</p>
+<p>q will close the figure.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.__dict__">
+<tt class="descname">__dict__</tt><em class="property"> = &lt;dictproxy object at 0x0A93DD50&gt;</em><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.__dict__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>axlst</em>, <em>linelst</em>, <em>errlst</em>, <em>reserrinc=0.05</em>, <em>phaseerrinc=0.02</em>, <em>marker='h'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#OccamPointPicker.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.OCCAMTools'</em><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.__weakref__">
+<tt class="descname">__weakref__</tt><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.inAxes">
+<tt class="descname">inAxes</tt><big>(</big><em>event</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#OccamPointPicker.inAxes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.inAxes" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.inFigure">
+<tt class="descname">inFigure</tt><big>(</big><em>event</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#OccamPointPicker.inFigure"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.inFigure" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.OCCAMTools.OccamPointPicker.on_close">
+<tt class="descname">on_close</tt><big>(</big><em>event</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#OccamPointPicker.on_close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.OccamPointPicker.on_close" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.blocks_elements_setup">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">blocks_elements_setup</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#blocks_elements_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.blocks_elements_setup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.compareIter">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">compareIter</tt><big>(</big><em>iterfn1</em>, <em>iterfn2</em>, <em>savepath=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#compareIter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.compareIter" title="Permalink to this definition">¶</a></dt>
+<dd><p>compareIter will take the difference between two iteration and make a 
+difference iter file</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">iterfn1 = full path to iteration file 1
+iterfn2 = full path to iteration file 2
+savepath = path to save the difference iteration file, can be full or</p>
+<blockquote class="last">
+<div>just a directory</div></blockquote>
+</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>diterfn = file name of iteration difference either:</dt>
+<dd>savepath/iterdiff##and##.iter
+or os.path.dirname(iterfn1,iterdiff##and##.iter)
+or savepath</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.get_model_setup">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">get_model_setup</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#get_model_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.get_model_setup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.getdatetime">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">getdatetime</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#getdatetime"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.getdatetime" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.make1DInputFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">make1DInputFile</tt><big>(</big><em>savepath</em>, <em>modelfile=None</em>, <em>datafile=None</em>, <em>roughtype=1</em>, <em>maxiter=100</em>, <em>targetrms=1.0</em>, <em>rhostart=100</em>, <em>description='1dInv'</em>, <em>lagrange=5.0</em>, <em>roughness=10000000.0</em>, <em>debuglevel=1</em>, <em>iteration=0</em>, <em>misfit=100.0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#make1DInputFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.make1DInputFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Make a 1D input file for occam</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd><dl class="first docutils">
+<dt>savepath = full path to save input file to, if just path then saved as</dt>
+<dd>savepath/input.input</dd>
+<dt>modelfile = full path to model file, if None then assumed to be in </dt>
+<dd>savepath/model.mod</dd>
+<dt>datafile = full path to data file, if None then assumed to be in </dt>
+<dd>savepath/data.data</dd>
+</dl>
+<p class="last">roughtype = roughness type
+maxiter = maximum number of iterations
+targetrms = target rms value
+rhostart = starting resistivity value on linear scale
+paramcount =</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.make1DModelFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">make1DModelFile</tt><big>(</big><em>savepath</em>, <em>nlayers=100</em>, <em>bottomlayer=10000</em>, <em>basestep=10</em>, <em>z1layer=50</em>, <em>airlayerheight=10000</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#make1DModelFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.make1DModelFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Makes a 1D model file</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd><p class="first">savepath =path to save file to, if just path saved as savepathmodel.mod
+nlayers = number of layers
+bottomlayer = depth of bottom layer in meters
+basestep = numerical base of logarithmic depth step 10 or 2 or 1 for</p>
+<blockquote>
+<div>linear</div></blockquote>
+<p class="last">z1layer = depth of first layer in meters
+airlayerheight = height of air layers in meters</p>
+</dd>
+<dt>Output:</dt>
+<dd>modelfilename = full path to model file</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.make1DdataFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">make1DdataFile</tt><big>(</big><em>station</em>, <em>edipath=None</em>, <em>savepath=None</em>, <em>polarization='both'</em>, <em>reserr='data'</em>, <em>phaseerr='data'</em>, <em>fmt='%.6e'</em>, <em>ss='   '</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#make1DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.make1DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>make1Ddatafile will write a data file for Occam1D</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd><p class="first">station = the station name and path if edipath=None
+edipath = path to the edi files to be written into a data file,</p>
+<blockquote>
+<div>useful for multile data files</div></blockquote>
+<p class="last">savepath = path to save the file
+thetar = rotation angle to rotate Z</p>
+</dd>
+</dl>
+<p>#===============================================================================
+# Input parameters
+#===============================================================================</p>
+<p>edipath=r&#8221;C:PeacockMy DropboxParalanaEDIFilesBaseSurveySS&#8221; #path to edi&#8217;s
+station=&#8217;pb01&#8217;  #station to create data file for                   
+savepath=r&#8221;C:PeacockPHDOCCAMDInversionBase&#8221;  #path to save the data file
+polarization=&#8217;both&#8217;  #choose component either xy or yx or both
+reserr=&#8217;data&#8217;   #either data or set as a percentage
+phaseerr=&#8217;data&#8217; #either data or set as percentage -&gt; 10 for 10 percent error
+ss=&#8217;   &#8216;
+fmt=&#8217;%.6e&#8217;
+#===============================================================================
+# open up edi file and write data file
+#===============================================================================</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.make2DdataFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">make2DdataFile</tt><big>(</big><em>edipath</em>, <em>mmode='both'</em>, <em>savepath=None</em>, <em>stationlst=None</em>, <em>title=None</em>, <em>thetar=0</em>, <em>resxyerr=10</em>, <em>resyxerr=10</em>, <em>phasexyerr=10</em>, <em>phaseyxerr=10</em>, <em>ss='   '</em>, <em>fmt='%2.6f'</em>, <em>freqstep=1</em>, <em>plotyn='y'</em>, <em>lineori='ew'</em>, <em>tippererr=None</em>, <em>ftol=0.05</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#make2DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.make2DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>make2DdataFile will make a data file for occam2D.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd><p class="first">edipath = path to edifiles
+mmode = modes to invert for.  Can be:</p>
+<blockquote>
+<div>&#8216;both&#8217; -&gt; will model both TE and TM modes
+&#8216;TM&#8217;   -&gt; will model just TM mode
+&#8216;TE&#8217;   -&gt; will model just TE mode</div></blockquote>
+<dl class="docutils">
+<dt>savepath = path to save the data file to, this can include the name of</dt>
+<dd><dl class="first last docutils">
+<dt>the data file, if not the file will be named:</dt>
+<dd>savepathData.dat or edipathData.dat if savepath=None</dd>
+</dl>
+</dd>
+<dt>stationlst = list of stations to put in the data file, doesn&#8217;t need to</dt>
+<dd>be in order, the relative distance will be calculated
+internally.  If stationlst=None, it will be assumed all the
+files in edipath will be input into the data file</dd>
+</dl>
+<p>title = title input into the data file
+thetar = rotation angle (deg) of the edifiles if you want to align the</p>
+<blockquote>
+<div>components with the profile.  Angle is on the unit circle with 
+an orientation that north is 0 degree, east -90.</div></blockquote>
+<dl class="docutils">
+<dt>resxyerr = percent error in the res_xy component (TE), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+<dt>resyxerr = percent error in the res_yx component (TM), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+<dt>phasexyerr = percent error in the phase_xy component (TE), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+<dt>phaseyxerr = percent error in the phase_yx component (TM), </dt>
+<dd>can be entered as &#8216;data&#8217; where the errors from the data are
+used.</dd>
+</dl>
+<p>ss = is the spacing parameter for the data file
+fmt = format of the numbers for the data file, see string formats for</p>
+<blockquote>
+<div>a full description</div></blockquote>
+<dl class="docutils">
+<dt>freqstep = take frequencies at this step, so if you want to take every</dt>
+<dd>third frequency enter 3.  
+Can input as a list of specific frequencies.  Note that the
+frequencies must match the frequencies in the EDI files,
+otherwise they will not be input.</dd>
+</dl>
+<p>plotyn = y or n to plot the stations on the profile line.
+lineori = predominant line orientation with respect to geographic north</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>ew for east-west line-&gt; will orientate so first station is </dt>
+<dd>farthest to the west</dd>
+<dt>ns for north-south line-&gt; will orientate so first station is </dt>
+<dd>farthest to the south</dd>
+</dl>
+</div></blockquote>
+<dl class="last docutils">
+<dt>tippererr = error for tipper in percent.  If this value is entered than</dt>
+<dd>the tipper will be included in the inversion, if the value
+is None than the tipper will not be included.</dd>
+</dl>
+</dd>
+<dt>Output:</dt>
+<dd>datfilename = full path of data file</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.makeModel">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">makeModel</tt><big>(</big><em>datafilename</em>, <em>niter=20</em>, <em>targetrms=1.0</em>, <em>nlayers=100</em>, <em>nlperdec=30</em>, <em>z1layer=50</em>, <em>bwidth=200</em>, <em>trigger=0.75</em>, <em>cwd='.'</em>, <em>rhostart=100</em>, <em>makemodelexe=None</em>, <em>modelname=''</em>, <em>use_existing_startup=False</em>, <em>existing_startup_file=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#makeModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.makeModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>makeModel will make an the input files for occam using Steve Constable&#8217;s
+MakeModel2DMT.f code.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>datafn = full path to data file
+niter = maximum number of iterations
+targetrms = target root mean square error
+nlayers = total number of layers in mesh
+nlperdec = number of layers per decade
+z1layer = thickness of the first layer in meters
+bwidth = maximum block width for regularization grid in meters
+trigger = triger point to amalgamate blocks
+cwd     = working directory, files are saved here
+rhostart = starting resistivity for homogeneous half space in ohm-m
+use_existing_startup: set True, if an old iteration step output is provided as startup
+existing_startup_file: absolute path for old itereation output to be used as startup</dd>
+<dt>Outputs:</dt>
+<dd><p class="first">meshfn = mesh file for finite element grid saved ats MESH
+inmodelfn = input model, starting model with rhostart as starting value</p>
+<blockquote>
+<div>saved as INMODEL</div></blockquote>
+<p class="last">startupfn = start up filepath, saved as startup</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.makestartfiles">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">makestartfiles</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#makestartfiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.makestartfiles" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plot1D">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plot1D</tt><big>(</big><em>respfile</em>, <em>iterfile</em>, <em>modelfile</em>, <em>fignum=1</em>, <em>ms=4</em>, <em>dpi=150</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plot1D"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plot1D" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plot2DModel">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plot2DModel</tt><big>(</big><em>iterfile</em>, <em>meshfile=None</em>, <em>inmodelfile=None</em>, <em>datafile=None</em>, <em>xpad=1.0</em>, <em>ypad=6.0</em>, <em>mpad=0.5</em>, <em>spad=3.0</em>, <em>ms=60</em>, <em>stationid=None</em>, <em>fdict={'rotation': 60</em>, <em>'weight': 'normal'</em>, <em>'size': 8}</em>, <em>dpi=300</em>, <em>ylimits=None</em>, <em>xminorticks=5</em>, <em>yminorticks=1</em>, <em>climits=(0</em>, <em>4)</em>, <em>cmap='jet_r'</em>, <em>fs=8</em>, <em>femesh='off'</em>, <em>regmesh='off'</em>, <em>aspect='auto'</em>, <em>title='on'</em>, <em>meshnum='off'</em>, <em>blocknum='off'</em>, <em>blkfdict={'size': 3}</em>, <em>fignum=1</em>, <em>plotdimensions=(10</em>, <em>10)</em>, <em>grid='off'</em>, <em>yscale='km'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plot2DModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plot2DModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotModel will plot the model output by occam in the iteration file.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">iterfile = full path to the iteration file that you want to plot</p>
+<dl class="docutils">
+<dt>meshfile = full path to mesh file (the forward modeling mesh).  If </dt>
+<dd>none it will look for a file with mesh in the name.</dd>
+<dt>inmodelfile = full path to the INMODEL file (regularization mesh).</dt>
+<dd>If none it will look for a file with inmodel in the name.</dd>
+<dt>datafile = full path to data file.  If none is input it will use the</dt>
+<dd>data file found in the iteration file.</dd>
+</dl>
+<p>xpad = padding in the horizontal direction of model</p>
+<dl class="docutils">
+<dt>ypad = padding the in the vertical direction of the top of the model</dt>
+<dd>to fit the station names and markers</dd>
+<dt>mpad = marker pad to fit right at the surface, haven&#8217;t found a better</dt>
+<dd>way of doing this automatically yet</dd>
+<dt>spad = padding of station names away from the top of the model, this</dt>
+<dd>is kind of awkward at the moment especially if you zoom into 
+the model, it usually looks retarded and doesn&#8217;t fit</dd>
+</dl>
+<p>ms = marker size in ambiguous points</p>
+<dl class="docutils">
+<dt>stationid = index of station names to plot -&gt; ex. pb01sdr would be </dt>
+<dd>stationid=(0,4) to plot pb01</dd>
+<dt>fdict = font dictionary for the station names, can have keys:</dt>
+<dd>&#8216;size&#8217; = font size
+&#8216;rotation&#8217; = angle of rotation (deg) of font
+&#8216;weight&#8217; = weight of font 
+&#8216;color&#8217; = color of font
+&#8216;style&#8217; = style of font ex. &#8216;italics&#8217;</dd>
+</dl>
+<p>plotdimensions = x-y dimensions of the figure (10,10) in inches</p>
+<p>dpi = dot per inch of figure, should be 300 for publications</p>
+<p>ylimits = limits of depth scale (km). ex, ylimits=(0,30)</p>
+<p>xminorticks = location of minor tick marks for the horizontal axis</p>
+<p>yminorticks = location of minor tick marks for vertical axis</p>
+<p>climits = limits of log10(resistivity). ex. climits=(0,4)</p>
+<p>cmap = color map to plot the model image</p>
+<p>fs = font size of axis labels</p>
+<p>femesh = &#8216;on&#8217; to plot finite element forward modeling mesh (black)</p>
+<p>regmesh = &#8216;on&#8217; to plot regularization mesh (blue)</p>
+<dl class="docutils">
+<dt>aspect = aspect ratio of the figure, depends on your line length and</dt>
+<dd>the depth you want to investigate</dd>
+<dt>title = &#8216;on&#8217; to put the RMS and Roughness as the title, or input a </dt>
+<dd>string that will be added to the RMS and roughness, or put 
+None to not put a title on the plot and print out RMS and 
+roughness</dd>
+</dl>
+<p>meshnum = &#8216;on&#8217; to plot FE mesh block numbers</p>
+<p>fignum = figure number to plot to</p>
+<p>blocknum = &#8216;on&#8217; to plot numbers on the regularization blocks</p>
+<p>blkfdict = font dictionary for the numbering of regularization blocks</p>
+<dl class="docutils">
+<dt>grid = major for major ticks grid</dt>
+<dd>minor for a grid of the minor ticks
+both for a grid with major and minor ticks</dd>
+</dl>
+<p class="last">yscale = &#8216;km&#8217; for depth in km or &#8216;m&#8217; for depth in meters</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plot2DResponses">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plot2DResponses</tt><big>(</big><em>datafn</em>, <em>respfn=None</em>, <em>wlfn=None</em>, <em>maxcol=8</em>, <em>plottype='1'</em>, <em>ms=4</em>, <em>phaselimits=(-5</em>, <em>95)</em>, <em>colormode='color'</em>, <em>reslimits=None</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plot2DResponses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plot2DResponses" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotResponse will plot the responses modeled from winglink against the 
+observed data.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">respfn = full path to response file
+datafn = full path to data file
+wlfn = full path to a winglink data file used for a similar</p>
+<blockquote>
+<div>inversion.  This will be plotted on the response
+plots for comparison of fits.</div></blockquote>
+<p>maxcol = maximum number of columns for the plot
+plottype = &#8216;all&#8217; to plot all on the same plot</p>
+<blockquote class="last">
+<div>&#8216;1&#8217; to plot each respones in a different figure
+station to plot a single station or enter as a list of 
+stations to plot a few stations [station1,station2].  Does
+not have to be verbatim but should have similar unique 
+characters input pb01 for pb01cs in outputfile</div></blockquote>
+</dd>
+<dt>Outputs:</dt>
+<dd>used for interactive masking of points
+axlst = list of axes plotted
+errlst = list of errors that were plotted
+linelst = list of lines plotted</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plotAllResponses">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plotAllResponses</tt><big>(</big><em>datafile</em>, <em>station</em>, <em>fignum=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plotAllResponses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plotAllResponses" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot all the responses of occam inversion from data file.  This assumes
+the response curves are in the same folder as the datafile.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>datafile = full path to occam data file</dd>
+<dt>Output:</dt>
+<dd>Plot</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plotDepthModel">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plotDepthModel</tt><big>(</big><em>iterfn</em>, <em>meshfn</em>, <em>slst</em>, <em>lm</em>, <em>fignum=1</em>, <em>dpi=300</em>, <em>depth=10000</em>, <em>stations=None</em>, <em>yscale='log'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plotDepthModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plotDepthModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>will plot a depth section as a line for the block numbers given by slst and
+the layer multiplier lm</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plotL2Curve">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plotL2Curve</tt><big>(</big><em>invpath</em>, <em>fnstem=None</em>, <em>fignum=1</em>, <em>dpi=300</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plotL2Curve"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plotL2Curve" title="Permalink to this definition">¶</a></dt>
+<dd><p>PlotL2Curve will plot the RMS vs iteration number for the given inversion 
+folder and roughness vs iteration number</p>
+<dl class="docutils">
+<dt>Inputs: </dt>
+<dd><p class="first">invpath = full path to the inversion folder where .iter files are
+fnstem = filename stem to look for in case multiple inversions were</p>
+<blockquote class="last">
+<div>run in the same folder.  If none then searches for anything
+ending in .iter</div></blockquote>
+</dd>
+<dt>Outputs:</dt>
+<dd>rmsiter = array(3x#iterations) of rms, iteration and roughness</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plotPseudoSection">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plotPseudoSection</tt><big>(</big><em>datafn, respfn=None, fignum=1, rcmap='jet_r', pcmap='jet', rlim=((0, 4), (0, 4)), plim=((0, 90), (0, 90)), ml=2, stationid=[0, 4]</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plotPseudoSection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plotPseudoSection" title="Permalink to this definition">¶</a></dt>
+<dd><p>plots a pseudo section of the data</p>
+<p>datafn = full path to data file
+respfn = full path to response file</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.plotTipper">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">plotTipper</tt><big>(</big><em>datafile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#plotTipper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.plotTipper" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read1DInputFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read1DInputFile</tt><big>(</big><em>inputfile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read1DInputFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read1DInputFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>reads in a 1D input file</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read1DIterFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read1DIterFile</tt><big>(</big><em>iterfile</em>, <em>modelfile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read1DIterFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read1DIterFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>read an iteration file</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>iterfile = full path to iteration file
+modelfile = full path to model file</dd>
+<dt>Output:</dt>
+<dd><dl class="first last docutils">
+<dt>idict = dictionary with keys:</dt>
+<dd><p class="first">depth = depth of model in m
+modelres = resistivity of model, any fixed parameters will be put in</p>
+<blockquote class="last">
+<div>correct place.</div></blockquote>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read1DModelFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read1DModelFile</tt><big>(</big><em>modelfile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read1DModelFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read1DModelFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>will read in model file</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>modelfile = full path to model file</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>mdict = dictionary of values with keys:</dt>
+<dd>depth = depth of model in meters
+res = value of resisitivity
+pen = penalty
+pre = preference
+prefpen = preference penalty</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read1DRespFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read1DRespFile</tt><big>(</big><em>respfile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read1DRespFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read1DRespFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>read response file</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>repsfile = full path to response file</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>rpdict = dictionary with keys:</dt>
+<dd><p class="first">freq = frequency array
+resxy,resyx,phasexy,phaseyx = array for corresponding component with</p>
+<blockquote class="last">
+<div><dl class="docutils">
+<dt>index as:</dt>
+<dd>0 = input data
+1 = input error
+2 = model data
+3 = model error</dd>
+</dl>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read1DdataFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read1DdataFile</tt><big>(</big><em>datafile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read1DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read1DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>reads a 1D data file</p>
+<dl class="docutils">
+<dt>Iputs:</dt>
+<dd>datafile = full path to data file</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read2DInmodel">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read2DInmodel</tt><big>(</big><em>inmodelfn</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read2DInmodel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read2DInmodel" title="Permalink to this definition">¶</a></dt>
+<dd><p>read an INMODEL file for occam 2D</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>inmodelfn = full path to INMODEL file</dd>
+<dt>Output:</dt>
+<dd><dl class="first last docutils">
+<dt>rows = list of combined data blocks where first number of each list</dt>
+<dd>represents the number of combined mesh layers for this 
+regularization block.  The second number is the number of 
+columns in the regularization block layer</dd>
+<dt>cols = list of combined mesh columns for the regularization layer.</dt>
+<dd>The sum of this list must be equal to the number of mesh
+columns.</dd>
+<dt>headerdict = dictionary of all the header information including the</dt>
+<dd>binding offset</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read2DIterFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read2DIterFile</tt><big>(</big><em>iterfn</em>, <em>iterpath=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read2DIterFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read2DIterFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>read2DIterFile will read an iteration file and combine that info from the 
+datafn and return a dictionary of variables.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>iterfn = full path to iteration file if iterpath=None.  If </dt>
+<dd>iterpath is input then iterfn is just the name
+of the file without the full path.</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>idict = dictionary of parameters, keys are verbatim from the file, </dt>
+<dd>except for the key &#8216;model&#8217; which is the contains the model
+numbers in a 1D array.</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read2DRespFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read2DRespFile</tt><big>(</big><em>respfn</em>, <em>datafn</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read2DRespFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read2DRespFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>read2DRespFile will read in a response file and combine the data with info 
+from the data file.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>respfn = full path to the response file
+datafn = full path to data file</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first docutils">
+<dt>for each data array, the rows are ordered as:</dt>
+<dd>0 -&gt; input data
+1 -&gt; input error
+2 -&gt; model output
+3 -&gt; relative error (data-model)/(input error)</dd>
+<dt>rplst = list of dictionaries for each station with keywords:</dt>
+<dd><p class="first">&#8216;station&#8217; = station name
+&#8216;offset&#8217; = relative offset,
+&#8216;resxy&#8217; = TE resistivity 
+&#8216;resyx&#8217;= TM resistivity 
+&#8216;phasexy&#8217;= TE phase 
+&#8216;phaseyx&#8217;= TM phase a
+&#8216;realtip&#8217;= Real Tipper 
+&#8216;imagtip&#8217;= Imaginary Tipper</p>
+<p class="last">Note: that the resistivity will be in log10 space.  Also, there are
+2 extra rows in the data arrays, this is to put the response from
+the inversion.</p>
+</dd>
+<dt>stationlst = list of stations in order from one side of the profile</dt>
+<dd>to the other.</dd>
+</dl>
+<p class="last">freq = list of frequencies used in the inversion
+title = title, could be useful for plotting.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read2DdataFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read2DdataFile</tt><big>(</big><em>datafn</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read2DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read2DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>read2DdataFile will read in data from a 2D occam data file.  Only supports
+the first 6 data types of occam2D</p>
+<dl class="docutils">
+<dt>Input: </dt>
+<dd>datafn = full path to data file</dd>
+<dt>Output:</dt>
+<dd><dl class="first docutils">
+<dt>rplst = list of dictionaries for each station with keywords:</dt>
+<dd><p class="first">&#8216;station&#8217; = station name
+&#8216;offset&#8217; = relative offset,
+&#8216;resxy&#8217; = TE resistivity and error as row 0 and 1 ressectively,
+&#8216;resyx&#8217;= TM resistivity and error as row 0 and 1 respectively,
+&#8216;phasexy&#8217;= TE phase and error as row 0 and 1 respectively,
+&#8216;phaseyx&#8217;= Tm phase and error as row 0 and 1 respectively,
+&#8216;realtip&#8217;= Real Tipper and error as row 0 and 1 respectively,
+&#8216;imagtip&#8217;= Imaginary Tipper and error as row 0 and 1 respectively</p>
+<p class="last">Note: that the resistivity will be in log10 space.  Also, there are
+2 extra rows in the data arrays, this is to put the response from
+the inversion.</p>
+</dd>
+<dt>stationlst = list of stations in order from one side of the profile</dt>
+<dd>to the other.</dd>
+</dl>
+<p class="last">freq = list of frequencies used in the inversion
+title = title, could be useful for plotting.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read2Dmesh">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read2Dmesh</tt><big>(</big><em>meshfn</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read2Dmesh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read2Dmesh" title="Permalink to this definition">¶</a></dt>
+<dd><p>read a 2D meshfn</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd>meshfn = full path to mesh file</dd>
+<dt>Output:</dt>
+<dd>hnodes = array of horizontal nodes (column locations (m))
+vnodes = array of vertical nodes (row locations(m))
+mdata = free parameters</dd>
+<dt>Things to do:</dt>
+<dd>incorporate fixed values</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.read_datafile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">read_datafile</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#read_datafile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.read_datafile" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.rewrite2DdataFile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">rewrite2DdataFile</tt><big>(</big><em>datafn</em>, <em>edipath=None</em>, <em>thetar=0</em>, <em>resxyerr='prev'</em>, <em>resyxerr='prev'</em>, <em>phasexyerr='prev'</em>, <em>phaseyxerr='prev'</em>, <em>tippererr=None</em>, <em>mmode='both'</em>, <em>flst=None</em>, <em>removestation=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#rewrite2DdataFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.rewrite2DdataFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>rewrite2DDataFile will rewrite an existing data file so you can redefine 
+some of the parameters, such as rotation angle, or errors for the different
+components or only invert for one mode or add one or add tipper or remove
+tipper.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">datafn = full path to data file to rewrite</p>
+<p>rotz = rotation angle with positive clockwise</p>
+<dl class="docutils">
+<dt>resxyerr = error for TE mode resistivity (percent) or &#8216;data&#8217; for data </dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>resyxerr = error for TM mode resistivity (percent) or &#8216;data&#8217; for data</dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>phasexyerr = error for TE mode phase (percent) or &#8216;data&#8217; for data</dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>phaseyxerr = error for TM mode phase (percent) or &#8216;data&#8217; for data</dt>
+<dd>or prev to take errors from data file.</dd>
+<dt>tippererr = error for tipper (percent) input only if you want to invert</dt>
+<dd>for the tipper or &#8216;data&#8217; for data errors
+or prev to take errors from data file.</dd>
+<dt>mmodes = &#8216;both&#8217; for both TE and TM</dt>
+<dd>&#8216;TE&#8217; for TE
+&#8216;TM&#8217; for TM</dd>
+<dt>flst = frequency list in Hz to rewrite, needs to be similar to the </dt>
+<dd>datafile, cannot add frequencies</dd>
+</dl>
+<p class="last">removestation = list of stations to remove if desired</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.rewriteMesh">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">rewriteMesh</tt><big>(</big><em>meshfn</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#rewriteMesh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.rewriteMesh" title="Permalink to this definition">¶</a></dt>
+<dd><p>checkMesh will check to see if the number of lines are correct and the 
+length of the line is correct</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.writemeshfile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">writemeshfile</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#writemeshfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.writemeshfile" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.writemodelfile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">writemodelfile</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#writemodelfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.writemodelfile" title="Permalink to this definition">¶</a></dt>
+<dd><p>needed : filename,binding_offset,startcolumn, n_layers,layer_thickness,block_width</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.OCCAMTools.writestartupfile">
+<tt class="descclassname">MTpy.core.OCCAMTools.</tt><tt class="descname">writestartupfile</tt><big>(</big><em>parameter_dict</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/OCCAMTools.html#writestartupfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.OCCAMTools.writestartupfile" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="core.Z.html"
+                        title="previous chapter">Z: calculate properties of impedance tensors</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="core.WS3DTools.html"
+                        title="next chapter">WS3DTools: working with WS3DMTINV</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/core.OCCAMTools.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.WS3DTools.html" title="WS3DTools: working with WS3DMTINV"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="core.Z.html" title="Z: calculate properties of impedance tensors"
+             >previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Stephan Thiel, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

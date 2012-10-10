@@ -1,0 +1,262 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>ptplots: plotting MT phase tensors &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="index.html" />
+    <link rel="prev" title="WinglinkTools: work with WinGLink MT inversion software" href="core.WinglinkTools.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.WinglinkTools.html" title="WinglinkTools: work with WinGLink MT inversion software"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-MTpy.imaging.ptplots">
+<span id="ptplots-plotting-mt-phase-tensors"></span><h1>ptplots: plotting MT phase tensors<a class="headerlink" href="#module-MTpy.imaging.ptplots" title="Permalink to this headline">¶</a></h1>
+<p>Created on Mon Jul 19 17:27:06 2010</p>
+<p>Author: Jared Peacock</p>
+<p>Based on MTAnalysis.m and LoadEDI.m written by Stephan Thiel</p>
+<dl class="class">
+<dt id="MTpy.imaging.ptplots.ptplots">
+<em class="property">class </em><tt class="descclassname">MTpy.imaging.ptplots.</tt><tt class="descname">ptplots</tt><big>(</big><em>impvar</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="core.Z.html#MTpy.core.Z.Z" title="MTpy.core.Z.Z"><tt class="xref py py-class docutils literal"><span class="pre">MTpy.core.Z.Z</span></tt></a></p>
+<p>ptplots will plot different parameters of the phase tensor and invariants
+given a list of plot types for an input of impvar which can be an .imp file,
+.edi file or a dictionary with keys:</p>
+<blockquote>
+<div>impvar[&#8216;station&#8217;] -&gt; station name 
+impvar[&#8216;lat&#8217;] -&gt; latitude in deg 
+impvar[&#8216;lon&#8217;] -&gt; longitude in deg 
+impvar[&#8216;periodlst&#8217;] -&gt; period list 
+impvar[&#8216;zlst&#8217;] -&gt; impedance tensor list at [[zxx,zxy],[zyx,zyy]]
+impvar[&#8216;zvar&#8217;] -&gt; impedance tensor variance same fmt as z
+impvar[&#8216;tip&#8217;] -&gt; tipper array as [txx,txy]
+impvar[&#8216;tipvar&#8217;] -&gt; tipper variance as [txxvar,tyyvar]</div></blockquote>
+<p>Plots are:</p>
+<blockquote>
+<div><p>plotPhaseTensor(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots the phase tensor as 
+ellipses with long axis directed towards electrical strike and short axis
+directed across magnetic strike.  Spaces the ellipses across the period axis.</p>
+<p>plotStrikeAngle(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots the electric 
+strike angle as a function of period with error bars.</p>
+<p>plotMinMaxPhase(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots the min and max 
+phase angle as a function of period with error bars.</p>
+<p>plotAzimuth(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots the azimuth angle as
+a function of period with error bars.</p>
+<p>plotSkew(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots the skew angle as a 
+function of period with error bars.</p>
+<p>plotElliticity(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots the ellipticity 
+as a function of period with error bars.</p>
+<p>plotAll(save=&#8217;n&#8217;,fmt=&#8217;pdf&#8217;,fignum=1,thetar=0) -&gt; plots phase tensor, strike angle, 
+min and max phase angle, azimuth, skew, and ellipticity as subplots on one
+plot.</p>
+</div></blockquote>
+<p>You can save the plots by making save=&#8217;y&#8217; or a path you input. fmt is the
+fmt you want to save the figure as. Can be: pdf,eps,ps,png or svg. Fignum
+is the figure number in the event you want to plot multipl plots.</p>
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>impvar</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.imaging.ptplots.ptplots.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.imaging.ptplots'</em><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.imaging.ptplots.ptplots.cc">
+<tt class="descname">cc</tt><em class="property"> = 'y'</em><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.cc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.imaging.ptplots.ptplots.colorlst">
+<tt class="descname">colorlst</tt><em class="property"> = ['b', 'r', 'k', 'g', 'c', 'm', 'y']</em><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.colorlst" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.imaging.ptplots.ptplots.markerlst">
+<tt class="descname">markerlst</tt><em class="property"> = ['s', 'o', 'd', 'h', 'v', '^', '&gt;', '&lt;', 'p', '*', 'x']</em><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.markerlst" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.imaging.ptplots.ptplots.mm">
+<tt class="descname">mm</tt><em class="property"> = 'x'</em><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.mm" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.imaging.ptplots.ptplots.pcmlst">
+<tt class="descname">pcmlst</tt><em class="property"> = [('s', 'b'), ('s', 'r'), ('s', 'k'), ('s', 'g'), ('s', 'c'), ('s', 'm'), ('s', 'y'), ('o', 'b'), ('o', 'r'), ('o', 'k'), ('o', 'g'), ('o', 'c'), ('o', 'm'), ('o', 'y'), ('d', 'b'), ('d', 'r'), ('d', 'k'), ('d', 'g'), ('d', 'c'), ('d', 'm'), ('d', 'y'), ('h', 'b'), ('h', 'r'), ('h', 'k'), ('h', 'g'), ('h', 'c'), ('h', 'm'), ('h', 'y'), ('v', 'b'), ('v', 'r'), ('v', 'k'), ('v', 'g'), ('v', 'c'), ('v', 'm'), ('v', 'y'), ('^', 'b'), ('^', 'r'), ('^', 'k'), ('^', 'g'), ('^', 'c'), ('^', 'm'), ('^', 'y'), ('&gt;', 'b'), ('&gt;', 'r'), ('&gt;', 'k'), ('&gt;', 'g'), ('&gt;', 'c'), ('&gt;', 'm'), ('&gt;', 'y'), ('&lt;', 'b'), ('&lt;', 'r'), ('&lt;', 'k'), ('&lt;', 'g'), ('&lt;', 'c'), ('&lt;', 'm'), ('&lt;', 'y'), ('p', 'b'), ('p', 'r'), ('p', 'k'), ('p', 'g'), ('p', 'c'), ('p', 'm'), ('p', 'y'), ('*', 'b'), ('*', 'r'), ('*', 'k'), ('*', 'g'), ('*', 'c'), ('*', 'm'), ('*', 'y'), ('x', 'b'), ('x', 'r'), ('x', 'k'), ('x', 'g'), ('x', 'c'), ('x', 'm'), ('x', 'y')]</em><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.pcmlst" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotAll">
+<tt class="descname">plotAll</tt><big>(</big><em>xspacing=6</em>, <em>esize=5</em>, <em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotAll"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotAll" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotAll will plot phase tensor, strike angle, min and max phase angle, 
+azimuth, skew, and ellipticity as subplots on one plot.  Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg. Fignum is the number of the figure.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotAzimuth">
+<tt class="descname">plotAzimuth</tt><big>(</big><em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em>, <em>dpi=300</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotAzimuth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotAzimuth" title="Permalink to this definition">¶</a></dt>
+<dd><p>plot the azimuth of maximum phase. Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotEllipticity">
+<tt class="descname">plotEllipticity</tt><big>(</big><em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotEllipticity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotEllipticity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot the ellipticity as (phimax-phimin)/phimax+phimin). Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotMinMaxPhase">
+<tt class="descname">plotMinMaxPhase</tt><big>(</big><em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotMinMaxPhase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotMinMaxPhase" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot the minimum and maximum phase of phase tensor. Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotPhaseTensor">
+<tt class="descname">plotPhaseTensor</tt><big>(</big><em>spacing=6</em>, <em>esize=5</em>, <em>colorkey='beta'</em>, <em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotPhaseTensor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotPhaseTensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotPhaseTensor will plot phase tensor ellipses. Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotResPhase">
+<tt class="descname">plotResPhase</tt><big>(</big><em>ffactor=1</em>, <em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotResPhase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotResPhase" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotResPhase(self,df=100.) will plot the resistivity and phase for
+all impedance tensor polarizations.  2 plots, one containing xy,yx 
+polarizations, the other xx,yy.  Save=&#8217;y&#8217; if you want to save the figure
+with path similar to input file or Save=savepathif you want to define 
+the path yourself.  fmt can be pdf,eps,ps,png, svg. Fignum is the 
+number of the figure.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotSkew">
+<tt class="descname">plotSkew</tt><big>(</big><em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotSkew"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotSkew" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot the skew angle. Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.imaging.ptplots.ptplots.plotStrikeangle">
+<tt class="descname">plotStrikeangle</tt><big>(</big><em>save='n'</em>, <em>fmt='pdf'</em>, <em>fignum=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/imaging/ptplots.html#ptplots.plotStrikeangle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.imaging.ptplots.ptplots.plotStrikeangle" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot the strike angle as calculated from the invariants. Save=&#8217;y&#8217; if you 
+want to save the figure with path similar to input file or Save=savepath
+if you want to define the path yourself.  fmt can be pdf,eps,ps,png,
+svg.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="core.WinglinkTools.html"
+                        title="previous chapter">WinglinkTools: work with WinGLink MT inversion software</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/imaging.ptplots.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.WinglinkTools.html" title="WinglinkTools: work with WinGLink MT inversion software"
+             >previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Stephan Thiel, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

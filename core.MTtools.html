@@ -1,0 +1,563 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>MTtools: tools for working with MT response functions &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="index.html" />
+    <link rel="next" title="Z: calculate properties of impedance tensors" href="core.Z.html" />
+    <link rel="prev" title="BIRRPTools: an interface to BIRRP" href="core.BIRRPTools.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.Z.html" title="Z: calculate properties of impedance tensors"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="core.BIRRPTools.html" title="BIRRPTools: an interface to BIRRP"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-MTpy.core.MTtools">
+<span id="mttools-tools-for-working-with-mt-response-functions"></span><h1>MTtools: tools for working with MT response functions<a class="headerlink" href="#module-MTpy.core.MTtools" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="MTpy.core.MTtools.adaptiveNotchFilter">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">adaptiveNotchFilter</tt><big>(</big><em>bx,df,notches=[50,100],notchradius=.3,freqrad=.9</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#adaptiveNotchFilter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.adaptiveNotchFilter" title="Permalink to this definition">¶</a></dt>
+<dd><p>will apply a notch filter to the array bx by finding the nearest peak around
+the supplied notch locations.  The filter is a zero-phase Chebyshev type 1 
+bandstop filter with minimal ripples.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>bx = array to filter
+df = sampling frequency
+notches = list of notches to filter
+notchradius = radius of the notch in frequency domain
+freqrad = radius for searching for peak about notch
+rp = ripple of Chebyshev type 1 filter, lower numbers means less ripples</dd>
+<dt>Outputs:</dt>
+<dd>bx = filtered array
+filtlst = location of notches and power difference</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.combineEdifiles">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">combineEdifiles</tt><big>(</big><em>edifile1</em>, <em>edifile2</em>, <em>nread1</em>, <em>nread2</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#combineEdifiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.combineEdifiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>combineEdifiles(edifile1,edifile2,read1,read2) will combine edifile1 with
+edifile2 according to read1 and read2. It will combine frequencies,
+impedance and tipper.</p>
+<p>Note nread1 is from the start for edifile1 and nread2 is from end for 
+edifile2.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">edifile1 = full path to edifile with the largest frequencies
+edifile2 = full path to edifile with smallest frequencies, longest</p>
+<blockquote>
+<div>periods</div></blockquote>
+<dl class="last docutils">
+<dt>nread1 = integer of number of frequencies to read in from edifile1.  </dt>
+<dd>Index is from the start, ie [0:nread1]</dd>
+<dt>nread2 = integer of number of frequencies to read in from edifile2.</dt>
+<dd>Index is from end of frequencies, ie [-nread2:]</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>newedifile = full path to new edifile, which is saved to edifile1 with</dt>
+<dd>a c before .edi</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.combineFewFiles">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">combineFewFiles</tt><big>(</big><em>dirpath, station, starttime, endtime, cachelength, complst=['BX', 'BY', 'BZ', 'EX', 'EY'], d=0, fdict=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#combineFewFiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.combineFewFiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>combineFewFiles(dirpath,station,starttime,endtime,cachelength,
+complst=[&#8216;BX&#8217;,&#8217;BY&#8217;,&#8217;BZ&#8217;,&#8217;EX&#8217;,&#8217;EY&#8217;],d=0)
+Will combine files in a directory path (dirpath) that have a given start and 
+end time in the form of (HHMMSS).  It looks for files at cachelength then 
+decimates the data by d. 
+Input:</p>
+<blockquote>
+<div>dirpath = directory path to folder where files to combine reside
+station = station name
+starttime = start time as 6 character string hhmmss
+endtime = end time as 6 character string hhmmss
+cachelength = cacherate of each file as 6 character string hhmmss
+complst = components to combine
+d = decimation factor, if no decimation enter as 0 or 1</div></blockquote>
+<dl class="docutils">
+<dt>Output:</dt>
+<dd><dl class="first last docutils">
+<dt>cfilelst = list of combined files with full path for each component</dt>
+<dd>files are saved as dirpathCombHHtoHHd(d)stationHHtoHH.comp</dd>
+<dt>fileslst = list of files that were combined including length of each </dt>
+<dd>file.</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.combineFiles">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">combineFiles</tt><big>(</big><em>dirpath,station,daydict,complst=['EX','EY','BX','BY','BZ']</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#combineFiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.combineFiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>will combine files from different days into one file.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">dirpath = directory path where station files are
+station = name of station
+daylst = list of information to combine files with a dictionary for</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>each day with keys:</dt>
+<dd>day = utc day (thee character string)
+start = start time in (&#8216;hhmmss&#8217;)
+stop = end time in(&#8216;hhmmss&#8217;)
+filt = &#8216;Filtered&#8217; if time series was filtered</dd>
+</dl>
+</div></blockquote>
+<p class="last">cacherate = length of file (&#8216;hhmmss&#8217;)
+dec = decimation factor (0 for none)
+complst = list of components to combine
+fdict = dictionary for adaptiveNotchFilter</p>
+</dd>
+<dt>Outputs:</dt>
+<dd><dl class="first last docutils">
+<dt>cfilelst = list of combined files with full path as </dt>
+<dd>dirpath/station/Combdaylst[0]todaylst[-1]</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.convertCounts2Units">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">convertCounts2Units</tt><big>(</big><em>filenames</em>, <em>eyn='n'</em>, <em>lpyn='n'</em>, <em>egain=1.0</em>, <em>dlgain=1.0</em>, <em>exlen=100.0</em>, <em>eylen=100.0</em>, <em>magtype='lp'</em>, <em>zadj=2</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#convertCounts2Units"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.convertCounts2Units" title="Permalink to this definition">¶</a></dt>
+<dd><p>convertCounts2Units(filenames,eyn=&#8217;n&#8217;,lpyn=&#8217;n&#8217;,egain=1.0,dlgain=1.0,exlen=100.,eylen=100.,
+magtype=&#8217;lp&#8217;,zadj=2) will convert a set of files given by filenames with
+parameters defined:
+filenames,
+eyn =&gt; electric channels converted y or n
+lpyn =&gt; long period magnetic channels converted y or n
+egain =&gt; electric gain
+dlgain =&gt; data logger gain
+exlen =&gt; ex length (m)
+eylen =&gt; ey length (m)
+magtype =&gt; magnetic sensor type lp for longperiod or bb for broadband
+zadj =&gt; bz adjusting parameter for bartington sensor</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.convertE">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">convertE</tt><big>(</big><em>efield</em>, <em>dlgain</em>, <em>egain</em>, <em>dlength</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#convertE"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.convertE" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert the electric field from counts to units of microV/m.
+efield is a list, dlgain is gain applied by data logger(verylow=2.5,
+low=1, high=.1), egain is interface box gain (10,100),dlength is
+the dipole length of that component.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>efield = 1d array of electric field measurements
+dlgain = data logger gain (very low= 2.5,low = 1, high = .1)
+egain = gain from interface box
+dlength = length of dipole in (m)</dd>
+<dt>Outputs:</dt>
+<dd>efieldc = scaled electric field 1D array</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.convertfiles">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">convertfiles</tt><big>(</big><em>dirpath</em>, <em>folder</em>, <em>infodict</em>, <em>fmt='%.6g'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#convertfiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.convertfiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>convertfiles will convert data of counts from data logger to units.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.convertlpB">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">convertlpB</tt><big>(</big><em>bfield</em>, <em>dlgain=1</em>, <em>zadj=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#convertlpB"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.convertlpB" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert the magnetic field from counts to units of microV/nT.
+bfield is a list of numbers. dlain is amount of gain applied
+by data logger(verylow=2.5,low=1, high=.1)</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd>bfield = 1D array of long period data
+dlgain = data logger gain (very low= 2.5,low = 1, high = .1)
+zadj = Bz adjustment if using corrected Bartingtons</dd>
+<dt>Outputs:</dt>
+<dd>bfieldc = scaled bfield 1D array</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.dctrend">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">dctrend</tt><big>(</big><em>f</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#dctrend"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.dctrend" title="Permalink to this definition">¶</a></dt>
+<dd><p>dctrend(f) will remove a dc trend from the function f.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.decimatef">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">decimatef</tt><big>(</big><em>farray</em>, <em>m</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#decimatef"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.decimatef" title="Permalink to this definition">¶</a></dt>
+<dd><p>Will decimate a function by the factor m. First an 8th order Cheybechev 
+type I filter with a cuttoff frequency of .8/m  is applied in both 
+directions to minimize any phase distortion and remove any aliasing. If m 
+is greater than 10, decimatef will be called multiple times.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.filter">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">filter</tt><big>(</big><em>f</em>, <em>fcutoff=10.0</em>, <em>w=10.0</em>, <em>dt=0.001</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#filter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.filter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Will apply a sinc filter of width w to the function f by multipling in
+the frequency domain. Returns filtered function</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.getStationInfo">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">getStationInfo</tt><big>(</big><em>stationinfofile</em>, <em>station</em>, <em>mapversion=23</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#getStationInfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.getStationInfo" title="Permalink to this definition">¶</a></dt>
+<dd><p>getStationInfo(stationinfofile,station) returns info for the nominated
+station from the stationinfofile as a dictionary with key words in the 
+hdrinfo.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.getnum">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">getnum</tt><big>(</big><em>numberlst</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#getnum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.getnum" title="Permalink to this definition">¶</a></dt>
+<dd><p>get number from string list and put it into an array</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.imp2resphase">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">imp2resphase</tt><big>(</big><em>z</em>, <em>freq</em>, <em>zvar=None</em>, <em>ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#imp2resphase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.imp2resphase" title="Permalink to this definition">¶</a></dt>
+<dd><p>imp2resphase(z,zvar,freq) will convert impedances 
+z[4,3,len(freq)] to resistivities (ohm-m) and phases (deg) as well as the 
+errors of each.  Note the phase is calculated using arctan2 putting the 
+phase in the correct quadrant.  The xy component is placed into the positive
+quadrant by adding 180 deg. 
+INPUTS:</p>
+<blockquote>
+<div>z=[[zxxreal,zxximag,zxxvar],...]], shape=(4,3,len(freq) OR 
+z=[[[zxxr+1j*zxxi,zxyr+1j*zxyi],[zyx,zyy]]], shape=(len(freq),2,2) 
+freq=frequency array 
+zvar=[[[zxxvar,zyyvar],[zyxvar,zyyvar]]], shape=(len(freq),2,2)  
+ffactor=fudge factor to make sure resistivities are the right order</div></blockquote>
+<dl class="docutils">
+<dt>OUTPUTS: </dt>
+<dd>[[resxx,resxxvar],[resxy,resxyvar]...],[[phasexx,phasexxvar]...]</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.makeDayFoldersFromObservatoryData">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">makeDayFoldersFromObservatoryData</tt><big>(</big><em>obsdirpath, savepath, startday='000', d=10, ndays=10, df=1, complst=['BX', 'BY'], station='CNB', rowskip=6</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#makeDayFoldersFromObservatoryData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.makeDayFoldersFromObservatoryData" title="Permalink to this definition">¶</a></dt>
+<dd><p>makeDayFoldersFromObservatoryData will take observatory data and put it
+into day folders for processing.</p>
+<dl class="docutils">
+<dt>Input:</dt>
+<dd><dl class="first docutils">
+<dt>obsdirpath = path to observatory data.  If the observatory data comes</dt>
+<dd>in one long file input the file, program know&#8217;s its a file
+by searching for the dot.</dd>
+<dt>savepath = path to save the day files, should be in the same directory</dt>
+<dd>as collected data. ie datapath/observatory_station_name</dd>
+</dl>
+<p>startday = UTC start day as a string of length 3
+d = decimation factor of collected data sampling frequency to get to</p>
+<blockquote>
+<div>observatory sampling frequency.  So if you sampled at 1000 Hz and 
+the observatory data is at 1 sec, d=1000</div></blockquote>
+<p>ndays = number of days, only used if observatory data is in one big file
+df = sampling frequency of observatory data in Hz
+complst = components to make into files, can add &#8216;BZ&#8217; if you like
+station = station name of observatory data
+rowskip = number of rows to skip from observatory file, usually the</p>
+<blockquote class="last">
+<div>header ends at row 6.</div></blockquote>
+</dd>
+<dt>Outputs:</dt>
+<dd>files will be saved to savepath/day/Comb00to24ddf/station00to24ddf.cnb</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.makeKML">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">makeKML</tt><big>(</big><em>edipath</em>, <em>stationid=None</em>, <em>savepath=None</em>, <em>fs=0.9</em>, <em>style=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#makeKML"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.makeKML" title="Permalink to this definition">¶</a></dt>
+<dd><p>makeKML will make a kml file for Google Earth to plot station locations 
+relatively quickly</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.normalizeL2">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">normalizeL2</tt><big>(</big><em>f</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#normalizeL2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.normalizeL2" title="Permalink to this definition">¶</a></dt>
+<dd><p>normalizeL2(f) will return the function f normalized by the L2 norm -&gt;
+f/(sqrt(sum(abs(x_i)^2))).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.openMTfile">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">openMTfile</tt><big>(</big><em>filename, gain=2.5, egain=10, dlength=[100, 100], magtype='lp', zadj=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#openMTfile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.openMTfile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Open an MT file, convert counts to units and return an 1D-array.  
+Make sure filename includes the entire path.  gain (verylow=2.5,low=1,
+high=.1), egain same as gain, dlength is dipole length in m of EX,EY. 
+magtype is the magnetic measurment type &#8216;lp&#8217; for long period and &#8216;bb&#8217; for 
+broadband, zadj is an adjustment for lp instruments on the z channel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.padzeros">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">padzeros</tt><big>(</big><em>f</em>, <em>npad=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#padzeros"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.padzeros" title="Permalink to this definition">¶</a></dt>
+<dd><p>padzeros(f) will return a function that is padded with zeros to the next
+power of 2 for faster processing for fft or to length npad if given.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.readStationInfo">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">readStationInfo</tt><big>(</big><em>stationinfofile</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#readStationInfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.readStationInfo" title="Permalink to this definition">¶</a></dt>
+<dd><p>readStationInfo(stationinfofile) will read in a .txt (tab 
+delimited) or .csv(comma delimited)file that has the following information: 
+station name, latitude, longitude, elevation, date collected, 
+components measured (a number: 4 for ex,ey,bx,by, 5 for 
+ex,ey,bx,by,bz, 6 for ex,ey,bx,by,bz,tp), magnetic type (bb or lp), dipole 
+lengths (m), data logger gain (very low=2.5,low=1,high=.1),interface box 
+gain (10 or 100), bz correction for longperiod data and the bx,by,bz 
+components as they were measured in the field. Use headers: station, lat,
+lon, elev, date, mcomps, magtype, ex, ey, dlgain, igain, lpbzcor, magori. 
+Returns a list of the dictionaries with found information.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.readedi">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">readedi</tt><big>(</big><em>filename</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#readedi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.readedi" title="Permalink to this definition">¶</a></dt>
+<dd><p>readedi(edifile) will read in an edi file written in a format given by
+format given by <a class="reference external" href="http://www.dias.ie/mtnet/docs/ediformat.txt">http://www.dias.ie/mtnet/docs/ediformat.txt</a>. 
+Returns: lat,lon,frequency,Z[zreal+i*zimag],Zvar,tipper,tippervar (if 
+applicable)</p>
+<dl class="docutils">
+<dt>Input: </dt>
+<dd>filename = full path to edifile</dd>
+<dt>Output:</dt>
+<dd><dl class="first last docutils">
+<dt>edidict = dictionary with keys:</dt>
+<dd>station = station name
+lat = latitude 
+lon = longitude
+frequency = frequency array
+z = impedance tensor as (nfreq,2,2)
+zvar = variance of impedance tensor as (nfreq,2,2)
+tipper = tipper as (nfreq,2,1)
+tippervar = tipper variance as (nfreq,2,1)</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.removePeriodicNoise">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">removePeriodicNoise</tt><big>(</big><em>filename</em>, <em>dt</em>, <em>noiseperiods</em>, <em>cacherate=10</em>, <em>save='n'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#removePeriodicNoise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.removePeriodicNoise" title="Permalink to this definition">¶</a></dt>
+<dd><p>removePeriodicNoise will take average a window of length noise period and 
+average the signal for as many windows that can fit within the data.  This
+averaged window is convolved with a series of delta functions at each window
+location to create a noise time series. This is then subtracted from the 
+data to get a &#8216;noise free&#8217; time series.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>filename = name of file to have periodic noise removed from</dt>
+<dd>can be an array</dd>
+</dl>
+<p>dt = time sample rate (s)
+noiseperiods = a list of estimated periods with a range of values to</p>
+<blockquote>
+<div>look around [[noiseperiod1,df1]...] where df1 is a 
+fraction value find the peak about noiseperiod1 must be
+less than 1.</div></blockquote>
+<p class="last">cacherate = length of file (min)</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>bxnf = filtered time series
+pn = periodic noise
+fitlst = list of peaks found</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.removeStaticShift">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">removeStaticShift</tt><big>(</big><em>edifile</em>, <em>stol=0.2</em>, <em>dm=1000</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#removeStaticShift"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.removeStaticShift" title="Permalink to this definition">¶</a></dt>
+<dd><p>removeStaticShift(edifile,stol=.2,dm=1000) will remove static shift by 
+calculating the median of respones of near by stations, within dm.  If the 
+ratio of the station response to the median on either side of 1+-stol then 
+the impedance tensor for that electric component will be corrected for 
+static shift.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>edifile = full path to edi file. Note nearby stations will be looked </dt>
+<dd>for in the dirname of edifile.  So have all edis in one folder</dd>
+<dt>stol = ratio tolerance.  If there is no static shift the ratio between</dt>
+<dd>the response and the median response should be 1, but noise and 
+other factors can be present so a tolerance arount 1 is assumed.</dd>
+<dt>dm = nearby station radius in meters.  If there is no station within </dt>
+<dd>that radius then no static shift will be corrected for.</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd>newedifile = full path to new edifile</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.rewriteedi">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">rewriteedi</tt><big>(</big><em>edifile</em>, <em>znew=None</em>, <em>zvarnew=None</em>, <em>freqnew=None</em>, <em>newfile='y'</em>, <em>tipnew=None</em>, <em>tipvarnew=None</em>, <em>thetar=0</em>, <em>dr='n'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#rewriteedi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.rewriteedi" title="Permalink to this definition">¶</a></dt>
+<dd><p>rewriteedi(edifile) will rewrite an edifile say if it needs to be rotated 
+or distortion removed.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">edifile = full path to edifile to be rewritten
+znew = impedance tensor if a new one has been created
+zvarnew = errors in impedance tensor if a new one has been created
+freqnew = new frequency list if one has been created
+newfile = &#8216;y&#8217; for yes or &#8216;n&#8217; for no if you want a new file to be</p>
+<blockquote>
+<div>created.</div></blockquote>
+<p class="last">tipnew = new tipper array
+tipvarnew = new tipper error array
+thetar = rotation angle counter clockwise (N=0, E=-90)
+dr = &#8216;n&#8217; if no distortion removal and &#8216;y&#8217; for distortion removal</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>nedi = dirpath(edifile)+basename(edifile)+rw or dr if dr=&#8217;y&#8217;</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.rotateB">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">rotateB</tt><big>(</big><em>bx</em>, <em>by</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#rotateB"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.rotateB" title="Permalink to this definition">¶</a></dt>
+<dd><p>rotateB(bx,by) will Rotate the magnetic field such that Bx is pointing to
+magnetic north and by to geomagnetic east.  Assumes setup was orthogonal. 
+Returns list of strings that are 8 significant digits.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.rotateE">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">rotateE</tt><big>(</big><em>ex</em>, <em>ey</em>, <em>declination</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#rotateE"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.rotateE" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rotate the electric field to geographic north, ex &amp; ey are
+lists, declination is in degrees</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.sigfigs">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">sigfigs</tt><big>(</big><em>numstr</em>, <em>digits=8</em>, <em>fmt='g'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#sigfigs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.sigfigs" title="Permalink to this definition">¶</a></dt>
+<dd><p>sigfigs(numstr,digits=8,fmt=&#8217;g&#8217;) will return a string with the proper 
+amount of significant digits for the input number, can be str or float.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.sil">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">sil</tt><big>(</big><em>iniline</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#sil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.sil" title="Permalink to this definition">¶</a></dt>
+<dd><p>sil(iniline) will split a single line written in an .ini file
+for burpinterface and return the list of strings.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="MTpy.core.MTtools.writeedi">
+<tt class="descclassname">MTpy.core.MTtools.</tt><tt class="descname">writeedi</tt><big>(</big><em>z</em>, <em>zvar</em>, <em>freq</em>, <em>stationinfofile</em>, <em>station</em>, <em>edidir=None</em>, <em>rrstation=None</em>, <em>birrpdict=None</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/MTtools.html#writeedi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.MTtools.writeedi" title="Permalink to this definition">¶</a></dt>
+<dd><p>writeedi2(z,zvar,freq,stationinfofile,station,edidir=None,rrstation=None,
+birrpdict=None) will write an .edi file for a station. 
+Returns full filepath.</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="core.BIRRPTools.html"
+                        title="previous chapter">BIRRPTools: an interface to BIRRP</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="core.Z.html"
+                        title="next chapter">Z: calculate properties of impedance tensors</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/core.MTtools.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.Z.html" title="Z: calculate properties of impedance tensors"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="core.BIRRPTools.html" title="BIRRPTools: an interface to BIRRP"
+             >previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Stephan Thiel, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

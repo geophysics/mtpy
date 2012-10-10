@@ -1,0 +1,536 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Z: calculate properties of impedance tensors &mdash; MTpy 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="MTpy 0.1 documentation" href="index.html" />
+    <link rel="next" title="OCCAMTools: an interface to Scripp’s Occam inversion program" href="core.OCCAMTools.html" />
+    <link rel="prev" title="MTtools: tools for working with MT response functions" href="core.MTtools.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.OCCAMTools.html" title="OCCAMTools: an interface to Scripp’s Occam inversion program"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="core.MTtools.html" title="MTtools: tools for working with MT response functions"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-MTpy.core.Z">
+<span id="z-calculate-properties-of-impedance-tensors"></span><h1>Z: calculate properties of impedance tensors<a class="headerlink" href="#module-MTpy.core.Z" title="Permalink to this headline">¶</a></h1>
+<p>Created on Mon May 03 13:44:51 2010</p>
+<p>&#64;author: a1185872</p>
+<dl class="class">
+<dt id="MTpy.core.Z.Edi">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">Edi</tt><big>(</big><em>edifilename</em>, <em>ncol=5</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Edi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Edi" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>This is a data type for edi files.  Included are 
+self.edifn=edifilename</p>
+<blockquote>
+<div>Edi.header = header information about the survey area (dictionary)
+Edi.info = information about data processing (dictionary)
+Edi.measurement = information about measurement setup (dictionary)
+Edi.lat = latitude in decimal degrees
+Edi.lon = longitude in decimal degrees
+Edi.elevation = elevation in meters
+Edi.frequency = array of frequencies for estimated transfer functions
+Edi.z = array (nf,2,2) of impedance components (nf=# of frequencies)
+Edi.zvar = array (nf,2,2) of variance estimation of Z
+Edi.zrot = array (nf) of rotation angles used
+Edi.tipper = array (nf,2) of tipper components
+Edi.tippervar = array (nf,2) of variance estimation of tipper
+Edi.trot = array (nf) of rotation angles used</div></blockquote>
+<dl class="attribute">
+<dt id="MTpy.core.Z.Edi.__dict__">
+<tt class="descname">__dict__</tt><em class="property"> = &lt;dictproxy object at 0x0A13A9B0&gt;</em><a class="headerlink" href="#MTpy.core.Z.Edi.__dict__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Edi.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>edifilename</em>, <em>ncol=5</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Edi.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Edi.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.Edi.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.Edi.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.Edi.__weakref__">
+<tt class="descname">__weakref__</tt><a class="headerlink" href="#MTpy.core.Z.Edi.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Edi.getInfo">
+<tt class="descname">getInfo</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Edi.getInfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Edi.getInfo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Edi.rewriteedi">
+<tt class="descname">rewriteedi</tt><big>(</big><em>znew=None</em>, <em>zvarnew=None</em>, <em>freqnew=None</em>, <em>newfile='y'</em>, <em>tipnew=None</em>, <em>tipvarnew=None</em>, <em>thetar=0</em>, <em>ext='dr'</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Edi.rewriteedi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Edi.rewriteedi" title="Permalink to this definition">¶</a></dt>
+<dd><p>rewriteedi(edifile) will rewrite an edifile say if it needs to be rotated 
+or distortion removed.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">edifile = full path to edifile to be rewritten
+znew = impedance tensor if a new one has been created
+zvarnew = errors in impedance tensor if a new one has been created
+freqnew = new frequency list if one has been created
+newfile = &#8216;y&#8217; for yes or &#8216;n&#8217; for no if you want a new file to be</p>
+<blockquote>
+<div>created.</div></blockquote>
+<p class="last">tipnew = new tipper array
+tipvarnew = new tipper error array
+thetar = rotation angle counter clockwise (N=0, E=-90)
+ext = extension on the end of the file name before .edi</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>nedi = dirpath(edifile)+basename(edifile)+rw or dr if dr=&#8217;y&#8217;</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.PhaseTensor">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">PhaseTensor</tt><big>(</big><em>z</em>, <em>zvar=None</em>, <em>rotate=180</em>, <em>rotz=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#PhaseTensor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.PhaseTensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>PhaseTensor calculates the components of the phase tensor following 
+Caldwell et al. [2004].</p>
+<dl class="method">
+<dt id="MTpy.core.Z.PhaseTensor.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>z</em>, <em>zvar=None</em>, <em>rotate=180</em>, <em>rotz=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#PhaseTensor.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.PhaseTensor.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.PhaseTensor.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.PhaseTensor.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.PhaseTensorResidual">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">PhaseTensorResidual</tt><big>(</big><em>z1</em>, <em>z2</em>, <em>rotz=0</em>, <em>rotate=180</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#PhaseTensorResidual"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.PhaseTensorResidual" title="Permalink to this definition">¶</a></dt>
+<dd><p>calculates the tensor residual</p>
+<dl class="method">
+<dt id="MTpy.core.Z.PhaseTensorResidual.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>z1</em>, <em>z2</em>, <em>rotz=0</em>, <em>rotate=180</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#PhaseTensorResidual.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.PhaseTensorResidual.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.PhaseTensorResidual.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.PhaseTensorResidual.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.ResPhase">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">ResPhase</tt><big>(</big><em>z</em>, <em>period</em>, <em>zvar=None</em>, <em>rotz=0</em>, <em>ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#ResPhase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.ResPhase" title="Permalink to this definition">¶</a></dt>
+<dd><p>ResPhase is a resistivity and phase class</p>
+<dl class="method">
+<dt id="MTpy.core.Z.ResPhase.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>z</em>, <em>period</em>, <em>zvar=None</em>, <em>rotz=0</em>, <em>ffactor=1</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#ResPhase.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.ResPhase.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.ResPhase.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.ResPhase.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.ResistivityTensor">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">ResistivityTensor</tt><big>(</big><em>z</em>, <em>frequency</em>, <em>rotate=180</em>, <em>rotz=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#ResistivityTensor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.ResistivityTensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>gets components of the resistivity tensor defined by Weckmann et al. [2003]</p>
+<dl class="method">
+<dt id="MTpy.core.Z.ResistivityTensor.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>z</em>, <em>frequency</em>, <em>rotate=180</em>, <em>rotz=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#ResistivityTensor.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.ResistivityTensor.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.ResistivityTensor.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.ResistivityTensor.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.ResistivityTensorResidual">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">ResistivityTensorResidual</tt><big>(</big><em>z1</em>, <em>z2</em>, <em>frequency</em>, <em>rotz=0</em>, <em>rotatecoord=180</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#ResistivityTensorResidual"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.ResistivityTensorResidual" title="Permalink to this definition">¶</a></dt>
+<dd><p>will calculate the resistivity residual between two tensors</p>
+<dl class="method">
+<dt id="MTpy.core.Z.ResistivityTensorResidual.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>z1</em>, <em>z2</em>, <em>frequency</em>, <em>rotz=0</em>, <em>rotatecoord=180</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#ResistivityTensorResidual.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.ResistivityTensorResidual.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.ResistivityTensorResidual.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.ResistivityTensorResidual.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.Tipper">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">Tipper</tt><big>(</big><em>tipper</em>, <em>rott=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Tipper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Tipper" title="Permalink to this definition">¶</a></dt>
+<dd><p>Tipper is a type with attributes:</p>
+<dl class="method">
+<dt id="MTpy.core.Z.Tipper.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>tipper</em>, <em>rott=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Tipper.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Tipper.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.Tipper.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.Tipper.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.Z">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">Z</tt><big>(</big><em>edifn</em>, <em>ncol=5</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#MTpy.core.Z.Edi" title="MTpy.core.Z.Edi"><tt class="xref py py-class docutils literal"><span class="pre">MTpy.core.Z.Edi</span></tt></a></p>
+<p>Z is a data type to deal with edifiles and manipulate them to do 
+informative characterization.</p>
+<p>The methods are:</p>
+<dl class="method">
+<dt id="MTpy.core.Z.Z.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>edifn</em>, <em>ncol=5</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.Z.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.Z.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.getInvariants">
+<tt class="descname">getInvariants</tt><big>(</big><em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.getInvariants"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.getInvariants" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate the invariants according to Weaver et al. (2003) output is:
+a class with attributes:
+inv1,
+inv2,
+inv3,
+inv4,
+inv5,
+inv6,
+inv7,
+q,
+strike,
+strikeerr</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.getPhaseTensor">
+<tt class="descname">getPhaseTensor</tt><big>(</big><em>rotate=180</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.getPhaseTensor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.getPhaseTensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate phase tensor elements following Caldwell et al. 2004.
+Inputs:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>rotate = coordinate axis is assumed to be Y north and X east, if the</dt>
+<dd>data is in X north and Y east than a rotation of 180 is
+necessary</dd>
+<dt>thetar = will rotate the data assuming that Y is 0 and X is 90 so </dt>
+<dd>clockwise is positive.</dd>
+</dl>
+</div></blockquote>
+<dl class="docutils">
+<dt>Returns a phase tensor class with attributes of:</dt>
+<dd><p class="first">phi = phase tensor
+phivar = phase tensor errors
+phimin = minimum of the phase tensor in radians (invariant)
+phiminvar = errors of phimin
+phimax = maximum of phase tensor in radians (invariant)
+phimaxvar = erros of phimax
+alpha = angle between reference axis and coordinate axis
+alphavar = errors of alpha
+beta = anble between reference axis and principal axis of ellipse
+betavar = erros in beta
+azimuth = difference between alpha and beta orienting ellipse in</p>
+<blockquote>
+<div>degrees, is measured counter-clockwise with x=0, y=90</div></blockquote>
+<p class="last">azimuthvar = erros in azimuth
+phiminang = phimin in degrees
+phiminangvar = errors in phimin in degrees
+ellipticity = measure of 3D effects
+ellipticityvar = errors in ellipticity
+phidet = determinant of phi as phimin*phimax from Bibby et al.[2005]
+phidetvar = errors in phidet</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.getResPhase">
+<tt class="descname">getResPhase</tt><big>(</big><em>ffactor=1</em>, <em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.getResPhase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.getResPhase" title="Permalink to this definition">¶</a></dt>
+<dd><p>getResPhase will return a ResPhase class that has attributes of all 4
+components of resistivity and phase as well as the errors and 
+determinants.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>ffactor = a fudge factor if the calibration or gains aren&#8217;t quite </dt>
+<dd>correct</dd>
+<dt>thetar = will rotate the data assumint that Y is 0 and X is 90 so </dt>
+<dd>clockwise is positive.</dd>
+</dl>
+</dd>
+</dl>
+<p>Returns a type with attributes of all components of the resistivity
+and phase</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.getResTensor">
+<tt class="descname">getResTensor</tt><big>(</big><em>thetar=0</em>, <em>rotate=180</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.getResTensor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.getResTensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>getResTensor will return a data type that describes the reistivity 
+tensor defined by Weckmann et al. [2003]</p>
+<dl class="docutils">
+<dt>Input: </dt>
+<dd><p class="first">thetar = rotation of impedance tensor
+rotate = rotation of coordinate system, default is Y to north and</p>
+<blockquote class="last">
+<div>X to the east</div></blockquote>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.getTipper">
+<tt class="descname">getTipper</tt><big>(</big><em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.getTipper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.getTipper" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get tipper information and return a type with attributes:
+magreal
+magimag
+anglereal
+angleimag</p>
+<p>need to add error bars</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.plotPTAll">
+<tt class="descname">plotPTAll</tt><big>(</big><em>xspacing=6</em>, <em>esize=5</em>, <em>fignum=1</em>, <em>thetar=0</em>, <em>save='n'</em>, <em>savepath=None</em>, <em>fmt='pdf'</em>, <em>coordrot=180</em>, <em>ptmm=None</em>, <em>rpmm=None</em>, <em>dpi=300</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.plotPTAll"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.plotPTAll" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotAll will plot phase tensor, strike angle, min and max phase angle, 
+azimuth, skew, and ellipticity as subplots on one plot.  It also plots
+the resistivity tensor along side the phase tensor for comparison.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><p class="first">xspacing = spacing of tensors along x direction
+esize = size of tensor ellipses
+fignum = number of figure
+thetar = will rotate the data assuming that Y is 0 and X is 90 so</p>
+<blockquote>
+<div>clockwise is positive.</div></blockquote>
+<p class="last">save = save the figure &#8216;y&#8217; or &#8216;n&#8217;
+savepath = path to save to, saves as savepathstatioAll.fmt
+fmt = format of save figure pdf,svg,eps,ps,png
+coordrot = rotation of coordinate directions by multiples of 90
+rpmm = min and max of resistivity tensor on log10 scale
+ptmm = min an max of phase tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.plotResPhase">
+<tt class="descname">plotResPhase</tt><big>(</big><em>thetar=0</em>, <em>fignum=1</em>, <em>plottype=1</em>, <em>title=None</em>, <em>ffactor=1</em>, <em>savefigfilename=None</em>, <em>dpi=None</em>, <em>fmt=None</em>, <em>orientation=None</em>, <em>phaselimits=(0</em>, <em>90)</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.plotResPhase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.plotResPhase" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotResPhase(filename,fignum) will plot the apparent resistivity and 
+phase for TE and TM modes or all modes.  If there is tipper data it will
+be plotted at the bottom as real and imaginary parts.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first docutils">
+<dt>filename = filename containing impedance (.edi) or resistivity and phase</dt>
+<dd>information (.dat)</dd>
+</dl>
+<p>fignum = figure number
+ffactor = fudge factor for computing resistivity from impedances
+thetar = rotation angle of impedance tensor (deg or radians)
+plottype = 1 for just Ex/By and Ey/Bx</p>
+<blockquote>
+<div>2 for all 4 components
+3 for off diagonal plus the determinant</div></blockquote>
+<p class="last">title = title of plot
+savefigfilename = supply filename to save figure to if desired
+dpi = figure resolution
+format = file type of saved figure pdf,svg,eps...
+orientation = orientation of figure on A4 paper</p>
+</dd>
+<dt>Outputs:</dt>
+<dd>none</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.plotTipper">
+<tt class="descname">plotTipper</tt><big>(</big><em>thetar=0</em>, <em>fignum=1</em>, <em>plotnum=1</em>, <em>dpi=100</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.plotTipper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.plotTipper" title="Permalink to this definition">¶</a></dt>
+<dd><p>plotTipper will plot the resistivity, phase and tipper</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.removeDistortion">
+<tt class="descname">removeDistortion</tt><big>(</big><em>thetar=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.removeDistortion"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.removeDistortion" title="Permalink to this definition">¶</a></dt>
+<dd><p>removeDistortion(self) will remove the distortion from the impedance
+tensor as prescribed by Bibby et al. [2005].</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>thetar = will rotate the data assuming that Y is 0 and X is 90 so </dt>
+<dd>clockwise is positive.</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd>D = distortion tensor
+newedifn = full path to new edifile the edifile as station+dr.edi.</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="MTpy.core.Z.Z.removeStaticShift">
+<tt class="descname">removeStaticShift</tt><big>(</big><em>stol=0.2</em>, <em>dm=1000</em>, <em>fspot=20</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Z.removeStaticShift"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Z.removeStaticShift" title="Permalink to this definition">¶</a></dt>
+<dd><p>removeStaticShift(edifile,stol=.2,dm=1000) will remove static shift by 
+calculating the median of respones of near by stations, within dm.  If the 
+ratio of the station response to the median on either side of 1+-stol then 
+the impedance tensor for that electric component will be corrected for 
+static shift.</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>edifile = full path to edi file. Note nearby stations will be </dt>
+<dd>looked for in the dirname of edifile.  So have all edis in 
+one folder</dd>
+<dt>stol = ratio tolerance.  If there is no static shift the ratio </dt>
+<dd>between the response and the median response should be 1,
+but noise and other factors can be present so a tolerance 
+around 1 is assumed.</dd>
+<dt>dm = nearby station radius in meters.  If there is no station</dt>
+<dd>within that radius then no static shift will be corrected for.</dd>
+<dt>fspot = the last index of frequencies to look at.  So if you want</dt>
+<dd>to look for static shift in the first 20 frequencies
+fspot=20</dd>
+</dl>
+</dd>
+<dt>Outputs:</dt>
+<dd>newedifile = full path to new edifile</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="MTpy.core.Z.Zinvariants">
+<em class="property">class </em><tt class="descclassname">MTpy.core.Z.</tt><tt class="descname">Zinvariants</tt><big>(</big><em>z</em>, <em>rotz=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Zinvariants"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Zinvariants" title="Permalink to this definition">¶</a></dt>
+<dd><p>calculates invariants from Weaver [2003]</p>
+<dl class="method">
+<dt id="MTpy.core.Z.Zinvariants.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>z</em>, <em>rotz=0</em><big>)</big><a class="reference internal" href="_modules/MTpy/core/Z.html#Zinvariants.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#MTpy.core.Z.Zinvariants.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="MTpy.core.Z.Zinvariants.__module__">
+<tt class="descname">__module__</tt><em class="property"> = 'MTpy.core.Z'</em><a class="headerlink" href="#MTpy.core.Z.Zinvariants.__module__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="core.MTtools.html"
+                        title="previous chapter">MTtools: tools for working with MT response functions</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="core.OCCAMTools.html"
+                        title="next chapter">OCCAMTools: an interface to Scripp&#8217;s Occam inversion program</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/core.Z.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.OCCAMTools.html" title="OCCAMTools: an interface to Scripp’s Occam inversion program"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="core.MTtools.html" title="MTtools: tools for working with MT response functions"
+             >previous</a> |</li>
+        <li><a href="index.html">MTpy 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Jared Peacock, Lars Krieger, Stephan Thiel, Kent Inverarity.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
