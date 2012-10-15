@@ -42,6 +42,7 @@ file.
 import ConfigParser
 import os
 import shutil
+import urllib2
 
 INI_FN = 'mtpy.ini'
 
@@ -96,7 +97,6 @@ def load():
         # Failed to read any INI file. This is bad, so try to retrieve the
         # latest default from Github, and copy it to SYSTEM_INI.
         
-        import urllib2
         github_ini_url = urllib2.url('http://raw.github.com/geophysics/mtpy/master/mtpy/' + INI_FN)
         with open(GITHUB_INI, mode='w') as f:
             f.write(github_ini_url.read())
