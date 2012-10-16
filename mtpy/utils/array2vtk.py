@@ -14,8 +14,13 @@ import numpy as np
 from scipy.spatial import Delaunay 
 import os, sys, platform
 
+
+
 class VTKException(Exception):
     pass
+
+
+
 
 
 if platform.platform().lower().startswith('linux'):
@@ -33,10 +38,21 @@ elif platform.platform().lower().startswith('win'):
 else:
     sys.exit("system could not be determined")        
 
+#==================================================================
+
+def check_for_line(coords):
+    """
+    Check, if coordinates are on a straight line. Coordinates array of shape (n_points,2). Return boolean value.
+    """
+    state = False
+
+    pass
 
 
+#==================================================================
 
-class Array2VTK():
+
+class VTKGrid():
     """
     Class for defining and handling a VTK grid.
 
@@ -50,36 +66,54 @@ class Array2VTK():
     
     """
 
-    def __init__(self, points_and_data, data_array=None, n_dimensions = None, grid_type='unstructured', data_type='scalar'):
+    def __init__(self, points_and_data, data_array=None, n_dimensions=None, grid_type='unstructured', data_type='scalar'):
 
 
         self.grid_type      = grid_type
         self._original_grid = points_and_data
 
         if data_array != None:
+            if not n_dimensions in [2,3]:
+                sys.exit('Problem: Proper dimension definition needed, if separate data file provided!')
+                
             self.points    = points_and_data
             self.data      = data_array
+            
         else:
             self.points    = points_and_data[:,:-1]
             self.data      = points_and_data[:,-1]
 
-            
         self.dimension = self.points.shape[1]
+        print  self.points.shape, self.data.shape   
 
 
         if self.grid_type=='unstructured':
 
-            interp_grid = Delaunay(self.points)
-            new_points  = interp_grid.points
+            #trying 3D triangulation
+            try:
+                interp_grid = Delaunay(self.points)
 
-            #include dummy dimension for 2D data set
-            if self.points.shape[1]==2:
-                tmp_points = np.zeros((new_points.shape[0],3))
-                tmp_points[:,0] = new_points[:,0]#np.sqrt(new_points[:,0]**2+new_points[:,1]**2)
-                tmp_points[:,2] = new_points[:,1]
-                new_points = tmp_points
-        
-            
+            # HULL error (RuntimeError exception thrown), if data not 3D enough, handle as pure 2D
+            #
+            # remove one dimension, triangulate and re-setup coordinates later on
+            except RuntimeError:
+
+                print "\n\n Data set not 3D - retrying with 2D interpolation instead !!\n\n"
+                
+                _orig_grid = self.points.copy()
+
+                #reduce to a single horizontal coordinate    
+                dist    = np.sqrt(self.points[:,0]**2+self.points[:,1]**2)
+
+                temp_points = self.points[:,:2]
+                temp_points[:,0] = dist
+                temp_points[:,1] = _orig_grid[:,2]
+
+                interp_grid = Delaunay(temp_points)
+
+                interp_grid.points = _orig_grid
+ 
+            new_points  = interp_grid.points
             new_cells   = interp_grid.vertices
             
             self.grid = tvtk.UnstructuredGrid(points=new_points)
@@ -107,7 +141,10 @@ class Array2VTK():
         else:
             sys.exit('cannot save grid -- grid type is undefined')
 
-    
+
+
+#==================================================================
+   
 def main(arglist):
     
     """Usage: array2vtk.py <ascii file with grid and data points> <Data variable name> <output file name> [optional <extra file containing data only> <n_dimensions>]"""
@@ -156,7 +193,7 @@ def main(arglist):
         raise VTKException('Could not digest input parameters!')
     
 
-    vtkgrid2 = Array2VTK(grid_in,data_in)
+    vtkgrid2 = VTKGrid(grid_in,data_in,n_dimensions=n_dims)
     vtkgrid2.set_variablename(field_name)
     vtkgrid2.save(outfilename)
     return vtkgrid2
