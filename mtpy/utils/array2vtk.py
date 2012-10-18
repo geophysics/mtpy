@@ -84,7 +84,6 @@ class VTKGrid():
             self.data      = points_and_data[:,-1]
 
         self.dimension = self.points.shape[1]
-        print  self.points.shape, self.data.shape   
 
 
         if self.grid_type=='unstructured':

@@ -99,29 +99,29 @@ def main(arglist):
     
     """
     
-    usage_message = "Usage: \n\n winglink2vtk.py <ascii file with model data> <file type (2 or 3)> <depth scale (m or km)> <output file name> \n\n"
+    usage_message = "Usage: \n\n winglink2vtk.py <ascii file with model data> <file type (2 or 3)> <output file name> \n\n"
 
-    if not len(arglist) == 5:
+    if not len(arglist) == 4:
         sys.exit(usage_message)
 
     data_fn      = os.path.abspath(os.path.realpath(arglist[1]))
     datafiletype = int(float(arglist[2])) 
-    outfilename  = arglist[4].strip().replace(' ','') 
+    outfilename  = arglist[3].strip().replace(' ','') 
     outfile      = os.path.abspath(os.path.realpath(outfilename))
-    depth_scale  = arglist[4].strip().lower()
+    #depth_scale  = arglist[4].strip().lower()
     
     if not datafiletype in [2,3]:
        sys.exit(usage_message)
  
-    try:
+    if 1:
         if datafiletype == 2 :
             data_in = np.loadtxt(data_fn)
 
             if not data_in.shape[1]==4:
                 sys.exit('2D data file not understood - must have 4 columns x,y,z,res')
 
-            if not depth_scale == 'km':
-                data_in[:,2]/=1000.
+            #if not depth_scale == 'km':
+            #    data_in[:,2]/=1000.
 
             vtkgrid = array2vtk.VTKGrid(data_in)
             vtkgrid.set_variablename('Resistivity')
@@ -134,6 +134,8 @@ def main(arglist):
     
             data_in = convert_3D_to_table(raw_data)
 
+            np.savetxt('temp3dto2d.txt',data_in)
+            
             vtkgrid = array2vtk.VTKGrid(data_in)
             vtkgrid.set_variablename('Resistivity')
             vtkgrid.save(outfile)
@@ -141,7 +143,7 @@ def main(arglist):
             
             
 
-    except:
+    else:
         raise WingLinkException
 
     
