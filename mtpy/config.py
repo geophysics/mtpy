@@ -1,8 +1,8 @@
-'''Keep configuration settings for mtpy in INI files.
+'''Keep configuration settings for mtpy in CFG files.
 
-This module will try to load the ``mtpy.ini`` settings file from three locations:
+This module will try to load the ``mtpy.cfg`` settings file from three locations:
 the current working directory, the user's home directory, and the original
-in the package source directory (SYSTEM_INI), in that priority. Each file
+in the package source directory (SYSTEM_CFG), in that priority. Each file
 need not contain all settings, and settings from higher priority files take
 precendence.
 
@@ -27,15 +27,15 @@ you can access settings like so::
 Format
 ------
         
-The settings file should be in INI file format. See for more info:
+The settings file should be in CFG file format. See for more info:
 
 http://www.doughellmann.com/PyMOTW/ConfigParser/#accessing-configuration-settings
 
 Github
 ------
 
-If for some reason the SYSTEM_INI file is missing, load will try to download the
-original from Github, and write it as a backup 'github-mtpy.ini' configuration
+If for some reason the SYSTEM_CFG file is missing, load will try to download the
+original from Github, and write it as a backup 'github-mtpy.cfg' configuration
 file.
         
 '''
@@ -44,20 +44,20 @@ import os
 import shutil
 import urllib2
 
-INI_FN = 'mtpy.ini'
+CFG_FN = 'mtpy.cfg'
 
-# Possible locations for INI files
+# Possible locations for CFG files
 
-GITHUB_INI = os.path.join(os.path.dirname(__file__), 'github-' + INI_FN)
-SYSTEM_INI = os.path.join(os.path.dirname(__file__), INI_FN)
-USER_INI = os.path.join(os.path.expanduser('~'), INI_FN)
-WORKINGDIR_INI = os.path.join(os.getcwd(), INI_FN)
+GITHUB_CFG = os.path.join(os.path.dirname(__file__), 'github-' + CFG_FN)
+SYSTEM_CFG = os.path.join(os.path.dirname(__file__), CFG_FN)
+USER_CFG = os.path.join(os.path.expanduser('~'), CFG_FN)
+WORKINGDIR_CFG = os.path.join(os.getcwd(), CFG_FN)
     
     
 def load():
     '''Return config parser.
     
-    Checks for GITHUB_INI, SYSTEM_INI, USER_INI, and WORKINGDIR_INI and updates
+    Checks for GITHUB_CFG, SYSTEM_CFG, USER_CFG, and WORKINGDIR_CFG and updates
     the parser object with the values found each time.
     
     '''
@@ -85,22 +85,22 @@ def load():
         parser.read(fn)
         return parser
     
-    parser = make_parser(GITHUB_INI)
+    parser = make_parser(GITHUB_CFG)
     read_at_least_one = False
-    for fn in [SYSTEM_INI, USER_INI, WORKINGDIR_INI]:
+    for fn in [SYSTEM_CFG, USER_CFG, WORKINGDIR_CFG]:
         next_parser = make_parser(fn)
         if next_parser.read(fn):
             read_at_least_one = True
             parser = combine([parser, next_parser])
             
     if not read_at_least_one:
-        # Failed to read any INI file. This is bad, so try to retrieve the
-        # latest default from Github, and copy it to SYSTEM_INI.
+        # Failed to read any CFG file. This is bad, so try to retrieve the
+        # latest default from Github, and copy it to SYSTEM_CFG.
         
-        github_ini_url = urllib2.url('http://raw.github.com/geophysics/mtpy/master/mtpy/' + INI_FN)
-        with open(GITHUB_INI, mode='w') as f:
-            f.write(github_ini_url.read())
-        return parser.read([GITHUB_INI])
+        github_cfg_url = urllib2.url('http://raw.github.com/geophysics/mtpy/master/mtpy/' + CFG_FN)
+        with open(GITHUB_CFG, mode='w') as f:
+            f.write(github_cfg_url.read())
+        return parser.read([GITHUB_CFG])
     return parser
     
     
