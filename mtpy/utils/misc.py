@@ -11,6 +11,7 @@ Calculations, optimisations, ....
 
 """
 import sys
+import os 
 import numpy as np
 
 def find_longest_common_time_window_from_list(lo_time_windows, sampling_rate):
@@ -37,7 +38,7 @@ def find_longest_common_time_window_from_list(lo_time_windows, sampling_rate):
     totalmax = np.max(maxs)
 
     #do not correct for last sample, since 'end' in the MTpy handling is defined as the start time of the last sample already
-    totallength = (totalmax - totalmin ) * sampling_rate
+    totallength = int((totalmax - totalmin ) * sampling_rate + 1)
     
 
     #define time axis:
@@ -63,7 +64,9 @@ def find_longest_common_time_window_from_list(lo_time_windows, sampling_rate):
     longest_window = 0 
 
     window_idx = 0
+    print 'total length:', totallength
 
+    print 'start while-loop until "totallength" is reached...'
     while t1 < totallength:
         if np.prod(d[t1,:]) == 0 :
             #check, if it's been a data window before
@@ -89,7 +92,12 @@ def find_longest_common_time_window_from_list(lo_time_windows, sampling_rate):
             ts_tmp = t1
             window_idx += 1
         t1 += 1
+        if t1%(int(totallength/100.)) == 0:
+            sys.stdout.write('{0:3} %\r'.format(int(np.round(t1/float(totallength) *100))))
+            sys.stdout.flush()
 
+    
+    print '\nloop finished - checking last sample'
     #after the loop, check, if last sample belogs to a data window:
     if ts_tmp != None:
         te_tmp = t1 -1
@@ -101,7 +109,13 @@ def find_longest_common_time_window_from_list(lo_time_windows, sampling_rate):
 
     #rounding limits of the time window to precision defined by the sampling rate
     precision = -int(np.log10(1./sampling_rate))
+    print 'return time window parameters:'
+    print (round(ta[start_idx], precision), round(ta[end_idx], precision), window_length, len(ta))
     return (round(ta[start_idx], precision), round(ta[end_idx], precision), window_length)
+
+
+
+
 
 def add_birrp_simple_parameters_to_dictionary(birrp_dictionary):
 
@@ -122,3 +136,49 @@ def add_birrp_simple_parameters_to_dictionary(birrp_dictionary):
     birrp_dictionary['phi'] = 0
  
     return birrp_dictionary
+
+
+
+class MemoryCheck():
+    """Checks memory of a given system"""
+ 
+    def __init__(self):
+ 
+        if os.name == "posix":
+            self.value = self.linuxRam()
+        elif os.name == "nt":
+            self.value = self.windowsRam()
+        else:
+            print "I only work with Win or Linux "
+ 
+    def windowsRam(self):
+        """Uses Windows API to check RAM in this OS"""
+        kernel32 = ctypes.windll.kernel32
+        c_ulong = ctypes.c_ulong
+        class MEMORYSTATUS(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", c_ulong),
+                ("dwMemoryLoad", c_ulong),
+                ("dwTotalPhys", c_ulong),
+                ("dwAvailPhys", c_ulong),
+                ("dwTotalPageFile", c_ulong),
+                ("dwAvailPageFile", c_ulong),
+                ("dwTotalVirtual", c_ulong),
+                ("dwAvailVirtual", c_ulong)
+            ]
+        memoryStatus = MEMORYSTATUS()
+        memoryStatus.dwLength = ctypes.sizeof(MEMORYSTATUS)
+        kernel32.GlobalMemoryStatus(ctypes.byref(memoryStatus))
+ 
+        return int(memoryStatus.dwTotalPhys/1024**2),int(memoryStatus.dwAvailPhys/1024**2)
+ 
+    def linuxRam(self):
+        """Returns the RAM of a linux system"""
+        totalmemory = os.popen("free -m").readlines()[1].split()[1]
+        freememory = os.popen("free -m").readlines()[1].split()[3]
+        return int(totalmemory),int(freememory)
+
+def show_memory():
+
+    M = MemoryCheck()
+    return M.value

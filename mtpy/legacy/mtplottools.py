@@ -7,11 +7,12 @@ J Peacock
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
 import numpy as np
-import mtpy.processing.birrptools as brp
+import mtpy.legacy.birrptools as brp
 import os
-import mtpy.core.mttools as mt
+import mtpy.legacy.mttools as mt
 from matplotlib.ticker import MultipleLocator,FormatStrFormatter
-import mtpy.core.z as Z
+import mtpy.legacy.old_z as Z
+reload(Z)
 import mtpy.utils.latlongutmconversion as utm2ll
 from matplotlib import colors
 from matplotlib import patches
@@ -390,10 +391,9 @@ def plotResPhase(filename,fignum=1,ffactor=1,plotnum=1,title=None,
                 handletextpad=.2,borderpad=.02)
     
     #-----Plot the phase----------------------------------------------------
-    
     ax2.errorbar(period,rp.phasexy,marker='s',ms=4,mfc='None',mec='b',
                  mew=1,ls='None',yerr=rp.phasexyerr,ecolor='b')
-    ax2.errorbar(period,np.array(rp.phaseyx)+180,marker='o',ms=4,
+    ax2.errorbar(period,(np.array(rp.phaseyx))%360,marker='o',ms=4,
                  mfc='None',mec='r',mew=1,ls='None',yerr=rp.phaseyxerr,
                  ecolor='r')
     ax2.set_xlabel('Period (s)',fontdict)
@@ -408,9 +408,9 @@ def plotResPhase(filename,fignum=1,ffactor=1,plotnum=1,title=None,
             pymin=0
     else:
         pymin=0
-    
+
     if max(rp.phasexy)>90 or max(rp.phaseyx+180)>90:
-        pymax=min([max(rp.phasexy),max(rp.phaseyx+180)])
+        pymax=max([max(rp.phasexy),max((rp.phaseyx)%360)])
         if pymax<91:
             pymax=90
     else:

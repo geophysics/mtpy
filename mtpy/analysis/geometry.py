@@ -71,7 +71,7 @@ def dimensionality(z_array = None, z_object = None, pt_array= None, pt_object = 
     #use criteria from Bibby et al. 2005 for determining the dimensionality for each frequency of the pt/z array:
     for idx_f in range(len(pt_obj.pt)):
         #1. determine beta value...
-        beta = pt_obj.beta()[0][idx_f]
+        beta = pt_obj.beta[0][idx_f]
             #compare with threshold for 3D
         if beta > beta_threshold:
             lo_dimensionality.append(3)
@@ -112,18 +112,20 @@ def strike_angle(z_array = None, z_object = None, pt_array= None, pt_object = No
             lo_strikes.append((np.nan, np.nan))
             continue
 
-        a = pt_obj.alpha()[0][idx]
-        b = pt_obj.beta()[0][idx]
+        a = pt_obj.alpha[0][idx]
+        b = pt_obj.beta[0][idx]
 
         strike1 = (a - b)%90
         if 0 < strike1 < 45 :
             strike2 = strike1 + 90
         else:
             strike2 = strike1 - 90
+        if 1:#min(strike1,strike2)>=0:
+            lo_strikes.append(( min(strike1,strike2), max(strike1,strike2)) )
+        # else:
+        #     lo_strikes.append(( max(strike1,strike2), min(strike1,strike2)) )
 
-        lo_strikes.append(( min(strike1,strike2), max(strike1,strike2)) )
-
-    return lo_strikes
+    return np.array(lo_strikes)
 
 
 

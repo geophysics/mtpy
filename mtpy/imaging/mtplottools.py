@@ -1,2928 +1,2046 @@
-'''
-This module contains functions to plot different MT things.
-'''
+# -*- coding: utf-8 -*-
+"""
+===========
+mtplottools
+===========
 
-import matplotlib.pyplot as plt
-import matplotlib.pylab as pylab
+Contains helper functions and classes for plotting
+
+
+
+@author: jpeacock-pr
+"""
+#==============================================================================
+
 import numpy as np
-import mtpy1.processing.birrptools as brp
 import os
-import mtpy1.core.mttools as mt
-from matplotlib.ticker import MultipleLocator,FormatStrFormatter
-import mtpy1.core.z as Z
-import mtpy1.utils.latlongutmconversion as utm2ll
-from matplotlib.patches import Ellipse,Rectangle,Arrow
-from matplotlib.colors import LinearSegmentedColormap,Normalize
-from matplotlib.colorbar import *
-import matplotlib.gridspec as gridspec
+import mtpy.core.edi as mtedi
+import mtpy.core.z as mtz
+import mtpy.analysis.pt as mtpt
+import mtpy.analysis.zinvariants as mtinv
+import mtpy.utils.exceptions as mtex
+import mtpy.utils.conversions as utm2ll
+import matplotlib.mlab as mlab
 
 #==============================================================================
-# Make some color maps for plotting
-#==============================================================================
-#yellow to red
-ptcmapdict={'red':((0.0,1.0,1.0),(1.0,1.0,1.0)),
-            'green':((0.0,0.0,1.0),(1.0,0.0,1.0)),
-            'blue':((0.0,0.0,0.0),(1.0,0.0,0.0))}
-ptcmap=LinearSegmentedColormap('ptcmap',ptcmapdict,256)
-
-#blue to yellow to red
-skcmapdict={'red':((0.0,0.0,0.0),(.5,1.0,1.0),(0.5,0.0,1.0),(1.0,1.0,1.0)),
-            'green':((0.0,1.0,0.0),(.5,1.0,0.0),(.5,0.0,1.0),(1.0,0.0,1.0)),
-            'blue':((0.0,0.0,1.0),(.5,0.0,1.0),(0.5,0.1,0.1),(1.0,0.1,0.1))}
-skcmap=LinearSegmentedColormap('skcmap',skcmapdict,256)
-
-#blue to white to red
-skcmapdict2={'red':((0.0,0.0,0.0),(.5,1.0,1.0),(0.5,0.0,1.0),(1.0,1.0,1.0)),
-            'green':((0.0,1.0,0.0),(.5,1.0,0.0),(.5,0.0,1.0),(1.0,0.0,1.0)),
-            'blue':((0.0,0.0,1.0),(.5,1.0,1.0),(0.5,0.0,1.0),(1.0,0.0,0.0))}
-skcmap2=LinearSegmentedColormap('skcmap2',skcmapdict2,256)
 
 
-#white to blue
-ptcmapdict3={'red':((0.0,1.0,1.0),(1.0,0.0,0.0)),
-            'green':((0.0,1.0,1.0),(1.0,0.0,0.0)),
-            'blue':((0.0,1.0,1.0),(1.0,1.0,1.0))}
-ptcmap3=LinearSegmentedColormap('ptcmap3',ptcmapdict3,256)
+#define text formating for plotting
+ckdict = {'phiminang' : '$\Phi_{min}$ (deg)',
+          'phimin' : '$\Phi_{min}$ (deg)',
+          'phimaxang' : '$\Phi_{max}$ (deg)',
+          'phimax' : '$\Phi_{max}$ (deg)',
+          'phidet' : 'Det{$\Phi$} (deg)',
+          'skew' : 'Skew (deg)',
+          'ellipticity' : 'Ellipticity',
+          'skew_seg' : 'Skew (deg)'}
+          
 
-#red to blue
-rtcmapdict={'red':((0.0,0.0,1.0),(1.0,0.0,1.0)),
-            'green':((0.0,0.0,0.0),(1.0,0.0,0.0)),
-            'blue':((0.0,1.0,0.0),(1.0,1.0,0.0))}
-rtcmap=LinearSegmentedColormap('rtcmap',rtcmapdict,256)
-
-ckdict={'phiminang':'$\Phi_{min}$ (deg)','phimin':'$\Phi_{min}$ (deg)',
-        'phimaxang':'$\Phi_{max}$ (deg)','phimax':'$\Phi_{max}$ (deg)',
-        'phidet':'Det{$\Phi$} (deg)','beta':'Skew (deg)',
-        'ellipticity':'Ellipticity'}
-
-zonedict=dict([(a,ii) for ii,a in enumerate(['a','b','c','d','e','f','g','h',
-               'i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x',
-               'y','z'])])
-
-#==============================================================================
-# Plotting tools
-#==============================================================================
-
-
-def plotcoh(filename,fignum=1,savefigfilename=None,dpi=None,format=None,
-            orientation=None):
-    """Will plot coherence output from birrp_bbconvert.  If you want to save the
-    plot do so using the interactive gui.  If coh3=0 only two plots.
-    
-     Arguments:
-    -----------
-        **filename** : string
-                       filename containing coherence (.coh)
-                       
-        **fignum** : int
-                     figure number
-                     
-        **savefigfilename** : list of strings
-                             supply filenames to save figures to if desired
-        
-        **dpi** : int
-                  dots-per-inch of figure resolution
-        
-        **format** : [ pdf | eps | jpg | png | svg ]
-                    file type of saved figure pdf,svg,eps...
             
-        **orientation** : [ landscape | portrait ]
-                         orientation of figure on A4 paper
+labeldict = {6:'$10^{6}$',
+             5:'$10^{5}$',
+             4:'$10^{4}$',
+             3:'$10^{3}$',
+             2:'$10^{2}$',
+             1:'$10^{1}$',
+             0:'$10^{0}$',
+             -1:'$10^{-1}$',
+             -2:'$10^{-2}$',
+             -3:'$10^{-3}$',
+             -4:'$10^{-4}$',
+             -5:'$10^{-5}$',
+             -6:'$10^{-6}$',
+             -7:'$10^{-7}$',}
+
+#==============================================================================
+# Arrows properties for induction vectors               
+#==============================================================================
+class MTArrows(object):
+    """
+    Helper class to read a dictionary of arrow properties
+    
+    Arguments:
+    -----------
+        **arrow_dict** : dictionary for arrow properties
+                        * 'size' : float
+                                  multiplier to scale the arrow. *default* is 5
+                        * 'head_length' : float
+                                         length of the arrow head *default* is 
+                                         1.5
+                        * 'head_width' : float
+                                        width of the arrow head *default* is 
+                                        1.5
+                        * 'lw' : float
+                                line width of the arrow *default* is .5
+                                
+                        * 'color' : tuple (real, imaginary)
+                                   color of the arrows for real and imaginary
+                                   
+                        * 'threshold': float
+                                      threshold of which any arrow larger than
+                                      this number will not be plotted, helps 
+                                      clean up if the data is not good. 
+                                      *default* is 1, note this is before 
+                                      scaling by 'size'
+                                      
+                        * 'direction : [ 0 | 1 ]
+                                     - 0 for arrows to point toward a conductor
+                                     - 1 for arrow to point away from conductor
+    
+    Attributes:
+    -----------
+    
+        -arrow_color_imag     color of imaginary induction arrow
+        -arrow_color_real     color of real induction arrow
+        -arrow_direction      convention of arrows pointing to or away from 
+                              conductors, see above.
+        -arrow_head_length    length of arrow head in relative points
+        -arrow_head_width     width of arrow head in relative points
+        -arrow_lw             line width of arrows
+        -arrow_size           scaling factor to multiple arrows by to be visible
+        -arrow_threshold      threshold for plotting arrows, anything above 
+                              this number will not be plotted.
+                              
+    """
+    
+    def __init__(self,arrow_dict):
+        self._arrow_dict = arrow_dict
+
+    def _read_arrow_dict(self):        
+    
+        #set arrow length
+        try:
+            self.arrow_size = self._arrow_dict['size']
+        except KeyError:
+            self.arrow_size = 2.5
+            
+        #set head length
+        try:
+            self.arrow_head_length = self._arrow_dict['head_length']
+        except KeyError:
+            self.arrow_head_length = .15*self.arrow_size
+            
+        #set head width
+        try:
+            self.arrow_head_width = self._arrow_dict['head_width']
+        except KeyError:
+            self.arrow_head_width = .1*self.arrow_size
+            
+        #set line width
+        try:
+            self.arrow_lw = self._arrow_dict['lw']
+        except KeyError:
+            self.arrow_lw = .5*self.arrow_size
+            
+        #set real color to black
+        try:
+            self.arrow_color_real = self._arrow_dict['color'][0]
+        except KeyError:
+            self.arrow_color_real = 'k'
+            
+        #set imaginary color to black
+        try:
+            self.arrow_color_imag = self._arrow_dict['color'][1]
+        except KeyError:
+            self.arrow_color_imag = 'b'
+            
+        #set threshold of induction arrows to plot
+        try:
+            self.arrow_threshold = self._arrow_dict['threshold']
+        except KeyError:
+            self.arrow_threshold = 1
+            
+        #set arrow direction to point towards or away from conductor
+        try:
+            self.arrow_direction = self._arrow_dict['direction']
+        except KeyError:
+            self.arrow_direction = 0
+
+
+#==============================================================================
+#  ellipse properties           
+#==============================================================================
+class MTEllipse(object):
+    """
+    helper class for getting ellipse properties from an input dictionary
+    
+    Arguments:
+    ----------
+        **ellipse_dict** : dictionary
+                          dictionary of parameters for the phase tensor 
+                          ellipses with keys:
+                              
+                          * 'size' -> size of ellipse in points 
+                                     *default* is .25
+                          
+                          * 'colorby' : [ 'phimin' | 'phimax' | 'beta' | 
+                                    'skew_seg' | 'phidet' | 'ellipticity' ]
+                                    
+                                    - 'phimin' -> colors by minimum phase
+                                    - 'phimax' -> colors by maximum phase
+                                    - 'skew' -> colors by skew
+                                    - 'skew_seg' -> colors by skew in 
+                                                   discrete segments 
+                                                   defined by the range
+                                    - 'phidet' -> colors by determinant of
+                                                 the phase tensor
+                                    - 'ellipticity' -> colors by ellipticity
+                                    *default* is 'phimin'
+                            
+                          * 'range' : tuple (min, max, step)
+                                     Need to input at least the min and max
+                                     and if using 'skew_seg' to plot
+                                     discrete values input step as well
+                                     *default* depends on 'colorby'
+                                     
+                          * 'cmap' : [ 'mt_yl2rd' | 'mt_bl2yl2rd' | 
+                                       'mt_wh2bl' | 'mt_rd2bl' | 
+                                       'mt_bl2wh2rd' | 'mt_seg_bl2wh2rd' | 
+                                       'mt_rd2gr2bl']
+                                      
+                                   - 'mt_yl2rd'       --> yellow to red
+                                   - 'mt_bl2yl2rd'    --> blue to yellow to red
+                                   - 'mt_wh2bl'       --> white to blue
+                                   - 'mt_rd2bl'       --> red to blue
+                                   - 'mt_bl2wh2rd'    --> blue to white to red
+                                   - 'mt_bl2gr2rd'    --> blue to green to red
+                                   - 'mt_rd2gr2bl'    --> red to green to blue
+                                   - 'mt_seg_bl2wh2rd' --> discrete blue to 
+                                                           white to red
+    
+    Attributes:
+    ------------
+    
+        -ellipse_cmap         ellipse color map, see above for options
+        -ellipse_colorby      parameter to color ellipse by
+        -ellipse_range        (min, max, step) values to color ellipses
+        -ellipse_size         scaling factor to make ellipses visible
+                                                           
+                                                           
+    """
+    
+    def __init__(self, ellipse_dict):
+        self._ellipse_dict = ellipse_dict
+        
+    def _read_ellipse_dict(self):
+        """
+        read in dictionary and set default values if no entry given
+        """
+        
+        #--> set the ellipse properties
+        
+        #set default size to 2
+        try:
+            self.ellipse_size = self._ellipse_dict['size']
+        except KeyError:
+            self.ellipse_size = 2
+        
+        #set default colorby to phimin
+        try:
+            self.ellipse_colorby = self._ellipse_dict['colorby']
+        except KeyError:
+            self.ellipse_colorby = 'phimin'
+        
+        #set color range to 0-90
+        try:
+            self.ellipse_range = self._ellipse_dict['range']
+        except KeyError:
+            if self.ellipse_colorby == 'skew' or \
+                self.ellipse_colorby == 'skew_seg':
+                
+                self.ellipse_range = (-9, 9, 3)
+            
+            elif self.ellipse_colorby == 'ellipticity':
+                self.ellipse_range = (0, 1, .1)
+            
+            else:
+                self.ellipse_range = (0, 90, 5)
+                
+        try:
+            self.ellipse_range[2]
+        except IndexError:
+            self.ellipse_range = (self.ellipse_range[0], 
+                                  self.ellipse_range[1],
+                                  1)
+            
+        #set colormap to yellow to red
+        try:
+            self.ellipse_cmap = self._ellipse_dict['cmap']
+        except KeyError:
+            if self.ellipse_colorby == 'skew':
+                self.ellipse_cmap = 'mt_bl2wh2rd'
+                
+            elif self.ellipse_colorby == 'skew_seg':
+                self.ellipse_cmap = 'mt_seg_bl2wh2rd'
+                
+            else:
+                self.ellipse_cmap = 'mt_bl2gr2rd'
+                
+#==============================================================================
+# object for computing resistivity and phase  
+#==============================================================================
+class ResPhase(object):
+    """
+    HJelper class to create a data type for just the resistivity and phase
+    
+    Arguments:
+    ----------
+        **z_object** : class mtpy.core.z.Z
+                      object of mtpy.core.z.  If this is input be sure the
+                      attribute z.freq is filled.  *default* is None
+                      
+        **res_array** : np.ndarray((nf,2,2))
+                        Array of resistivity values on a linear scale with 
+                        the shape being [[rho_xx, rho_xy],[rho_yx, rho_yy]]
+                        *default* is None
+                        
+        **res_err_array** : np.ndarray((nf,2,2))
+                        Array of resistivity error values on a linear scale,  
+                        the shape being [[rho_xx, rho_xy],[rho_yx, rho_yy]]
+                        *default* is None
+                        
+        **phase_array** : np.ndarray((nf,2,2))
+                        Array of resistivity values on a linear scale with 
+                        the shape being [[phi_xx, phi_xy],[phi_yx, phi_yy]]
+                        *default* is None
+                        
+        **phase_err_array** : np.ndarray((nf,2,2))
+                        Array of resistivity error values on a linear scale,  
+                        the shape being [[phi_xx, phi_xy],[phi_yx, phi_yy]]
+                        *default* is None
+                        
+        **rot_z** : float
+                    angle to rotate data by assuming North is 0 and measured
+                    clockwise positive
+                    
+        **period** : np.ndarray(nf)
+                     period array same length as res_array.  Needs to be input 
+                     if inputing res and phase.
+                        
+    
+    Attributes:
+    ------------
+    
+        -period       array of periods corresponding to elements in res/phase
+        
+        -phase         phase array of shape (nf, 2, 2)
+        -phase_err     phase error array of shape (nf, 2, 2)
+        -phasedet      determinant of phase with shape (nf)
+        -phasedet_err  determinant error of phase with shape (nf)
+        -phasexx       xx component of phase with shape (nf)
+        -phasexx_err   xx component of phase error with shape (nf)
+        -phasexy       xy component of phase with shape (nf)
+        -phasexy_err   xy component of phase error with shape (nf)
+        -phaseyx       yx component of phase with shape (nf)
+        -phaseyx_err   yx component of phase error with shape (nf)
+        -phaseyy       yy component of phase with shape (nf)
+        -phaseyy_err   yy component of phase error with shape (nf)
+        
+        -res           res array of shape (nf, 2, 2)
+        -res_err       res error array of shape (nf, 2, 2)
+        -resdet        determinant of res with shape (nf)
+        -resdet_err    determinant error of res with shape (nf)
+        -resxx         xx component of res with shape (nf)
+        -resxx_err     xx component of res error with shape (nf)
+        -resxy         xy component of res with shape (nf)
+        -resxy_err     xy component of res error with shape (nf)
+        -resyx         yx component of res with shape (nf)
+        -resyx_err     yx component of res error with shape (nf)
+        -resyy         yy component of res with shape (nf)
+        -resyy_err     yy component of res error with shape (nf)
+        
+    Methods:
+    ---------
+    
+        -compute_res_phase   computes the above attributes on call
+        -rotate              rotates the data
+     
+    """
+    def __init__(self, z_object=None, res_array=None, res_err_array=None,
+                 phase_array=None, phase_err_array=None, rot_z=0, period=None):
+        
+        self._Z = z_object
+        self.res = res_array
+        self.res_err = res_err_array
+        self.phase = phase_array
+        self.phase_err = phase_err_array
+        self.period = period
+        
+        
+        #check to make sure they are the same size
+        if self.res != None or self.phase != None:
+            if self.res.shape != self.phase.shape:
+                raise mtex.MTpyError_Z('res_array and phase_array '+\
+                                               'are not the same shape')
+                                               
+            if self._Z is None:
+                self._Z = mtz.Z()
+                self._Z.set_res_phase(res_array, phase_array, 
+                                      res_err_array=res_err_array,
+                                      phase_err_array=phase_err_array)
+                if self.period is None:
+                    raise mtex.MTpyError_Z('Need to input period to '+\
+                                                'compute z.')
+                self._Z.freq = 1./period
+        
+        if self._Z.freq == None:
+            if period is not None:
+                self._Z.freq = 1./period
+            else:
+                raise mtex.MTpyError_Z('Need to set z_object.freq')
+        else:
+            self.period = 1./self._Z.freq
+            
+        if rot_z != 0:
+            self.rotate(rot_z)
+            
+        #compute the resistivity and phase components
+        self.compute_res_phase()
+    
+    def compute_res_phase(self):
+        """
+        computes the resistivity and phase and sets each component as an 
+        attribute
+        """
+        
+        if self._Z is not None:
+            self.res,  self.phase, self.res_err, self.phase_err = \
+                                                       self._Z._get_res_phase()
+                                                       
+        #check to see if a res_err_array was input if not set to zeros
+        if self.res_err is None:
+            self.res_err = np.zeros_like(self.res)
+            
+        else:
+            #check to see if res and res_err are the same shape
+            if self.res.shape != self.res_err.shape:
+                mtex.MTpyError_inputarguments
+                raise mtex.MTpyError_inputarguments('res_array and res_err_array '+\
+                                               'are not the same shape')
+
+        #check to see if a phase_err_array was input, if not set to zeros
+        if self.phase_err is None:
+            self.phase_err = np.zeros_like(self.phase)
+            
+        else:
+            #check to see if res and res_err are the same shape
+            if self.phase.shape != self.phase_err.shape:
+                raise mtex.MTpyError_inputarguments('phase_array and '+\
+                                      'phase_err_array are not the same shape')
+        
+        #--> set the attributes of the class to the components of each        
+        self.resxx = self.res[:, 0, 0]
+        self.resxy = self.res[:, 0, 1]
+        self.resyx = self.res[:, 1, 0]
+        self.resyy = self.res[:, 1, 1]
+        
+        self.resxx_err = self.res_err[:, 0, 0]
+        self.resxy_err = self.res_err[:, 0, 1]
+        self.resyx_err = self.res_err[:, 1, 0]
+        self.resyy_err = self.res_err[:, 1, 1]
+        
+        self.phasexx = self.phase[:, 0, 0]
+        self.phasexy = self.phase[:, 0, 1]
+        self.phaseyx = self.phase[:, 1, 0]
+        self.phaseyy = self.phase[:, 1, 1]
+        
+        self.phasexx_err = self.phase_err[:, 0, 0]
+        self.phasexy_err = self.phase_err[:, 0, 1]
+        self.phaseyx_err = self.phase_err[:, 1, 0]
+        self.phaseyy_err = self.phase_err[:, 1, 1]
+        
+        self.phaseyx[np.where(self.phaseyx>120)] -= 180 
+        self.phaseyx[np.where(self.phaseyx<-90)] += 180
+        
+        #calculate determinant values
+        zdet = np.array([np.linalg.det(zz)**.5 for zz in self._Z.z])
+        zdetvar = np.array([np.linalg.det(zzv)**.5 for zzv in self._Z.zerr])
+        
+        #apparent resistivity
+        self.resdet = 0.2*(1./self._Z.freq)*abs(zdet)**2
+        self.resdet_err = 0.2*(1./self._Z.freq)*\
+                                        np.abs(zdet+zdetvar)**2-self.resdet
+        
+        #phase
+        self.phasedet = np.arctan2(zdet.imag,zdet.real)*(180/np.pi)
+        self.phasedet_err = np.arcsin(zdetvar/abs(zdet))*(180/np.pi)
+        
+    def rotate(self, rot_z):
+        """
+        rotate the impedance tensor by the angle rot_z (deg) assuming 
+        0 is North and angle is positve clockwise.
+        """
+        
+        self.rot_z = rot_z
+        
+        #need to fill the rotation angles in Z for this to work
+        try:
+            len(self.rot_z)
+        except TypeError:
+            self._Z.rotation_angle = np.array([rot_z 
+                                           for rr in range(self.res.shape[0])])
+        if self._Z is not None:
+            self._Z.rotate(self.rot_z)
+        
+        else:
+            raise mtex.MTpyError_Z('Cannot rotate just resistivity and '+\
+                                        'phase data, need to input z')
+        
+        self.compute_res_phase()
+
+        
+#==============================================================================
+#  Define a tipper object
+#==============================================================================
+class Tipper(object):
+    """
+    Helper class to put tipper data into a usable format
+    
+    Arguments:
+    ----------
+        **tipper_object** : class mtpy.core.z.Tipper
+    
+        **tipper_array** : np.ndarray((nf, 1, 2))
+                           array of the complex tipper as [tx, ty]
+        **tipper_err_array** : np.ndarray((nf, 1, 2))
+                               array of the tipper error as [tx, ty]
+   
+   Attributes:
+    -----------
+    
+        -mag_real   magnitude of real induction arrow
+        -mag_imag   magnitude of imaginary induction arrow
+        -ang_real   angle of real induction arrow assuming 0 is North positive 
+                    clockwise
+        _ang_imag   angle of imaginary induction arrow assuming 0 is North 
+                    positive clockwise
+        
+    Methods:
+    --------
+    
+        -compute_components   computes above attributes on call
+        -rotate     rotates the data assuming 0 is North positive 
+                    clockwise  
+    """
+    
+    def __init__(self, tipper_object=None, tipper_array=None, 
+                 tipper_err_array=None, rot_t=0, freq=None):
+        
+        if tipper_object is not None:
+            self._Tipper = tipper_object
+        else:
+            self._Tipper = mtz.Tipper(tipper_array=tipper_array, 
+                                      tipper_err_array=tipper_err_array,
+                                      freq=freq)
+                                      
+        self.freq = freq
+        
+        if rot_t != 0:
+            self.rotate(rot_t)
+            
+        else:
+            self.compute_components()
+        
+    def compute_components(self):
+        
+        if self._Tipper.tipper is None:
+            self.mag_imag = np.zeros_like(self.freq)
+            self.mag_real = np.zeros_like(self.freq)
+            self.ang_real = np.zeros_like(self.freq)
+            self.ang_imag = np.zeros_like(self.freq)
+        else:
+            self.mag_real, self.ang_real, self.mag_imag, self.ang_imag = \
+                                                   self._Tipper.mag_direction 
+
+        
+    def rotate(self, rot_t):
+        
+        self.rot_t = rot_t
+        self._Tipper.rotate(self.rot_t)
+        
+        self.compute_components()
+                
+#==============================================================================
+#  make an MT object that has all the important information and methods               
+#==============================================================================
+               
+class MTplot(object):
+    """
+    This class will be able to read in the imporant information from either
+    an .edi file or information input by had and can be extended to other 
+    file types in the future.  This is a helper class to get all the 
+    information needed in one place.
+    
+    The normal usage is to input an edi file from which all the information
+    is read in.  However, it would seem that not everyone uses the .edi format
+    so an option is to write you're own class for that particular file type, or
+    give it to us to deal with.  Or write enough code to get it into one of 
+    the suppported forms as arrays of z or resistivity and phase, or put those
+    into a z_object or tipper_object.  
+    
+    
+    Arguments:
+    ----------
+    
+        **fn** : string
+                       full path to file to be read in.  At the moment only
+                       .edi type files are supported. *default* is None
+        
+        **z** : np.array((nf, 2, 2), dtype='complex')
+                impedance tensor with length of nf -> the number of freq
+                *default* is None
+                
+        **z_err** : np.array((nf, 2, 2), dtype='real')
+                    impedance tensor error estimates, same shape as z.
+                    *default* is None
+                    
+        **res_array** : np.array((nf, 2, 2))
+                        array of resistivity values in linear scale.
+                        *default* is None
+                        
+        **res_err_array** : np.array((nf, 2, 2))
+                            array of resistivity error estimates, same shape 
+                            as res_array. *default* is None
+                            
+        **phase_array** : np.array((nf, 2, 2))
+                          array of phase values in degrees, same shape as 
+                          res_array. *default* is None
+                          
+        **phase_err_array** : np.array((nf, 2, 2))
+                              array of phase error estimates, same shape as 
+                              phase_array. *default* is None
+                              
+        **tipper_array** : np.array((nf, 1, 2), dtype='complex')
+                           array of tipper values for tx, ty. *default* is None
+                           
+        **tipper_err_array** : np.array((nf, 1, 2))
+                               array of tipper error estimates, same shape as
+                               tipper_array. *default* is None
+        
+        **station** : string
+                      name of the station to be plotted. *default* is None
+                      
+        **period** : np.array(nf)
+                     array of periods that coorespond to the components of z
+                     *default* is None
+                      
+        **lat** : float
+                 latitude of the station to be plotted in decimal degrees.
+                 *default* is None
+                 
+        **lon** : float
+                 longitude of the station to be plotted in decimal degrees.
+                 *default* is None
+                 
+        **elev** : float
+                   elevation of the station to be plotted in meters.
+                   *default* is None
+                              
+        **rot_z** : float or np.array(nf)
+                    angle (deg) to rotate the data assuming North is 0 and 
+                    angle is positive clockwise.  Can be input as an array to
+                    rotate different periods by different angles. 
+                    *default* is 0
+                    
+        **z_object** : class mtpy.core.z.Z
+                      object of mtpy.core.z.  If this is input be sure the
+                      attribute z.freq is filled.  *default* is None
+                      
+        **tipper_object** : class mtpy.core.z.Tipper
+                            object of mtpy.core.z. If this is input be sure the
+                            attribute z.freq is filled.  
+                            *default* is None 
+    Attributes:
+    -----------
+        -z             impedance tensor as an np.array((nf, 2, 2))
+            
+        -z_err         estimates of impedance tensor error same shape as z
+        
+        -tipper        tipper elements in an np.array((nf, 1, 2))
+        
+        -tipper_err    estimates of tipper error, same shape as tipper
+        
+        -station       station name
+        
+        -period        period as an np.array(nf)
+        
+        -lat           latitude in decimal degrees
+        
+        -lon           longitude in decimal degrees
+        
+        -elev          elevation in meters
+        
+        -fn            filename read from
+        
+     
+     These can be get/set by simple dot syntax.  
+        
     :Example: ::
         
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> cohfile = r"/home/MT01/MT01.coh"
-        >>> mtplot.plotcoh(cohfile)
+        >>> mt1 = mtplot.MTplot(fn=r'/home/mt/edifiles/mt01.edi')
+        >>> mt1.station
+        >>> 'mt01'
+        >>> mt1.station = 'pb075'
+        >>> mt1.station
+        >>> 'pb075'
+        
+    **Note:** that the format of z and tipper are:
+        
+        ::
+            
+          z[ii, :, :] = np.array([[z_xx, Z_xy], [Z_yx, Z_yy]])
+          z[ii, 0, 0] = z_xx
+          z[ii, 0, 1] = z_xy
+          z[ii, 1, 0] = z_yx
+          z[ii, 1, 1] = z_yy
+          tipper[ii, :, :] = np.array([[tx],[ty]])
+          tipper[ii, 0, 0] = tx
+          tipper[ii, 0, 1] = ty
+        
+    Methods:
+    --------
+        -get_ResPhase        returns a ResPhase object
+        -get_PhaseTensor     returns a PhaseTensor object
+        -get_Tipper          returns a Tipper object
+        -get_Zinvariants     returns a Zinvariants object
+        
+    :Example: ::
+        
+        >>> import mtpy.imaging.mtplot as mtplot
+        >>> mt1 = mtplot.MTplot(fn=r'/home/mt/edifiles/mt01.edi')
+        >>> # if you don't have an .edi file but res and phase
+        >>> mt1 = mtplot.MTplot(res_array=res, phase_array=phase, 
+        >>> ...                 period=period, station='mt01')
+        
+        
+        
+    """
+    
+    def __init__(self, fn=None, z=None, z_err=None, res_array=None,
+                 phase_array=None, res_err_array=None, phase_err_array=None,
+                 tipper=None, tipper_err=None, station=None, period=None, 
+                 lat=None, lon=None, elev=None, rot_z=0, z_object=None, 
+                 tipper_object=None, freq=None):
+                     
+
+        self._station = station
+        self._period = period
+        self._freq = freq
+        self._lat = lat
+        self._lon = lon
+        self._elev = elev
+        self._fn = fn
+        self._rot_z = rot_z
+        
+        #if a z_object is input make it the attribute _Z
+        if z_object is not None:
+            self._Z = z_object
+            if z_object.freq == None:
+                raise mtex.MTpyError_Z('Need to set Z.freq to an'+\
+                                           ' array that cooresponds to Z.z')
+            self.period = 1./z_object.freq
+        
+        #if z_array is input
+        elif z is not None:
+            #make sure period is input for plotting
+            if self.period == None:
+                raise mtex.MTpyError_Z('Need to input period array to '+\
+                                            'compute Resistivity')
+                               
+            self._Z = mtz.Z(z_array=z, zerr_array=z_err)
+            self._Z.freq = 1./period
+
+        #if a tipper object is input set it to _Tipper
+        if tipper_object is not None:
+            self._Tipper = tipper_object
+        else:
+            self._Tipper = mtz.Tipper(tipper_array=tipper, 
+                                      tipper_err_array=tipper_err,
+                                      freq=freq)
+        
+        #--> read in the edi file if its given
+        if self._fn is not None:
+            if self._fn[-3:] == 'edi':
+                self._read_edi()
+            else:
+                not_fn = self._fn[os.path.basename(self._fn).find['.']:]
+                raise mtex.MTpyError_file_handling('File '+\
+                          'type {0} not supported yet.'.format(not_fn))
+        
+            
+        #--> if resistivity and phase are given set the z_array, z_err_array
+        if res_array != None and phase_array != None:
+            if period is None and freq is None:
+                raise mtex.MTpyError_Z('Need to input period array for '+\
+                                           'plotting')
+            
+            if not res_array.shape == phase_array.shape:
+                raise mtex.MTpyError_inputarguments('res_array and phase array '+\
+                                               'do not have the same shape')
+                                               
+            if not res_array.shape[0] == period.shape[0]:
+                raise mtex.MTpyError_inputarguments('res_array and period array '+\
+                                               'do not have the same shape')
+            
+            self._Z = mtz.Z()
+            self._Z.freq = 1./period
+            self._set_res_phase(res_array,phase_array, 
+                                res_err_array=res_err_array,
+                                phase_err_array=phase_err_array)
+                               
+            self._set_period(period)
+
+            
+    def _read_edi(self):
+        """
+        read in an .edi file using mtpy.core.edi
+        """
+        
+        edi1 = mtedi.Edi()
+        edi1.readfile(self._fn)
+        
+        #--> set the attributes accordingly
+        # impedance tensor and error
+        self._Z = edi1.Z
+        
+        # tipper and error
+        if edi1.Tipper.tipper == None:
+            self._set_tipper(np.zeros((self._Z.z.shape[0], 1, 2),
+                                     dtype='complex'))
+            self._set_tipper_err(np.zeros((self._Z.z.shape[0], 1, 2)))
+            self._Tipper.rotation_angle=np.zeros(self._Z.z.shape[0])
+            self._Tipper.freq = edi1.freq
+            
+        else:
+            self._Tipper = edi1.Tipper
+            
+        # station name
+        try:
+            self.station = edi1.head['dataid']
+        except KeyError:
+            print 'Could not get station name set to MT01'
+            self.station = 'MT01'
+            
+        # period
+        self.period = 1./edi1.freq
+        self.freq = edi1.freq
+        
+        # lat, lon and elevation
+        self.lat=edi1.lat
+        self.lon = edi1.lon
+        self.elev = edi1.elev
+        
+        # put arrays into descending period order, so that the first index
+        # is the shortest period.
+        
+        if self.period[0] > self.period[-1]:
+            self.z = self._Z.z[::-1]
+            self.zerr = self._Z.zerr[::-1]
+            self.tipper = self._Tipper.tipper[::-1]
+            self.tipper_err = self._Tipper.tipper_err[::-1]
+            self.period = self.period[::-1]
+            
+        
+        
+    # don't really like this way of programming but I'll do it anyway
+    #==========================================================================
+    #  make set methods for each of the attributes    
+    #==========================================================================
+    def _set_z(self, z):
+        self._Z.z = z
+        
+    def _set_z_err(self, z_err):
+        self._Z.zerr = z_err
+        
+    def _set_tipper(self, tipper):
+        self._Tipper.tipper = tipper
+        self._plot_tipper = 'y'
+        
+    def _set_tipper_err(self, tipper_err):
+        self._Tipper.tipper_err = tipper_err
+        
+    def _set_station(self, station):
+        self._station = station
+        
+    def _set_period(self, period):
+        self._period = period
+        if self._period[0] > self._period[-1]:
+            self._Z.z = self._Z.z[::-1]
+            self._Z.zerr = self._Z.zerr[::-1]
+            self._period = self._period[::-1]
+            if self._Tipper.tipper is not None:
+                self._Tipper.tipper = self._Tipper.tipper[::-1]
+                self._Tipper.tipper_err = self._Tipper.tipper_err[::-1]
+            
+        self._Z.freq = 1./self._period
+        self._freq = 1./self._period
+        if self._Tipper.tipper is not None:
+            self._Tipper.freq = 1./self._period
+        
+    def _set_lat(self, lat):
+        self._lat = lat
+        
+    def _set_lon(self, lon):
+        self._lon = lon
+        
+    def _set_elev(self, elev):
+        self._elev = elev
+        
+    def _set_fn(self, fn):
+        self._fn = fn
+        if self._fn[-3:] == 'edi':
+            self._read_edi()
+        else:
+            not_fn = self._fn[os.path.basename(self._fn).find['.']:]
+            raise mtex.MTpyError_file_handling('File '+\
+                              'type {0} not supported yet.'.format(not_fn))
+           
+    def _set_rot_z(self, rot_z):
+        self._rot_z = rot_z
+        
+        # be sure to rotate the components if rot_z is set
+        try:
+            self._Z.rotate(self._rot_z)
+            self._Tipper.rotate(self._rot_z)
+        except TypeError:
+            self._Z.rotation_angle = np.array([rot_z 
+                                        for rr in range(self.period.shape[0])])
+        
+    def _set_res_phase(self, res_array, phase_array, res_err_array=None,
+                       phase_err_array=None):        
+        self._Z.set_res_phase(res_array, phase_array, res_err_array, 
+                              phase_err_array)
+        
+    def _set_freq(self, freq):
+        self._freq = freq
+        
+        #make sure things are in order from highest freq first
+        if self._freq[0]<self._freq[-1]:
+            self._Z.z = self._Z.z[::-1]
+            self._Z.zerr = self._Z.zerr[::-1]
+            self._period = self._period[::-1]
+            if self._Tipper.tipper is not None:
+                self._Tipper.tipper = self._Tipper.tipper[::-1]
+                self._Tipper.tipper_err = self._Tipper.tipper_err[::-1]
+            
+        self._Z.freq = self._freq
+        self._freq = self._freq
+        if self._Tipper.tipper is not None:
+            self._Tipper.freq = self._freq
+        
+        
+    #==========================================================================
+    # make get methods for each attribute
+    #==========================================================================
+    def _get_z(self):
+        return self._Z.z
+        
+    def _get_z_err(self):
+        return self._Z.zerr
+
+    def _get_tipper(self):
+        return self._Tipper.tipper
+        
+    def _get_tipper_err(self):
+        return self._Tipper.tipper_err
+        
+    def _get_station(self):
+        return self._station
+        
+    def _get_period(self):
+        return self._period
+        
+    def _get_lat(self):
+        return self._lat
+        
+    def _get_lon(self):
+        return self._lon
+        
+    def _get_elev(self):
+        return self._elev
+        
+    def _get_fn(self):
+        return self._fn
+        
+    def _get_rot_z(self):
+        return self._rot_z
+        
+    def _get_freq(self):
+        return self._freq
+        
+    #==========================================================================
+    # use the property built-in to make these get/set useable behind the scenes
+    #==========================================================================
+    z = property(_get_z, _set_z, 
+                 doc="Impedance tensor in the shape (nz,2,2) complex "+\
+                     "numpy.array")
+    
+    z_err = property(_get_z_err, _set_z_err, 
+                 doc="Impedance tensor error same shape as MT.z real "+\
+                     "numpy.array")
+                  
+    tipper = property(_get_tipper, _set_tipper, 
+                      doc="Tipper array in the shape (nz, 2) complex "+\
+                          "numpy.array")
+                       
+    tipper_err = property(_get_tipper_err, _set_tipper_err, 
+                          doc="Tipper error array same shape as MT.tipper"+\
+                              "real numpy.array")
+                          
+    station = property(_get_station, _set_station, 
+                       doc="Name of the station to be plotted")
+                       
+    period = property(_get_period, _set_period, 
+                      doc="array of periods corresponding to MT.z")
+                      
+    lat = property(_get_lat, _set_lat, 
+                   doc="Latitude in decimal degrees of the station")
+    
+    lon = property(_get_lon, _set_lon,
+                   doc="Longitude in decimal degrees of the station")
+    
+    elev = property(_get_elev, _set_elev, 
+                    doc="Elevation of the station in meters")
+                    
+    fn = property(_get_fn, _set_fn,
+                      doc="full path to the file of the station "+\
+                          "being plotted")
+                      
+    rot_z = property(_get_rot_z, _set_rot_z, 
+                     doc="Rotation angle positive clockwise assuming North "+\
+                         "is 0, can be an array with same shape at z")
+                         
+    freq = property(_get_freq, _set_freq,
+                           doc="freq array corresponding to elemens in z")
+                      
+    #==========================================================================
+    # define methods to get resphase, phasetensor, invariants
+    #
+    # --> used uppercase in the function names to signify that it is getting a 
+    #     class object
+    #==========================================================================
+
+    def get_ResPhase(self):
+        """
+        returns a ResPhase object from z_object
         
         """
-    
-  
-    station,period,freq,coh1,zcoh1,coh2,zcoh2,coh3,zcoh3=brp.readcoh(filename)
-    nd=len(period)
-    
-    #===============================================================================
-    # Plot coherence
-    #===============================================================================
-    if coh3[0]==0 and coh3[len(coh3)-1]==0 and zcoh3[0]==0 and zcoh3[len(coh3)-1]==0:
-        plt.rcParams['font.size']=10
-        plt.rcParams['figure.subplot.left']=.09
-        plt.rcParams['figure.subplot.right']=.98
-        plt.rcParams['figure.subplot.bottom']=.075
-        plt.rcParams['figure.subplot.top']=.92
-        plt.rcParams['figure.subplot.wspace']=.25
-        plt.rcParams['figure.subplot.hspace']=.35
-        #plt.rcParams['font.family']='helvetica'
-        
-        fig1=plt.figure(fignum, [8,6], 100)
-        ax1=plt.subplot(1,2,1)
-        ax1.semilogx(period,coh1,'k',linewidth=2)
-        ax1.semilogx(period,zcoh1,'k--', linewidth=2,dashes=[4,1,4,1])
-        ax1.grid(True)
-        ax1.legend(('Normal','Zero'),'lower left',shadow=False,
-                   borderaxespad=.50)
-        ax1.set_title('$\mathbf{E_x/B_y}$',fontsize=12,fontweight='bold')
-        ax1.set_xlabel('Period (s)',fontsize=12,fontweight='bold')
-        ax1.set_ylabel('Coherence',fontsize=12,fontweight='bold')
-        ax1.set_xlim(xmax=period[0],xmin=period[nd-1])
-        ax1.set_ylim(ymin=0,ymax=1)
-        
-        ax2=plt.subplot(1,2,2)
-        ax2.semilogx(period,coh2,'k',linewidth=2)
-        ax2.semilogx(period,zcoh2,'k--', linewidth=2,dashes=[4,1,4,1])
-        ax2.grid(True)
-        ax2.legend(('Normal','Zero'),'lower left',shadow=False,
-                   borderaxespad=.50)
-        ax2.set_title('$\mathbf{E_y/B_x}$',fontsize=12,fontweight='bold')
-        ax2.set_xlabel('Period (s)',fontsize=12,fontweight='bold')
-        ax2.set_ylabel('Coherence',fontsize=12,fontweight='bold')
-        ax2.set_xlim(xmax=period[0],xmin=period[nd-1])
-        ax2.set_ylim(ymin=0,ymax=1)
-        
-        plt.suptitle('Coherence for Station: '+station,fontsize=12,
-                     fontweight='bold')
-        plt.show()
-        if savefigfilename!=None:
-            if dpi==None:
-                dpi=100
-            if format==None:
-                format='pdf'
-            if orientation==None:
-                orientation='landscape'
-            plt.savefig(savefigfilename,dpi=dpi,format=format,
-                        orientation=orientation)
-            plt.close(fig1)
-    
-    else:
-        plt.rcParams['font.size']=10
-        plt.rcParams['figure.subplot.left']=.07
-        plt.rcParams['figure.subplot.right']=.98
-        plt.rcParams['figure.subplot.bottom']=.075
-        plt.rcParams['figure.subplot.top']=.90
-        plt.rcParams['figure.subplot.wspace']=.25
-        plt.rcParams['figure.subplot.hspace']=.35
-        #plt.rcParams['font.family']='helvetica'
-        
-        fig1=plt.figure(fignum, [10,6], 100)
-        ax1=plt.subplot(1,3,1)
-        ax1.semilogx(period,coh1,'k',linewidth=2)
-        ax1.semilogx(period,zcoh1,'k--', linewidth=2,dashes=[4,1,4,1])
-        ax1.grid(True)
-        ax1.legend(('Normal','Zero'),'best',shadow=False,borderaxespad=.50)
-        ax1.set_title('$\mathbf{E_x/B_y}$',fontsize=12,fontweight='bold')
-        ax1.set_xlabel('Period (s)',fontsize=12,fontweight='bold')
-        ax1.set_ylabel('Coherence',fontsize=12,fontweight='bold')
-        ax1.set_xscale('log')
-        ax1.set_xlim(xmax=period[0],xmin=period[nd-1])
-        ax1.set_ylim(ymin=0,ymax=1)
-        
-        ax2=plt.subplot(1,3,2)
-        ax2.semilogx(period,coh2,'k',linewidth=2)
-        ax2.semilogx(period,zcoh2,'k--', linewidth=2,dashes=[4,1,4,1])
-        ax2.grid(True)
-        ax2.legend(('Normal','Zero'),'best',shadow=False,borderaxespad=.50)
-        ax2.set_title('$\mathbf{E_y/B_x}$',fontsize=12,fontweight='bold')
-        ax2.set_xlabel('Period (s)',fontsize=12,fontweight='bold')
-        ax2.set_ylabel('Coherence',fontsize=12,fontweight='bold')
-        ax2.set_xscale('log')
-        ax2.set_xlim(xmax=period[0],xmin=period[nd-1])
-        ax2.set_ylim(ymin=0,ymax=1)
-        
-        ax3=plt.subplot(1,3,3)
-        ax3.semilogx(period,coh3,'k',linewidth=2)
-        ax3.semilogx(period,zcoh3,'k--', linewidth=2,dashes=[4,1,4,1])
-        ax3.grid(True)
-        ax3.legend(('Normal','Zero'),'best',shadow=False,borderaxespad=.50)
-        ax3.set_title('$\mathbf{E_x/B_z}$',fontsize=12,fontweight='bold')
-        ax3.set_xlabel('Period (s)',fontsize=12,fontweight='bold')
-        ax3.set_ylabel('Coherence',fontsize=12,fontweight='bold')
-        ax3.set_xlim(xmax=period[0],xmin=period[nd-1])
-        ax3.set_ylim(ymin=0,ymax=1)
-        
-        plt.suptitle('Coherence for Station: '+station,fontsize=12,
-                     fontweight='bold')
-        plt.show()
-        if savefigfilename!=None:
-            if dpi==None:
-                dpi=100
-            if format==None:
-                format='pdf'
-            if orientation==None:
-                orientation='landscape'
-            plt.savefig(savefigfilename,dpi=dpi,format=format,
-                        orientation=orientation)
-            plt.clf()
-            plt.close(fig1)
+        rp = ResPhase(self._Z)
+        return rp
 
+    def get_PhaseTensor(self):
+        """
+        returns a mtpy.analysis.pt.PhaseTensor object from z_object
+        
+        """
+        pt = mtpt.PhaseTensor(z_object=self._Z)
+        pt.freq = 1./self.period
+        
+        return pt
     
-def plotResPhase(filename,fignum=1,ffactor=1,plotnum=1,title=None,
-                 savefigfilename=None,dpi=None,format=None,orientation=None,
-                 rotz=0):
+    def get_Zinvariants(self):
+        """
+        returns a mtpy.analysis.zinvariants.Zinvariants object
+        """
+        
+        zinv = mtinv.Zinvariants(z_object=self._Z)
+        
+        return zinv
+        
+    def get_Tipper(self):
+        """
+        returns Tipper class
+        
+        """
+        
+        tp = Tipper(tipper_object=self._Tipper)
+        
+        return tp
+        
+        
+#==============================================================================
+# define a class object that contains list of mt_objects
+#==============================================================================
+class MTplot_lst(object):
     """
-    plotResPhase(filename,fignum) will plot the apparent resistivity and 
-    phase for TE and TM modes 
-    from a .dat file produced by writedat.  If you want to save the plot 
-    use the save button on top left.
-    
-    Arguments:
-    ----------
-        **filename** : string
-                       filename containing impedance (.edi) or resistivity and
-                       phase information (.dat)
-                      
-        **fignum** : int
-                     figure number
-                     
-        **ffactor** : float
-                      scaling factor for computing resistivity from impedances
-        
-        **thetar** : float
-                     rotation angle of impedance tensor (deg or radians)
-        
-        **plotnum** : [ 1 | 2 | 3 ]
-                        * 1 for just Ex/By and Ey/Bx
-                        * 2 for all 4 components
-                        * 3 for off diagonal plus the determinant
-                        
-        **title** : string
-                    title of plot
-                    
-        **savefigfilename** : string
-                              supply filename to save figure to if desired
-                              
-        **dpi** : int
-                  dots-per-inch of figure resolution
-        
-        **format** : [ pdf | eps | jpg | png | svg ]
-                    file type of saved figure pdf,svg,eps...
-            
-        **orientation** : [ landscape | portrait ]
-                         orientation of figure on A4 paper
-    :Example: ::
-        
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> edifile = r"/home/MT01/MT01.edi"
-        >>> mtplot.plotResPhase(edifile)
-        >>> # plot all 4 components
-        >>> mtplot.plotResPhase(edifile,plotnum=2)
-        
-    """
-    
-    if dpi==None:
-        dpi=100
-    #read in .dat file
-    if filename.find('dat',-4,len(filename))>=0:
-        print 'Reading .dat file'
-        station,period,resdat,phasedat=brp.readdat(filename)
-#        if period[0]>period[-1]:
-#            res=res.reverse()
-        resxy=resdat[0][1][:]
-        resxyerr=resdat[1][1][:]
-        resyx=resdat[0][2][:]
-        resyxerr=resdat[1][2][:]
-        resxx=resdat[0][0][:]
-        resxxerr=resdat[1][0][:]
-        resyy=resdat[0][3][:]
-        resyyerr=resdat[1][3][:]
-        
-        phasexy=phasedat[0][1][:]
-        phasexyerr=phasedat[1][1][:]
-        phaseyx=phasedat[0][2][:]
-        phaseyxerr=phasedat[1][2][:]
-        phasexx=phasedat[0][0][:]
-        phasexxerr=phasedat[1][0][:]
-        phaseyy=phasedat[0][3][:]
-        phaseyyerr=phasedat[1][3][:] 
-        
-        rpdict={}
-        rpdict['resxx']=np.array(resxx)
-        rpdict['resxy']=np.array(resxy)
-        rpdict['resyx']=np.array(resyx)
-        rpdict['resyy']=np.array(resyy)
-        rpdict['resxxerr']=np.array(resxxerr)
-        rpdict['resxyerr']=np.array(resxyerr)
-        rpdict['resyxerr']=np.array(resyxerr)
-        rpdict['resyyerr']=np.array(resyyerr)
-        rpdict['phasexx']=np.array(phasexx)
-        rpdict['phasexy']=np.array(phasexy)
-        rpdict['phaseyx']=np.array(phaseyx)
-        rpdict['phaseyy']=np.array(phaseyy)
-        rpdict['phasexxerr']=np.array(phasexxerr)
-        rpdict['phasexyerr']=np.array(phasexyerr)
-        rpdict['phaseyxerr']=np.array(phaseyxerr)
-        rpdict['phaseyyerr']=np.array(phaseyyerr)
-
-            
-        
-    elif filename.find('edi',-4,len(filename))>=0:
-        print 'Reading .edi file'
-        impz=Z.Z(filename)
-        station=impz.station
-        period=impz.period
-        rp=impz.getResPhase(thetar=rotz)
-    else:
-        raise ValueError('Could not read file: '+filename)
-    
- 
-    plt.rcParams['font.size']=10
-    plt.rcParams['figure.subplot.left']=.13
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.1
-    plt.rcParams['figure.subplot.top']=.95
-    plt.rcParams['figure.subplot.wspace']=.25
-    plt.rcParams['figure.subplot.hspace']=.05
-    #plt.rcParams['font.family']='helvetica'
-    fontdict={'size':14,'weight':'bold'}
-    
-    gs=gridspec.GridSpec(2,2,height_ratios=[2,1.5],hspace=.05)
-    
-        
-    #make figure for xy,yx components
-    if plotnum==1 or plotnum==3: 
-        fig=plt.figure(fignum,[8,10],dpi=dpi)
-        gs.update(hspace=.05,wspace=.15,left=.1)
-    elif plotnum==2:
-        fig=plt.figure(fignum,[10,10],dpi=dpi)
-        gs.update(hspace=.05,wspace=.15,left=.07)
-    
-    #---------plot the apparent resistivity-----------------------------------
-    if plotnum==1  or plotnum==3:
-        ax=plt.subplot(gs[0,:])
-        ax2=plt.subplot(gs[1,:],sharex=ax)
-        ax.yaxis.set_label_coords(-.055, 0.5)
-        ax2.yaxis.set_label_coords(-.055, 0.5)
-    elif plotnum==2:
-        ax=plt.subplot(gs[0,0])
-        ax2=plt.subplot(gs[1,0],sharex=ax)
-        ax.yaxis.set_label_coords(-.075, 0.5)
-        ax2.yaxis.set_label_coords(-.075, 0.5)
-    
-    
-    erxy=ax.errorbar(period,rp.resxy,marker='s',ms=4,mfc='None',mec='b',
-                      mew=1,ls='None',yerr=rp.resxyerr,ecolor='b')
-    eryx=ax.errorbar(period,rp.resyx,marker='o',ms=4,mfc='None',mec='r',
-                      mew=1,ls='None',yerr=rp.resyxerr,ecolor='r')
-    #ax.set_xlabel('Period (s)',fontdict=fontdict)
-    pylab.setp( ax.get_xticklabels(), visible=False)
-    ax.set_ylabel('App. Res. ($\mathbf{\Omega \cdot m}$)',
-               fontdict=fontdict)
-    ax.set_yscale('log')
-    ax.set_xscale('log')
-    ax.set_xlim(xmin=10**(np.floor(np.log10(period[0]))),
-             xmax=10**(np.ceil(np.log10(period[-1]))))
-    ax.grid(True)
-    ax.legend((erxy[0],eryx[0]),('$E_x/B_y$','$E_y/B_x$'),loc=3,
-                markerscale=1,borderaxespad=.01,labelspacing=.07,
-                handletextpad=.2,borderpad=.02)
-    
-    #-----Plot the phase----------------------------------------------------
-    
-    ax2.errorbar(period,rp.phasexy,marker='s',ms=4,mfc='None',mec='b',
-                 mew=1,ls='None',yerr=rp.phasexyerr,ecolor='b')
-    ax2.errorbar(period,np.array(rp.phaseyx)+180,marker='o',ms=4,
-                 mfc='None',mec='r',mew=1,ls='None',yerr=rp.phaseyxerr,
-                 ecolor='r')
-    ax2.set_xlabel('Period (s)',fontdict)
-    ax2.set_ylabel('Phase (deg)',fontdict)
-    ax2.set_xscale('log')
-    #ax2.set_xlim(xmin=10**(np.floor(np.log10(period[0]))),
-    #         xmax=10**(np.ceil(np.log10(period[-1]))))
-    #check the phase to see if any point are outside of [0:90]    
-    if min(rp.phasexy)<0 or min(rp.phaseyx+180)<0:
-        pymin=min([min(rp.phasexy),min(rp.phaseyx+180)])
-        if pymin>0:
-            pymin=0
-    else:
-        pymin=0
-    
-    if max(rp.phasexy)>90 or max(rp.phaseyx+180)>90:
-        pymax=min([max(rp.phasexy),max(rp.phaseyx+180)])
-        if pymax<91:
-            pymax=90
-    else:
-        pymax=90
-    
-    ax2.set_ylim(ymin=pymin,ymax=pymax)        
-    ax2.yaxis.set_major_locator(MultipleLocator(30))
-    ax2.yaxis.set_minor_locator(MultipleLocator(1))
-    ax2.grid(True)
-    
-    if plotnum==2:
-        #---------plot the apparent resistivity-----------------------------------
-        ax3=plt.subplot(gs[0,1])
-        ax3.yaxis.set_label_coords(-.1, 0.5)
-        erxx=ax3.errorbar(period,rp.resxx,marker='s',ms=4,mfc='None',mec='b',
-                          mew=1,ls='None',yerr=rp.resxxerr,ecolor='b')
-        eryy=ax3.errorbar(period,rp.resyy,marker='o',ms=4,mfc='None',mec='r',
-                          mew=1,ls='None',yerr=rp.resyyerr,ecolor='r')
-        #ax.set_xlabel('Period (s)',fontdict=fontdict)
-    #    ax3.set_ylabel('Apparent Resistivity ($\mathbf{\Omega \cdot m}$)',
-    #               fontdict=fontdict)
-        ax3.set_yscale('log')
-        ax3.set_xscale('log')
-        pylab.setp( ax3.get_xticklabels(), visible=False)
-        ax3.set_xlim(xmin=10**(np.floor(np.log10(period[0]))),
-                 xmax=10**(np.ceil(np.log10(period[-1]))))
-        ax3.grid(True)
-        ax3.legend((erxx[0],eryy[0]),('$E_x/B_x$','$E_y/B_y$'),loc=3,
-                    markerscale=1,borderaxespad=.01,labelspacing=.07,
-                    handletextpad=.2,borderpad=.02)
-        
-        #-----Plot the phase----------------------------------------------------
-        ax4=plt.subplot(gs[1,1],sharex=ax3)
-        
-        ax4.yaxis.set_label_coords(-.1, 0.5)
-        ax4.errorbar(period,rp.phasexx,marker='s',ms=4,mfc='None',mec='b',
-                     mew=1,ls='None',yerr=rp.phasexxerr,ecolor='b')
-        ax4.errorbar(period,np.array(rp.phaseyy),marker='o',ms=4,
-                     mfc='None',mec='r',mew=1,ls='None',yerr=rp.phaseyyerr,
-                     ecolor='r')
-        ax4.set_xlabel('Period (s)',fontdict)
-        #ax4.set_ylabel('Imepdance Phase (deg)',fontdict)
-        ax4.set_xscale('log')
-        #ax2.set_xlim(xmin=10**(np.floor(np.log10(period[0]))),
-        #         xmax=10**(np.ceil(np.log10(period[-1]))))
-        ax4.set_ylim(ymin=-180,ymax=180)        
-        ax4.yaxis.set_major_locator(MultipleLocator(30))
-        ax4.yaxis.set_minor_locator(MultipleLocator(5))
-        ax4.grid(True)
-        
-    if plotnum==3:
-            
-        
-        erdet=ax.errorbar(period,rp.resdet,marker='d',ms=4,mfc='None',mec='g',
-                      mew=1,ls='None',yerr=rp.resdeterr,ecolor='g')
-    
-        ax.legend((erxy[0],eryx[0],erdet[0]),('$E_x/B_y$','$E_y/B_x$',
-                  '$\det(\mathbf{\hat{Z}})$'),loc=3,markerscale=1,borderaxespad=.01,
-                  labelspacing=.07,handletextpad=.2,borderpad=.02)
-        
-        #-----Plot the phase----------------------------------------------------
-        
-        ax2.errorbar(period,rp.phasedet,marker='d',ms=4,mfc='None',mec='g',
-                     mew=1,ls='None',yerr=rp.phasedeterr,ecolor='g')
-    
-    
-    #make title and show
-    if title!=None:
-        plt.suptitle(title,fontsize=14,fontweight='bold')
-    else:
-        plt.suptitle(station,fontsize=14,fontweight='bold')
-    plt.show()
-    if savefigfilename!=None:
-            if dpi==None:
-                dpi=100
-            if format==None:
-                format='pdf'
-            if orientation==None:
-                orientation='landscape'
-            fig.savefig(savefigfilename,dpi=dpi,format=format,
-                        orientation=orientation)
-            plt.clf()
-            plt.close(fig)
-
-def resPhasePlots(filenamelst,plottype=1,ffactor=1,kwdict=None,plotnum=1,
-                  ylim=[0,3],fignum=1,rotz=0):
-    """resPhasePlots will plot multiple responses given full path filenames.  
-    Can input key word list dictionary if parameters for each plot are different
-    or just single values.
-    
-    Arguments:
-    ----------
-        **filenamelst** : list of strings
-                          full path to .edi files to plot
-                          
-        **plottype** : [ 1 | 2 | 3 ]
-                        * 1 -> each filename has its own figure window 
-                        * 2 -> plots in one figure with subplots for each 
-                                file in filenamelst
-                        * 3 -> plots onto one figure and one plot
-                        * *Default* is 1
-        
-        **plotnum** : [ 1 | 2 | 3 ]
-                        * 1 -> will plot just the off diagonal components
-                        * 2 -> will plot all 4 components one subplot for each 
-                             diagonal pair
-                        * 3 -> will plot the determinant of Z only
-                        * *Default* is 1
-                        
-        **ffactor** : float
-                      scaling factor for apparent resistivity. *Default* is 1
-            
-        **ylim** : tuple (lo10(min),log10(max))
-                   minimum and maximu of apparent resistivity that scales the
-                   plot, on a log scale. *Default* is 0
-        
-        **rotz** : float
-                   angle in degrees to rotate the impedance tensor clockwise
-                   positive. *Default* is 0
-                    
-        **kwdict** : dictionary or list
-                     keywords for plotResPhase, can input as a list of 
-                     keywords that is the same length as filenamelst
-            
-    :Example: ::
-        
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> import os
-        >>> edipath = r"/home/EDIfiles"
-        >>> edilst = [os.path.join(edipath,MT{0}.format(ii) 
-        >>> ...       for ii in range(1,4))]
-        >>> # plot all 3 edi files together for all 4 components
-        >>> mtplot.resPhasePlots(edilst,plottype=3,plotnum=2)
-        >>> #plot in individual plots with different parameters for each
-        >>> klst=[{'thetar':10},{'thetar':45},{'thetar':75}]
-        >>> mtplot.resPhasePlots(edilst,plottype=1,plotnum=2,kwdict=klst)
-    """
-    
-    plt.rcParams['font.size']=12    
-    
-    if plottype==1:
-        if kwdict==None:
-            for ii,filename in enumerate(filenamelst):
-                station=os.path.basename(filename)[0:-4]
-                print filename
-                plotResPhase(filename,fignum=ii+1,ffactor=ffactor,
-                             plotnum=plotnum,title=station,rotz=rotz)
-        else:
-            for ii,filename in enumerate(filenamelst):
-                station=os.path.basename(filename)[0:-4]
-                if type(kwdict) is list:
-                    plotResPhase(filename,fignum=ii+1,plotnum=plotnum,
-                                 title=station,rotz=rotz,**kwdict[ii])
-                elif type(kwdict) is dict:
-                     plotResPhase(filename,fignum=ii+1,plotnum=plotnum,
-                                 title=station,rotz=rotz,**kwdict)
-    
-    if plottype==2:
-    
-        nsp=len(filenamelst)
-        #get the number of rows with maximum of 8 columns        
-        nrows=int(np.ceil(nsp/8.))
-        if nsp<8:
-            ncols=nsp
-        else:
-            ncols=8
-        
-        fig=plt.figure(fignum,[24,14])
-        gs2=gridspec.GridSpec(nrows,1,hspace=.2,left=.06,right=.99)
-        
-        fontdict={'size':12,'weight':'bold'}
-        for rr in range(nrows):
-            g1=gridspec.GridSpecFromSubplotSpec(2,ncols,subplot_spec=gs2[rr])
-            g1.set_height_ratios([2,1])
-            g1._wspace=.08
-            g1._hspace=.02
-            for cc in range(ncols):
-                try:
-                    impz=Z.Z(filenamelst[(rr*ncols)+cc])
-                    station=impz.station
-                    period=impz.period
-                    rp=impz.getResPhase(thetar=rotz)
-                    
-                    axr=plt.Subplot(fig,g1[0,cc])
-                    ax=fig.add_subplot(axr)
-                    ax.set_title(station,fontdict=fontdict)
-                    ax.yaxis.set_label_coords(-.15, 0.5)
-                    
-                    #--Plot Res------------------------------------------------
-                    erxy=ax.errorbar(period,rp.resxy,marker='s',ms=4,
-                                     mfc='None',mec='b',mew=1,ls='None',
-                                     yerr=rp.resxyerr,ecolor='b')
-                    eryx=ax.errorbar(period,rp.resyx,marker='o',ms=4,
-                                     mfc='None',mec='r',mew=1,ls='None',
-                                     yerr=rp.resyxerr,ecolor='r')
-                    if cc==0:
-                        ax.set_ylabel('App. Res.'+
-                                      '($\mathbf{\Omega \cdot m}$)',
-                                       fontdict=fontdict)
-                    ax.set_yscale('log')
-                    ax.set_xscale('log')
-                    ax.set_xlim(xmin=10**(np.floor(np.log10(period[0]))),
-                             xmax=10**(np.ceil(np.log10(period[-1]))))
-                    ax.grid(True)
-                    ax.set_xticklabels(['' for tt in range(6)])
-                    ax.set_ylim(ymin=10**ylim[0],ymax=10**ylim[1])
-                    
-                    #--Plot Phase----------------------------------------------
-                    axp=plt.Subplot(fig,g1[1,cc])
-                    ax2=fig.add_subplot(axp,sharex=ax)
-            
-                    ax2.yaxis.set_label_coords(-.15, 0.5)
-                    ax2.errorbar(period,rp.phasexy,marker='s',ms=4,
-                                 mfc='None',mec='b',mew=1,ls='None',
-                                 yerr=rp.phasexyerr,ecolor='b')
-                    ax2.errorbar(period,np.array(rp.phaseyx)+180,
-                                 marker='o',ms=4,mfc='None',mec='r',mew=1,
-                                 ls='None',yerr=rp.phaseyxerr,ecolor='r')
-                    ax2.set_xlabel('Period (s)',fontdict)
-                    xtl=[str(int(ss)) for ss in np.arange(np.floor(np.log10(period[0])),
-                                  np.ceil(np.log10(period[-1])))]
-                    ax2.set_xticklabels(xtl)
-                    if cc==0:
-                        ax2.set_ylabel('Phase (deg)',
-                                       fontdict=fontdict)
-                    if rr==nrows-1:
-                        ax2.set_xlabel('Period (s)',fontdict=fontdict)
-                    ax2.set_xscale('log')
-                    #ax2.set_xlim(xmin=10**(np.floor(np.log10(period[0]))),
-                    #         xmax=10**(np.ceil(np.log10(period[-1]))))
-                    ax2.set_ylim(ymin=0,ymax=90)        
-                    ax2.yaxis.set_major_locator(MultipleLocator(15))
-                    ax2.yaxis.set_minor_locator(MultipleLocator(5))
-                    ax2.grid(True)
-                    
-                    if cc>0:
-                        ax.set_yticklabels(['' for tt in range(6)])
-                        ax2.set_yticklabels(['' for tt in range(6)])
-                except IndexError:
-                    break
-            
-        
-    #plot on same plot        
-    elif plottype==3:
-        
-        colorlst=[['b','r'],['c','m'],['g','y'],['b','r'],['c','m'],['g','y']]*5
-        markerlst=[['s','s'],['D','D'],['o','o'],['x','x'],['v','v'],['^','^'],
-                   ['p','p'],['+','+']]*5
-        
-        plt.rcParams['font.size']=12
-        plt.rcParams['figure.subplot.left']=.08
-        plt.rcParams['figure.subplot.right']=.98
-        plt.rcParams['figure.subplot.bottom']=.1
-        plt.rcParams['figure.subplot.top']=.92
-        plt.rcParams['figure.subplot.wspace']=.25
-        plt.rcParams['figure.subplot.hspace']=.20
-        #plt.rcParams['font.family']='helvetica'
-        
-        #make figure
-        fig=plt.figure(fignum,[10,6],dpi=100)
-        if plotnum==2:
-            fig2=plt.figure(fignum+1,[10,6],dpi=100)
-            legendlst2=[]
-            legendlabellst2=[]
-        elif plotnum==3:
-            fig3=plt.figure(fignum+2,[10,6],dpi=100)
-            legendlst3=[]
-            legendlabellst3=[]
-        #read in filenames and plot on subplots
-        mspot=0
-        legendlst=[]
-        legendlabellst=[]
-        periodmin=[]
-        periodmax=[]
-        for ii,filename in enumerate(filenamelst):
-            
-            xycolor=colorlst[mspot][0]
-            yxcolor=colorlst[mspot][1]
-            
-            xymarker=markerlst[mspot][0]
-            yxmarker=markerlst[mspot][1]
-            mspot+=1
-            
-            station=os.path.basename(filename)[0:-4]
-            #read in .dat file
-            if filename.find('dat',-4,len(filename))>=0:
-                print 'Reading .dat file'
-                ofil,period,resdat,phasedat=mt.readdat(filename)
-                resxy=resdat[0][1][:]
-                resxyerr=resdat[1][1][:]
-                resyx=resdat[0][2][:]
-                resyxerr=resdat[1][2][:]
-                resxx=resdat[0][0][:]
-                resxxerr=resdat[1][0][:]
-                resyy=resdat[0][3][:]
-                resyyerr=resdat[1][3][:]
-                
-                phasexy=phasedat[0][1][:]
-                phasexyerr=phasedat[1][1][:]
-                phaseyx=phasedat[0][2][:]
-                phaseyxerr=phasedat[1][2][:]
-                phasexx=phasedat[0][0][:]
-                phasexxerr=phasedat[1][0][:]
-                phaseyy=phasedat[0][3][:]
-                phaseyyerr=phasedat[1][3][:] 
-                
-                res=[[resxx,resxxerr],[resxy,resxyerr],[resyx,resyxerr],
-                     [resyy,resyyerr]]
-                phase=[[phasexx,phasexxerr],[phasexy,phasexyerr],[phaseyx,phaseyxerr],
-                       [phaseyy,phaseyyerr]]
-                    
-            #read in .edi file
-            elif filename.find('edi',-4,len(filename))>=0:
-                print 'Reading .edi file'
-                impz=Z.Z(filename)
-                station=impz.station
-                rp=impz.getResPhase(thetar=rotz)
-                period=impz.period
-         
-            periodmin.append(min(period))
-            periodmax.append(max(period))
-            #make figure for xy,yx components
-            #plot resisitivity 
-            ax=fig.add_subplot(2,1,1)
-
-            erxy=ax.errorbar(period,rp.resxy,marker=xymarker,
-                              ms=4,mfc='None',
-                              mec=xycolor,mew=1,ls='None',
-                              yerr=rp.resxyerr,
-                              ecolor=xycolor)
-            eryx=ax.errorbar(period,rp.resyx,marker=yxmarker,
-                              ms=4,mfc='None',
-                              mec=yxcolor,mew=1,ls='None',
-                              yerr=rp.resyxerr,
-                              ecolor=yxcolor)
-            legendlst.append(erxy[0])
-            legendlst.append(eryx[0])
-            legendlabellst.append('{0} $E_x/B_y$'.format(ii))
-            legendlabellst.append('{0} $E_y/B_x$'.format(ii))
-            
-            ax.set_yscale('log')
-            ax.set_xscale('log')
-            ax.grid(True)
-            
-            if plotnum==2:
-                ax3=fig2.add_subplot(2,1,1)
-
-                erxx=ax3.errorbar(period,rp.resxx,marker=xymarker,
-                                  ms=4,mfc='None',
-                                  mec=xycolor,mew=1,ls='None',
-                                  yerr=rp.resxxerr,
-                                  ecolor=xycolor)
-                eryy=ax3.errorbar(period,rp.resyy,marker=yxmarker,
-                                  ms=4,mfc='None',
-                                  mec=yxcolor,mew=1,ls='None',
-                                  yerr=rp.resyyerr,
-                                  ecolor=yxcolor)
-                legendlst2.append(erxx[0])
-                legendlst2.append(eryy[0])
-                legendlabellst2.append('$E_x/B_x$')
-                legendlabellst2.append('$E_y/B_y$')
-                
-                ax3.set_yscale('log')
-                ax3.set_xscale('log')
-                ax3.grid(True)
-
-            #plot phase
-            ax2=fig.add_subplot(2,1,2,sharex=ax)
-            ax2.errorbar(period,rp.phasexy,marker=xymarker,
-                         ms=4,mfc='None',mec=xycolor,
-                         mew=1,ls='None',yerr=rp.phasexyerr,
-                         ecolor=xycolor)
-            ax2.errorbar(period,np.array(rp.phaseyx)+180,
-                         marker=yxmarker,
-                         ms=4,mfc='None',mec=yxcolor,
-                         mew=1,ls='None',yerr=rp.phaseyxerr,
-                         ecolor=yxcolor)
-            
-            if plotnum==2:
-                ax4=fig2.add_subplot(2,1,2,sharex=ax3)
-                ax4.errorbar(period,rp.phasexx,marker=xymarker,
-                         ms=4,mfc='None',mec=xycolor,
-                         mew=1,ls='None',yerr=rp.phasexxerr,
-                         ecolor=xycolor)
-                ax4.errorbar(period,np.array(rp.phaseyy)+180,
-                         marker=yxmarker,
-                         ms=4,mfc='None',mec=yxcolor,
-                         mew=1,ls='None',yerr=rp.phaseyyerr,
-                         ecolor=yxcolor)
-                         
-        ax.set_ylabel('App. Res. ($\mathbf{\Omega \cdot m}$)',
-                         fontdict={'size':14,'weight':'bold'})
-        ax2.set_ylabel('Phase(rad)', fontdict={'size':14,'weight':'bold'})
-        ax2.set_xlabel('Period (s)',fontdict={'size':14,'weight':'bold'})
-        ax2.set_xscale('log')
-        ax.set_xlim(xmin=10**(np.floor(np.log10(min(periodmin)))),
-                 xmax=10**(np.ceil(np.log10(max(periodmax)))))
-        ax2.set_ylim(ymin=0,ymax=90)
-        ax2.yaxis.set_major_locator(MultipleLocator(10))
-        ax2.yaxis.set_minor_locator(MultipleLocator(1))
-        ax2.grid(True)
-        
-        ax2.legend(legendlst,legendlabellst,loc=2,
-                   markerscale=1,borderaxespad=.05,labelspacing=.08,
-                   handletextpad=.15,borderpad=.05,ncol=int(len(legendlst)/4.))
-        plt.suptitle(station,fontsize=13,fontweight='bold')
-        plt.show()
-        if plotnum==2:
-            ax3.set_ylabel('App. Res. ($\mathbf{\Omega \cdot m}$)',
-                         fontdict={'size':14,'weight':'bold'})
-            ax4.set_ylabel('Phase(rad)', fontdict={'size':14,'weight':'bold'})
-            ax4.set_xlabel('Period (s)',fontdict={'size':14,'weight':'bold'})
-            ax4.set_xscale('log')
-            ax3.set_xlim(xmin=10**(np.floor(np.log10(min(periodmin)))),
-                     xmax=10**(np.ceil(np.log10(max(periodmax)))))
-            ax4.set_ylim(ymin=-180,ymax=180)
-            ax4.yaxis.set_major_locator(MultipleLocator(30))
-            ax4.yaxis.set_minor_locator(MultipleLocator(5))
-            ax4.grid(True)
-            
-            ax4.legend(legendlst,legendlabellst,loc=2,
-                       markerscale=1,borderaxespad=.05,labelspacing=.08,
-                       handletextpad=.15,borderpad=.05)
-            plt.suptitle(station,fontsize=13,fontweight='bold')
-            plt.show()
-            
-def plotTipper(tipper):
-    """
-    plotTipper will plot the real and imaginary induction arrow
-    
-    Input: 
-        edifile = full path to edifile
-        
-    Output:
-        None
-    """
-    
-    impz=Z.Z(edifile)
-    
-    
-    
-    pass
-    
-def plotTS(combinefilelst,df=1.0,fignum=1,start=None,stop=None,
-           savefigname=None,dpi=None,format=None,orientation=None):
-    """
-    plotTS will plot timeseries that have been combined using combineFewFiles.
-    combinefilelst is the output list of filenames
-    
-    Inputs:
-        combinefilelst = list of combined file paths
-        fignum = figure number
-        start = start time string in hhmmss
-        stop = stop time string in hhmmss
-        savefig = 'y' to save, 'n' to not save
-        savefigname = path to saved figure name
-        dpi = resolution of figure
-        format = type of saved file, pdf,svg,eps...
-        orientation = orientation of figure on A4 paper
-    
-    Outputs:
-        none
-        
-    """
-    
-
-    
-    if start==None:
-        combstr=os.path.basename(combinefilelst[0])
-        tspot=combstr.find('to')
-        print tspot
-        #if combined files are days
-        try:
-            startf=0.0
-            majortick=6
-            minortick=1
-        #if combined files are for just one day
-        except ValueError:
-            start=combstr[tspot-2:tspot]+'0000'
-            startf=float(start[0:2]+'.'+str(float(start[2:4])/60)[2])
-            majortick=1
-            minortick=.3
-    else:
-        startf=int(start[0:2])
-        majortick=1*df
-        minortick=.3*df
-            
-    complst=[]
-    lc=len(combinefilelst)
-    fig1=plt.figure(fignum,[10,7])
-    
-    plt.rcParams['font.size']=10
-    plt.rcParams['figure.subplot.left']=.10
-    plt.rcParams['figure.subplot.right']=.96
-    plt.rcParams['figure.subplot.bottom']=.07
-    plt.rcParams['figure.subplot.top']=.96
-    plt.rcParams['figure.subplot.wspace']=.25
-    plt.rcParams['figure.subplot.hspace']=.20
-    #plt.rcParams['font.family']='helvetica'
-    
-    for ii in range(lc):
-        filename=combinefilelst[ii]
-        complst.append(filename[-2:])
-        ts=np.loadtxt(filename)
-        t=np.arange(len(ts))/(3600.*df)+startf
-        t=t[0:len(ts)]
-        if ii==0:
-            ax=plt.subplot(lc,1,ii+1)
-        else:
-            ax=plt.subplot(lc,1,ii+1,sharex=ax)
-        #plt.plot(t[0:len(ts)],mt.normalizeL2(mt.dctrend(ts)),lw=2)
-        plt.plot(t,ts,lw=.8)
-        plt.ylabel(complst[ii],fontsize=12,fontweight='bold')
-        if ii==len(complst):
-    		plt.xlabel('Time (hrs)',fontsize=12,fontweight='bold')      
-        ax.xaxis.set_major_locator(MultipleLocator(majortick))
-        ax.xaxis.set_minor_locator(MultipleLocator(minortick))        
-        plt.axis('tight')
-    plt.show()
-    if savefigname!=None:
-        if dpi==None:
-            dpi=100
-        if format==None:
-            format='pdf'
-        if orientation==None:
-            orientation='landscape'
-        plt.savefig(savefigname,dpi=dpi,format=format,
-                    orientation=orientation)
-        plt.clf()
-        plt.close(fig1)
-    
-def plotPTpseudoSection(filenamelst,colorkey='phimin',esize=2,
-                        offsetscaling=.005,colorkeymm=(0,90),stationid=[0,4],
-                        title=None,cbshrink=.8,linedir='ns',fignum=1,rotz=0,
-                        pxy=[8,8],dpi=300,indarrows='n',ascale=5,
-                        cmap='ptcmap',tscale='period'):
+    manipulates a list of MTplot objects
     
     """
-    plotPTpseudoSection(filenamelst,colorkey='beta',esize=2,offsetscaling=
-    .005) will plot a pseudo section of phase tensor ellipses given a list of 
-    full path filenames. 
-    
-    Arguments:
-    ----------
-    
-        **filenamelst** : list of strings
-                          full paths to .edi files to plot
-        
-        **colorkey** : [ 'phimin' | 'beta' | 'ellipticity' | 'phidet' ]
-                       fill color of the ellipses and can be:
-                       * 'phimin'      -> minimum phase
-                       * 'beta'        -> phase tensor skew angle
-                       * 'ellipticity' -> phase tensor ellipticity
-                       * 'phidet'      -> determinant of the phase tensor
-                       * *Default* is 'phimin'
-                       
-        **colorkeymm** : tuple (min,max)
-                        min and max of colorkey to which colorbar is normalized
-                        to.  In degrees except for ellipticity which is already
-                        normalized.
-                        
-        **esize** : float
-                    size of ellipse in map units 
-        
-        **offsetscaling** : float
-                            is a factor that scales the distance from one 
-                            station to the next to make the plot readable.
-                            *Default* is 0.005
-        **linedir** : [ 'ns' | 'ew' ]
-                      predominant direction of profile line
-                      * 'ns' -> North-South Line
-                      * 'ew' -> East-West line
-                      * *Default* is 'ns'
-        
-        **stationid** : tuple or list 
-                        start and stop of station name indicies.  
-                        ex: for MT01dr stationid=(0,4) will be MT01
-        
-        **rotz** : float
-                   angle in degrees to rotate the data clockwise positive.
-                   *Default* is 0
-        
-        **title** : string
-                    figure title added to Phase Tensor + title
-                    
-        **cbshrink** : float
-                       percent to shrink the color bar to fit the image better
-                       *Default* is 0.8 -> 80 percent
-                       
-        **fignum** : int
-                     figure number.  *Default* is 1
-        
-        **indarrow** : [ 'yri' | 'yr' | 'yi' | 'n' ]
-                        * 'yri' to plot induction both real and imaginary 
-                           induction arrows 
-                        * 'yr' to plot just the real induction arrows
-                        * 'yi' to plot the imaginary induction arrows
-                        * 'n' to not plot them
-                        * *Default* is 'n'                        
-                        **Note: convention is to point towards a conductor **
-                         
-        **ascale** : float
-                     scaling factor to make induction arrows bigger
-        
-        **cmap** :[ 'ptcmap' | 'ptcmap3' | 'skcmap' | 'skcmap2' | 'rtcmap' ]
-                  color map of ellipse facecolor.  So far the colormaps are:
-                      * 'ptcmap'  -> yellow (low phase) to red (high phase)
-                      * 'ptcmap3' -> white (low numbers) to blue (high numbers)
-                      * 'skcmap'  -> blue to yellow to red
-                      * 'skcmap2' -> blue to white to red
-                      * 'rtcmap'  -> blue to purple to red
-                      
-        **tscale** : [ 'period' | 'frequency' ]
-                     * 'period'    -> plot vertical scale in period
-                     * 'frequency' -> plot vertical scale in frequency
-                     
-    :Example: ::
-        
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> import os
-        >>> edipath = r"/home/EDIfiles"
-        >>> edilst = [os.path.join(edipath,edi) for edi in os.listdir(edipath)
-        >>> ...       if edi.find('.edi')]
-        >>> # color by phimin with a range of 20-70 deg
-        >>> mtplot.plotPTpseudoSection(edilst,colorkeymm=(20,70))
-        >>> 
-        >>> # add induction arrows to skew angle with range (-5,5)
-        >>> mtplot.plotPTpseudoSection(edilst,colorkey='beta',
-        >>> ...                        colorkeymm=(-5,5),indarrows='yri')
 
-    """
-    
-    fs=int(dpi/30.)
-    plt.rcParams['font.size']=fs
-    plt.rcParams['figure.subplot.left']=.08
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.06
-    plt.rcParams['figure.subplot.top']=.96
-    plt.rcParams['figure.subplot.wspace']=.55
-    plt.rcParams['figure.subplot.hspace']=.70
-    #plt.rcParams['font.family']='helvetica'
-    
-    ckmin=colorkeymm[0]
-    ckmax=colorkeymm[1]
-    
-    #create a plot instance
-    fig=plt.figure(fignum,pxy,dpi=300)
-    ax=fig.add_subplot(1,1,1,aspect='equal')
-    stationlst=[]
-    offsetlst=[]
-    minlst=[]
-    maxlst=[]
-    #plot phase tensor ellipses
-    for ii,fn in enumerate(filenamelst):
-        imp=Z.Z(fn)
-        stationlst.append(imp.station[stationid[0]:stationid[1]])
-        zone,east,north=utm2ll.LLtoUTM(23,imp.lat,imp.lon)
+    def __init__(self, fn_lst=None, res_object_lst=None, z_object_lst=None, 
+               tipper_object_lst=None, mt_object_lst=None):
         
-        if ii==0:
-            east0=east
-            north0=north
-            offset=0.0
-        else:
-            if linedir=='ew': 
-                if east0<east:
-                    offset=np.sqrt((east0-east)**2+(north0-north)**2)
-                elif east0>east:
-                    offset=-1*np.sqrt((east0-east)**2+(north0-north)**2)
-                else:
-                    offset=0
-            elif linedir=='ns':
-                if north0<north:
-                    offset=np.sqrt((east0-east)**2+(north0-north)**2)
-                elif north0>north:
-                    offset=-1*np.sqrt((east0-east)**2+(north0-north)**2)
-                else:
-                    offset=0
-        offsetlst.append(offset)
-        #get phase tensor elements and flip so the top is small periods/high 
-        #frequencies
-        pt=imp.getPhaseTensor(thetar=rotz)
-        periodlst=imp.period[::-1]
-        phimax=pt.phimax[::-1]
-        phimin=pt.phimin[::-1]
-        azimuth=pt.azimuth[::-1]
-        if colorkey=='phiminang' or colorkey=='phimin':
-            colorarray=pt.phiminang[::-1]
-        if colorkey=='phidet':
-            colorarray=np.sqrt(abs(pt.phidet[::-1]))*(180/np.pi)
-        if colorkey=='beta':
-            colorarray=pt.beta[::-1]
-        if colorkey=='ellipticity':
-            colorarray=pt.ellipticity[::-1]
-            
-        n=len(periodlst)
-        minlst.append(min(colorarray))
-        maxlst.append(max(colorarray))
-
-        for jj in range(n):
-            
-            #make sure the ellipses will be visable
-            eheight=phimin[jj]/phimax[jj]*esize
-            ewidth=phimax[jj]/phimax[jj]*esize
+        self._fn_lst = fn_lst
+        self._res_object_lst = res_object_lst
+        self._z_object_lst = z_object_lst
+        self._tipper_object_lst = tipper_object_lst
+        self.mt_lst = mt_object_lst
         
-                
-            #create an ellipse scaled by phimin and phimax and oriented along
-            #the azimuth    
-            ellipd=Ellipse((offset*offsetscaling,np.log10(periodlst[jj])),width=ewidth,
-                          height=eheight,
-                          angle=azimuth[jj])
-            ax.add_artist(ellipd)
-            
-            #get face color info
-            if colorkey=='phiminang' or  colorkey=='phimin':
-                cvar=(pt.phiminang[jj]-ckmin)/(ckmax-ckmin)
-            elif colorkey=='phidet':
-                cvar=(pt.phidet[jj]-ckmin)/(ckmax-ckmin)
-            elif colorkey=='beta':
-                cvar=(pt.beta[jj]-abs(ckmin))/(ckmax-ckmin)
-            elif colorkey=='ellipticity':
-                cvar=(pt.ellipticity[jj]-ckmin)/(ckmax-ckmin)
-            else:
-                raise NameError('color key '+colorkey+' not supported')
-                
-            
-            #set facecolor depending on the colormap
-            #yellow to red
-            if cmap=='ptcmap':
-                if abs(cvar)>1:
-                    ellipd.set_facecolor((1,0,0))
-                elif cvar<0:
-                    ellipd.set_facecolor((1-abs(cvar),1,abs(cvar)))
-                else:
-                    ellipd.set_facecolor((1,1-abs(cvar),.1))
-            #white to blue
-            elif cmap=='ptcmap3':
-                if abs(cvar)>1:
-                    ellipd.set_facecolor((0,0,0))
-                else:
-                    ellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-            #blue to yellow to red
-            elif cmap=='skcmap2':
-                if cvar<0 and cvar>-1:
-                    ellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-                elif cvar<-1:
-                    ellipd.set_facecolor((0,0,1))
-                elif cvar>0 and cvar<1:
-                    ellipd.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
-                elif cvar>1:
-                    ellipd.set_facecolor((1,0,0))
-            #blue to white to red
-            elif cmap=='skcmap':
-                if cvar<0 and cvar>-1:
-                    ellipd.set_facecolor((abs(cvar),abs(cvar),1-abs(cvar)))
-                elif cvar<-1:
-                    ellipd.set_facecolor((0,0,1))
-                elif cvar>0 and cvar<1:
-                    ellipd.set_facecolor((1,1-abs(cvar),.01))
-                elif cvar>1:
-                    ellipd.set_facecolor((1,0,0))
-                    
-            if indarrows.find('y')==0:
-                tip=imp.getTipper(thetar=rotz)
-                aheight=.5*esize
-                awidth=.2*esize
-                #plot real tipper
-                if indarrows=='yri' or indarrows=='yr':
-                    txr=tip.magreal[jj]*np.cos(tip.anglereal[jj]*np.pi/180)*\
-                        esize*5
-                    tyr=tip.magreal[jj]*np.sin(tip.anglereal[jj]*np.pi/180)*\
-                        esize*5
-
-                    ax.arrow(offset*offsetscaling,3*jj,txr,tyr,lw=.75*awidth,
-                         facecolor='k',edgecolor='k',
-                         length_includes_head=False,
-                         head_width=awidth,head_length=aheight)
-                #plot imaginary tipper
-                if indarrows=='yri' or indarrows=='yi':
-                    txi=tip.magimag[jj]*np.cos(tip.angleimag[jj]*np.pi/180)*\
-                        esize*5
-                    tyi=tip.magimag[jj]*np.sin(tip.angleimag[jj]*np.pi/180)*\
-                        esize*5
-
-                    ax.arrow(offset*offsetscaling,3*jj,txi,tyi,lw=.75*awidth,
-                             facecolor='b',edgecolor='b',
-                             length_includes_head=False,
-                             head_width=awidth,head_length=aheight)
-                    
-    offsetlst=np.array(offsetlst)
-    ax.set_xlim(min(offsetlst)*offsetscaling-.05,
-                max(offsetlst)*offsetscaling*1.05)
-    ax.set_ylim(np.ceil(np.log10(periodlst.max())),
-                np.floor(np.log10(periodlst.min())))
-#    ax.set_ylim(-5,n*3+5)
-    ax.yaxis.set_scale('linear')
-    if tscale=='period':
-#        yticklabels=['{0:.3g}'.format(periodlst[ii]) for ii in np.arange(start=0,stop=n,
-#                     step=2)]
-        ax.set_ylabel('Period (s)',fontsize=fs+5,fontweight='bold')
-    elif tscale=='frequency':
-#        yticklabels=['{0:.4g}'.format(1./periodlst[ii]) for ii in np.arange(start=0,stop=n,
-#                     step=2)]
-        ax.set_ylabel('Frequency (Hz)',fontsize=fs+5,fontweight='bold')
-    ax.set_xlabel('Station',fontsize=fs+5,fontweight='bold')
-    
-    if title==None:
-        pass
-    else:
-        ax.set_title(title,fontsize=fs+4)
-#    plt.yticks(np.arange(start=0,stop=3*n,step=6),yticklabels)
-    plt.xticks(np.array(offsetlst)*offsetscaling,stationlst)
-    
-    if indarrows.find('y')==0:
-        if indarrows=='yri':
-            treal=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'k')
-            timag=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'b')
-            ax.legend([treal[0],timag[0]],['Tipper_real','Tipper_imag'],
-                      loc='lower right',
-                      prop={'size':10,'weight':'bold'},
-                      ncol=2,markerscale=.5,borderaxespad=.005,
-                      borderpad=.25)
-        elif indarrows=='yr':
-            treal=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'k')
-            ax.legend([treal[0]],['Tipper_real'],
-                      loc='lower right',
-                      prop={'size':10,'weight':'bold'},
-                      ncol=2,markerscale=.5,borderaxespad=.005,
-                      borderpad=.25)
-        elif indarrows=='yi':
-            timag=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'b')
-            ax.legend([timag[0]],['Tipper_imag'],
-                      loc='lower right',
-                      prop={'size':10,'weight':'bold'},
-                      ncol=2,markerscale=.5,borderaxespad=.005,
-                      borderpad=.25)
-    
-    ax.grid(alpha=.25,which='both')
-    
-    print 'Colorkey min = ',min(minlst)
-    print 'Colorkey max = ',max(maxlst)
-    
-    #make a colorbar with appropriate colors             
-    ax2=make_axes(ax,shrink=cbshrink)
-    if cmap=='ptcmap': 
-        cb=ColorbarBase(ax2[0],cmap=ptcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='ptcmap3': 
-        cb=ColorbarBase(ax2[0],cmap=ptcmap3,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='skcmap': 
-        cb=ColorbarBase(ax2[0],cmap=skcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='skcmap2': 
-        cb=ColorbarBase(ax2[0],cmap=skcmap2,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='rtcmap': 
-        cb=ColorbarBase(ax2[0],cmap=rtcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-
-    #label the color bar accordingly
-    if colorkey=='phimin' or colorkey=='phiminang':
-        cb.set_label('$\Phi_{min}$ (deg)',fontdict={'size':10,'weight':'bold'})
-    elif colorkey=='beta':
-        cb.set_label('Skew (deg)',fontdict={'size':10,'weight':'bold'})
-    elif colorkey=='phidet':
-        cb.set_label('Det{$\Phi$} (deg)',fontdict={'size':10,'weight':'bold'})
-    elif colorkey=='ellipticity':
-        cb.set_label('Ellipticity',fontdict={'size':10,'weight':'bold'})
-    
-    plt.show()
-
-def plotRTpseudoSection(filenamelst,colorkey='rhodet',esize=2,
-                        offsetscaling=.005,colorkeymm=[0,90],stationid=[0,4],
-                        title=None,cbshrink=.8,linedir='ns',fignum=1,rotz=0,
-                        yscale='period',pxy=[8,8],dpi=300):
-    
-    """
-    plotRTpseudoSection(filenamelst,colorkey='beta',esize=2,offsetscaling=
-    .005) will plot a pseudo section of resistivity tensor ellipses given a list of 
-    full path filenames. (Weckmann et al. 2002)
-    
-    **filenamelst** : list of strings
-                          full paths to .edi files to plot
+        if self.mt_lst is None:
+            self.mt_lst = get_mtlst(fn_lst=self._fn_lst, 
+                                    res_object_lst=self._res_object_lst, 
+                                    z_object_lst=self._z_object_lst, 
+                                    tipper_object_lst=self._tipper_object_lst)
+                                    
+                                    
+    def sort_by_offsets_profile(self, line_direction='ew'):
+        """
+        get list of offsets to sort the mt list
         
-        **colorkey** : [ 'rhodet' ]
-                       fill color of the ellipses and can be:
-                       * 'rhodet'      -> minimum phase
-                       * more to come
-                       * *Default* is 'rhodet'
-                       
-        **colorkeymm** : tuple (min,max)
-                        min and max of colorkey to which colorbar is normalized
-                        to.  In log10 resistivity
-                        
-        **esize** : float
-                    size of ellipse in map units 
+        """
         
-        **offsetscaling** : float
-                            is a factor that scales the distance from one 
-                            station to the next to make the plot readable.
-                            *Default* is 0.005
-        **linedir** : [ 'ns' | 'ew' ]
-                      predominant direction of profile line
-                      * 'ns' -> North-South Line
-                      * 'ew' -> East-West line
-                      * *Default* is 'ns'
+        mm = sort_by_offsets(self.mt_lst, line_direction=line_direction)
         
-        **stationid** : tuple or list 
-                        start and stop of station name indicies.  
-                        ex: for MT01dr stationid=(0,4) will be MT01
-        
-        **rotz** : float
-                   angle in degrees to rotate the data clockwise positive.
-                   *Default* is 0
-        
-        **title** : string
-                    figure title added to Phase Tensor + title
-                    
-        **cbshrink** : float
-                       percent to shrink the color bar to fit the image better
-                       *Default* is 0.8 -> 80 percent
-                       
-        **fignum** : int
-                     figure number.  *Default* is 1
-                      
-        **yscale** : [ 'period' | 'frequency' ]
-                     * 'period'    -> plot vertical scale in period
-                     * 'frequency' -> plot vertical scale in frequency
-                     
-    :Example: ::
-        
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> import os
-        >>> edipath = r"/home/EDIfiles"
-        >>> edilst = [os.path.join(edipath,edi) for edi in os.listdir(edipath)
-        >>> ...       if edi.find('.edi')]
-        >>> # color by rhodet with a range of 0-4 log10 resistivity
-        >>> mtplot.plotRTpseudoSection(edilst,colorkeymm=(0,4))
-    
-    """
-    
-    fs=int(dpi/30.)
-    plt.rcParams['font.size']=fs
-    plt.rcParams['figure.subplot.left']=.08
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.06
-    plt.rcParams['figure.subplot.top']=.96
-    plt.rcParams['figure.subplot.wspace']=.55
-    plt.rcParams['figure.subplot.hspace']=.70
-    #plt.rcParams['font.family']='helvetica'
-    
-    
-    #create a plot instance
-    fig=plt.figure(fignum,pxy,dpi=dpi)
-    ax=fig.add_subplot(1,1,1,aspect='equal')
-    stationlst=[]
-    offsetlst=[]
-    minlst=[]
-    maxlst=[]
-    #plot phase tensor ellipses
-    for ii,fn in enumerate(filenamelst):
-        imp=Z.Z(fn)
-        stationlst.append(imp.station[stationid[0]:stationid[1]])
-        zone,east,north=utm2ll.LLtoUTM(23,imp.lat,imp.lon)
-        
-        if ii==0:
-            east0=east
-            north0=north
-            offset=0.0
-        else:
-            if linedir=='ew': 
-                if east0<east:
-                    offset=np.sqrt((east0-east)**2+(north0-north)**2)
-                elif east0>east:
-                    offset=-1*np.sqrt((east0-east)**2+(north0-north)**2)
-                else:
-                    offset=0
-            elif linedir=='ns':
-                if north0<north:
-                    offset=np.sqrt((east0-east)**2+(north0-north)**2)
-                elif north0>north:
-                    offset=-1*np.sqrt((east0-east)**2+(north0-north)**2)
-                else:
-                    offset=0
-        offsetlst.append(offset)
-        #get phase tensor elements and flip so the top is small periods/high 
-        #frequencies
-        rt=imp.getResTensor(thetar=rotz)
-        periodlst=imp.period[::-1]
-        phimax=rt.rhomax[::-1]
-        phimin=rt.rhomin[::-1]
-        azimuth=rt.rhoazimuth[::-1]
-        if colorkey=='rhomin':
-            colorarray=phimin
-        elif colorkey=='rhomax':
-            colorarray=phimax
-        elif colorkey=='rhobeta':
-            colorarray=rt.rhobeta[::-1]
-        elif colorkey=='rhodet':
-            colorarray=rt.rhodet[::-1]
-        n=len(periodlst)
-        minlst.append(min(colorarray))
-        maxlst.append(max(colorarray))
-
-        for jj in range(n):
-            #make sure the ellipses will be visable
-            eheight=phimax[jj]/phimax[jj]*esize
-            ewidth=phimin[jj]/phimax[jj]*esize
-        
-            #create an ellipse scaled by phimin and phimax and oriented along
-            #the azimuth 
-            
-            emax=10*esize
-            if eheight>emax or ewidth>emax:
-                pass
-            else:
-                ellip=Ellipse((offset*offsetscaling,3*jj),width=ewidth,
-                              height=eheight,
-                              angle=azimuth[jj])
-                #color the ellipse as red high conductivity, blue low
-                cvars=abs(np.log10(colorarray[jj]))/colorkeymm[1]
-                if cvars>1:
-                    ellip.set_facecolor((0,0,1))
-                elif cvars<float(colorkeymm[0])/colorkeymm[1] or cvars<0:
-                    ellip.set_facecolor((1,0,0))
-                else:
-                    ellip.set_facecolor((1-cvars,0,cvars))
-                ax.add_artist(ellip)
-            
-    offsetlst=np.array(offsetlst)
-    ax.set_xlim(min(offsetlst)*offsetscaling-4,max(offsetlst)*offsetscaling+4)
-    ax.set_ylim(-5,n*3+5)
-    if yscale=='period':
-        yticklabels=['{0:.3g}'.format(periodlst[ii]) for ii in np.arange(start=0,stop=n,
-                     step=2)]
-        ax.set_ylabel('Period (s)',fontsize=fs+5,fontweight='bold')
-    elif yscale=='frequency':
-        yticklabels=['{0:.4g}'.format(1./periodlst[ii]) for ii in np.arange(start=0,stop=n,
-                     step=2)]
-        ax.set_ylabel('Frequency (Hz)',fontsize=fs+5,fontweight='bold')
-    ax.set_xlabel('Station',fontsize=fs+5,fontweight='bold')
-    
-    if title==None:
-        pass
-#        plt.title('Phase Tensor Pseudo Section '+title,fontsize=16)
-    else:
-        ax.set_title(title,fontsize=fs+4)
-    plt.yticks(np.arange(start=0,stop=3*n,step=6),yticklabels)
-    plt.xticks(np.array(offsetlst)*offsetscaling,stationlst)
-    
-    ax.grid(alpha=.25,which='both')
-    
-    print 'Colorkey min = ',min(minlst)
-    print 'Colorkey max = ',max(maxlst)
-    
-    #make colorbar
-    ax2=make_axes(ax,shrink=cbshrink)
-    cb=ColorbarBase(ax2[0],cmap=rtcmap,norm=Normalize(vmin=colorkeymm[0],
-                        vmax=colorkeymm[1]))
-    cb.set_label(colorkey,fontdict={'size':14,'weight':'bold'})
-    
-    plt.show()
-
-def plotPTMaps(edifilelst,freqspot=10,esize=2.0,colorkey='phimin',xpad=.2,
-               ypad=.2,tickstrfmt='%2.2f',cborientation='vertical',
-               colorkeymm=[0,90.],figsave='y',fmt=['png'],rotz=0,pxy=[10,12],
-               galpha=.25,stationid=None,stationpad=.0005,
-               sfdict={'size':12,'weight':'bold'},indarrows='n',
-               cmap='ptcmap',tscale='period',mapscale='latlon',fignum=1,
-               imagefile=None,image_extent=None,refpoint=(0,0),cbshrink=.8,
-               arrowprop={'headheight':0.25,'headwidth':0.25,'linewidth':0.5,
-                          'arrowscale':1},
-               arrowlegend={'placement':'lower right','xborderpad':.2,
-                            'yborderpad':.2,'fontpad':.05,
-                            'fontdict':{'size':10,'weight':'bold'}},
-                dpi=200):
-    """  
-    Plots phase tensor ellipses in map view from a list of edifiles with full 
-    path.
-    
-    Arguments:
-    ----------
-        **edilst** : list of strings
-                          full paths to .edi files to plot
-                          
-        **freqspot** : position in frequency list for plotting, an integer
-        
-        **esize** : float
-                    size of ellipse in map units 
-        
-        **colorkey** : [ 'phimin' | 'beta' | 'ellipticity' | 'phidet' ]
-                       fill color of the ellipses and can be:
-                       * 'phimin'      -> minimum phase
-                       * 'beta'        -> phase tensor skew angle
-                       * 'ellipticity' -> phase tensor ellipticity
-                       * 'phidet'      -> determinant of the phase tensor
-                       * *Default* is 'phimin'
-                       
-        **colorkeymm** : tuple (min,max)
-                        min and max of colorkey to which colorbar is normalized
-                        to.  In degrees except for ellipticity which is already
-                        normalized.
-                    
-        **xpad** : float
-                   padding in x-direction in map units from furthest ellipses
-        
-        **ypad** : float
-                   padding in y-direction in map units from furthest ellipses
-        
-        **tickstrfmt** : string
-                        format of tick strings needs to be a string format.
-                        ex: '%.2f' for 2 decimal place in floating number
-        
-        **cborientation** : [ 'horizontal' | 'vertical' ]
-                            colorbar orientation horizontal or vertical
-        
-        **figsave** :  [ 'y' | 'n' ]
-                        * 'y' will save figure to edifilelist path in a folder 
-                           called PTfigures.  The figure will also close once
-                           saved.
-                        * 'n' will not save the figure
-                
-        **fmt** : list of formats 
-                 can be pdf,eps or any other formats supported by matplotlib. 
-                 Can be a list of multiple formats.
-                 **Note: that pdf and eps sometimes do not work properly.
-            
-        **rotz** : float
-                   angle in degrees to rotate the data clockwise positive.
-                   *Default* is 0
-        
-        **pxy** : tuple (width,height)
-                  dimensions of the figure in inches.  *Default* is (10,12)
-        
-        **galpha** : float [0:1]
-                     opacity of the grid.  0 for transparent, 1 for opaque
-                     *Default* is 0.25
-        
-        **stationid** : tuple or list 
-                        start and stop of station name indicies.  
-                        ex: for MT01dr stationid=(0,4) will be MT01.
-                        *Default* is None
-                    
-        **stationpad** : float
-                         padding for station name in the y-direction in map
-                         units
-        
-        **sfdict** : dictionary
-                     font dictionary for station name. Keys can be
-                     matplotlib.text properties, common ones are:
-                         * 'size'   -> for font size
-                         * 'weight' -> for font weight
-                         * 'color'  -> for color of font
+        self.mt_lst_sort = mm[0]
+        self.station_lst = mm[1]
+        self.offset_lst = mm[2]
                                      
-        **indarrow** : [ 'yri' | 'yr' | 'yi' | 'n' ]
-                        * 'yri' to plot induction both real and imaginary 
-                           induction arrows 
-                        * 'yr' to plot just the real induction arrows
-                        * 'yi' to plot the imaginary induction arrows
-                        * 'n' to not plot them
-                        * *Default* is 'n'                        
-                        **Note: convention is to point towards a conductor **
-       
-       **arrowprop** : dictionary of arrow properties with keys:
-                        * 'linewidth'  -> width of the arrow line
-                        * 'headheight' -> height of arrow head
-                        * 'headwidth'  -> width of the arrow head
-                        * 'arrowscale' -> scale size of the arrow
         
+    def get_station_locations(self, map_scale='latlon', ref_point=(0,0)):
+        """
+        creates a dictionary where the keys are the stations and the values
+        are the index in the plot_mesh grid for the station location.
         
-        **arrowlegend** : dictionary of properties for legend with keys:
-                        * 'placement -> placement of arrow legend can be:
-                            - 'upper right'
-                            - 'lower right'
-                            - 'upper left'
-                            - 'lower left'
-                        * 'xborderpad' -> padding from x axis
-                        * yborderpad'  -> padding from y axis
-                        * fontpad'     -> padding between arrow and legend text
-                        * fontdict'    -> dictionary of font properties
+        *Note*: the handling of zone changes in UTM coordinates is rough and 
+        needs to be changed.  If there are zone changes in your survey, stick
+        to latlon.
         
-        **cmap** :[ 'ptcmap' | 'ptcmap3' | 'skcmap' | 'skcmap2' | 'rtcmap' ]
-                  color map of ellipse facecolor.  So far the colormaps are:
-                      * 'ptcmap'  -> yellow (low phase) to red (high phase)
-                      * 'ptcmap3' -> white (low numbers) to blue (high numbers)
-                      * 'skcmap'  -> blue to yellow to red
-                      * 'skcmap2' -> blue to white to red
-                      * 'rtcmap'  -> blue to purple to red
+        Arguments:
+        ----------
+            **map_scale**: [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
             
-        **tscale** : [ 'period' | 'frequency' ]
-                     * 'period'    -> plot vertical scale in period
-                     * 'frequency' -> plot vertical scale in frequency
+            **ref_point**: (map_scale_x, map_scale_y)
+                           reference point to center the map on, needs to be in
+                           map_scale coordinates.
+                           
+        Returns:
+        --------
+            **map_dict**: dictionary
+                          where keys are station names, and the values are the
+                          index values (x, y) for the plot_meshgrid
+                          
+            **map_xarr**: np.ndarray(num_stations)
+                          east-west values to of station to plot. 
+                          
+            **map_yarr**: np.ndarray(num_stations)
+                          north-south values to of station to plot.  
+        """
         
-        **mapscale** : [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
-                      scale of map
-                          * 'latlon'     -> lats and longs
-                          * 'eastnorth'  -> for easting and northing, this is 
-                             recomended if you want to plot tipper data for 
-                             small surveys.
-                          * 'eastnorthkm' -> for kilometer scaling
-                          ** Note: if the ellipses are plotting in the wrong 
-                          spot in east-north scale, check to see if your survey
-                          crosses UTM grids.  Currently there is no way of 
-                          dealing with this.
-                   
-        **imagefile** : string
-                        path to an image file jpg or png or svg
+        mm = get_station_locations(self.mt_lst,map_scale=map_scale,
+                                   ref_point=ref_point)
         
-        **image_extent** : tuple (xmin,xmax,ymin,ymax)
-                           coordinates according to mapscale. Must be input if
-                           image file is not None.
+        self.map_dict = mm[0]
+        self.map_xarr = mm[1]
+        self.map_yarr = mm[2]
         
-        **refpoint** : tuple (x,y)
-                       reference point estimate relative distance to.  This 
-                       point will be (0,0) on the map and everything else is 
-                       referenced to this point
-         
-    :Example: ::
+    def get_rp_arrays(self, plot_period, sort_by='line', line_direction='ew', 
+                      map_scale='latlon', ref_point=(0, 0), ftol=.1):
+        """
+        get resistivity and phase values in the correct order according to 
+        offsets and periods for either map view or pseudosection.
+    
+        Attributes:
+        -----------
+            **sort_by**: [ 'line' | 'map' ]
+                         * 'line' --> sort the station distances into a line 
+                                      according to line_direction
+                         * 'map' --> sort the station distances into map 
+                                     coordinates
+            
+            **line_direction**: [ 'ew' | 'ns' ]
+            
+            **map_scale**: [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
+            
+            **ref_point**: (x, y)
+                           reference point to center the plot on, this point 
+                           needs to be in map coordinates
+                           
+            **ftol**: float
+                      tolerance to match periods in mt_lst with plot_period
+                      
+            **plot_period**: np.ndarray(nt)
+                             array of periods in seconds to get data for.
+                             
+        Returns:
+        --------
+            Returns the individual components of resisitivity (in log scale) 
+            and phase (deg) with a shape according to sort_by.  
+            
+            * If sort_by == 'line', the returned shape is (num_periods, 
+                                                           num_stations)
+            * If sort_by == 'map', the returned shape is (num_periods, 
+                                                          num_stations, 
+                                                          num_stations)
+                                                           
         
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> import os
-        >>> edipath = r"/home/EDIfiles"
-        >>> edilst = [os.path.join(edipath,edi) for edi in os.listdir(edipath)
-        >>> ...       if edi.find('.edi')]
-        >>> # color by phimin with a range of 20-70 deg in meter scale
-        >>> mtplot.plotPTMaps(edilst,colorkeymm=(20,70),mapscale='eastnorth')
-        >>> 
-        >>> # add induction arrows to skew angle with range (-5,5)
-        >>> mtplot.plotPTMaps(edilst,colorkey='beta',
-        >>> ...               colorkeymm=(-5,5),indarrows='yri')
-        >>>
-        >>> # put an underlying image as a basemap in km scale
-        >>> mtplot.plotPTMaps(edilst,imagefile=r"/home/Maps/Basemap.jpg",
-        >>> ...               image_extent=(0,20,0,20),mapscale='eastnorthkm')
+            **resxx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       apparent resistivity (log 10 scale) for xx component
+            **resxy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       apparent resistivity (log 10 scale) for xy component
+            **resyx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       apparent resistivity (log 10 scale) for yx component
+            **resyy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       apparent resistivity (log 10 scale) for yy component
+                       
+            **phasexx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       phase (deg) for xx component
+            **phasexy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       phase (deg) for xy component
+            **phaseyx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       phase (deg) for yx component
+            **phaseyy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       phase (deg) for yy component
+        
+        """         
+        
+        mm = get_rp_arrays(self.mt_lst, sort_by=sort_by, 
+                           line_direction=line_direction, 
+                           map_scale=map_scale, 
+                           ref_point=ref_point, 
+                           ftol=ftol, 
+                           plot_period=plot_period)
+                           
+        if sort_by == 'line':
+            self.resxx_ps = mm[0]
+            self.resxy_ps = mm[1]
+            self.resyx_ps = mm[2]
+            self.resyy_ps = mm[3]
+            
+            self.phasexx_ps = mm[4]
+            self.phasexy_ps = mm[5]
+            self.phaseyx_ps = mm[6]
+            self.phaseyy_ps = mm[7]
+            
+            self.station_lst = mm[8]
+            self.offset_lst = mm[9]
+        
+        if sort_by == 'map':
+            self.resxx_map = mm[0]
+            self.resxy_map = mm[1]
+            self.resyx_map = mm[2]
+            self.resyy_map = mm[3]
+            
+            self.phasexx_map = mm[4]
+            self.phasexy_map = mm[5]
+            self.phaseyx_map = mm[6]
+            self.phaseyy_map = mm[7]
+            
+            self.map_x = mm[8]
+            self.map_y = mm[9]
+            
+            
+    def get_pt_arrays(self, plot_period, sort_by='line', line_direction='ew', 
+                  map_scale='latlon', ref_point=(0, 0), ftol=.1):
+        """
+        get resistivity and phase values in the correct order according to 
+        offsets and periods for either map view or pseudosection.
+    
+        Attributes:
+        -----------
+            **sort_by**: [ 'line' | 'map' ]
+                         * 'line' --> sort the station distances into a line 
+                                      according to line_direction
+                         * 'map' --> sort the station distances into map 
+                                     coordinates
+            
+            **line_direction**: [ 'ew' | 'ns' ]
+            
+            **map_scale**: [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
+            
+            **ref_point**: (x, y)
+                           reference point to center the plot on, this point needs
+                           to be in map coordinates
+                           
+            **ftol**: float
+                      tolerance to match periods in mt_lst with plot_period
+                      
+            **plot_period**: np.ndarray(nt)
+                             array of periods in seconds to get data for.
+                             
+        Returns:
+        --------
+            Returns the individual parameters of the phase tensor (deg)
+            
+            * If sort_by == 'line', the returned shape is (num_periods, 
+                                                           num_stations)
+            * If sort_by == 'map', the returned shape is (num_periods, 
+                                                          num_stations, 
+                                                          num_stations)
+                                                           
+        
+            **phimin**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                       minimum phase or 2nd principal component of phase tensor
+                       
+            **phimax**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                        maximum phase or 1st principal component of phase tensor
+                       
+            **skew**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                      skew angle of phase tensor
+                       
+            **azimuth**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                         regional strike direction estimated from phase tensor,
+                         with a 90 degree ambiguity
+                       
+            **ellipticity**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                             ratio of phimin to phimax suggesting dimensionality.
+        
+        """ 
+    
+        mm = get_pt_arrays(self.mt_lst, 
+                           sort_by=sort_by,
+                           line_direction=line_direction,
+                           map_scale=map_scale,
+                           ref_point=ref_point,
+                           ftol=ftol,
+                           plot_period=plot_period)
+                           
+        if sort_by == 'line':
+            self.phimin_ps = mm[0]
+            self.phimax_ps = mm[1]
+            self.skew_ps = mm[2]
+            self.azimuth_ps = mm[3]
+            self.ellipticity_ps = mm[4]
+            
+            self.station_lst = mm[5]
+            self.offset_lst = mm[6]
+            
+        elif sort_by == 'map':
+            self.phimin_map = mm[0]
+            self.phimax_map = mm[1]
+            self.skew_map = mm[2]
+            self.azimuth_map = mm[3]
+            self.ellipticity_map = mm[4]
+            
+            self.map_xarr = mm[5]
+            self.map_yarr = mm[6]
 
-
+#==============================================================================
+# get list of mt objects     
+#==============================================================================
+def get_mtlst(fn_lst=None, res_object_lst=None, z_object_lst=None, 
+               tipper_object_lst=None, mt_object_lst=None):
+                 
     """
-    jj=freqspot
-    fig=plt.figure(fignum,pxy,dpi=dpi)
-    plt.clf()
-    ax=fig.add_subplot(1,1,1,aspect='equal')
+    gets a list of mt objects from the inputs  
+
+    Arguments:     
+    -----------
+        **fn_lst** : list of strings
+                          full paths to .edi files to plot
+                          
+        **res_object_lst** : list of mtplot.ResPhase objects
+                             *default* is none
+                          
+        **z_object_lst** : list of class mtpy.core.z.Z
+                           object of mtpy.core.z.  If this is input be sure the
+                           attribute z.freq is filled.  *default* is None
+                      
+        **mt_object_lst** : list of class mtpy.imaging.mtplot.MTplot
+                            object of mtpy.imaging.mtplot.MTplot
+                            *default* is None
+                            
+    Returns:
+    ---------
     
-    if imagefile!=None:
-        if image_extent==None:
-            raise ValueError('Need to put in image extent')
-        im=plt.imread(imagefile)
-        ax.imshow(im,origin='lower',extent=image_extent,aspect='auto')
-        
-    elliplst=[]
-    latlst=[]
-    lonlst=[]
-    if not esize is float:
-        esize=float(esize)
+        **mt_lst** : list of MTplot instances
+    """
     
-    if mapscale=='latlon':
-        tickstrfmt='%.3f'
-    elif mapscale=='eastnorth' or mapscale=='eastnorthkm':
-        tickstrfmt='%.0f'
-    
-    ckmin=colorkeymm[0]
-    ckmax=colorkeymm[1]
-    
-    plt.rcParams['font.size']=8
-    plt.rcParams['figure.subplot.left']=.1
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.1
-    plt.rcParams['figure.subplot.top']=.93
-    plt.rcParams['figure.subplot.wspace']=.55
-    plt.rcParams['figure.subplot.hspace']=.70
-    #plt.rcParams['font.family']='helvetica'
-    
-    for ii,filename in enumerate(edifilelst):
-        #get phase tensor info
-        imp=Z.Z(filename)
-        #get phase tensor
-        pt=imp.getPhaseTensor(thetar=rotz)
-        pt.phimax=np.nan_to_num(pt.phimax)
-        pt.phimin=np.nan_to_num(pt.phimin)
-        #check to see if the period is there
+    #first need to find something to loop over
+    try:
+        ns = len(fn_lst)
+        mt_lst = [MTplot(fn=fn) for fn in fn_lst]
+        print 'Reading {0} stations'.format(ns)
+        return mt_lst
+    except TypeError:
         try:
-            freq=1./imp.period[jj]
-            if mapscale=='latlon':
-                latlst.append(imp.lat)
-                lonlst.append(imp.lon)
-                plotx=imp.lon-refpoint[0]
-                ploty=imp.lat-refpoint[1]
-            elif mapscale=='eastnorth':
-                zone,east,north=utm2ll.LLtoUTM(23,imp.lat,imp.lon)
-                if ii==0:
-                    zone1=zone
-                    plotx=east-refpoint[0]
-                    ploty=north-refpoint[1]
-                else:
-                    if zone1!=zone:
-                        if zone1[0:2]==zone[0:2]:
-                            pass
-                        elif int(zone1[0:2])<int(zone[0:2]):
-                            east=east+500000
-                        else:
-                            east=east-500000
-                        latlst.append(north-refpoint[1])
-                        lonlst.append(east-refpoint[0])
-                        plotx=east-refpoint[0]
-                        ploty=north-refpoint[1]
-                    else:
-                        latlst.append(north-refpoint[1])
-                        lonlst.append(east-refpoint[0])
-                        plotx=east-refpoint[0]
-                        ploty=north-refpoint[1]
-            elif mapscale=='eastnorthkm':
-                zone,east,north=utm2ll.LLtoUTM(23,imp.lat,imp.lon)
-                if ii==0:
-                    zone1=zone
-                    plotx=(east-refpoint[0])/1000.
-                    ploty=(north-refpoint[1])/1000.
-                else:
-                    if zone1!=zone:
-                        if zone1[0:2]==zone[0:2]:
-                            pass
-                        elif int(zone1[0:2])<int(zone[0:2]):
-                            east=east+500000
-                        else:
-                            east=east-500000
-                        latlst.append((north-refpoint[1])/1000.)
-                        lonlst.append((east-refpoint[0])/1000.)
-                        plotx=(east-refpoint[0])/1000.
-                        ploty=(north-refpoint[1])/1000.
-                    else:
-                        latlst.append((north-refpoint[1])/1000.)
-                        lonlst.append((east-refpoint[0])/1000.)
-                        plotx=(east-refpoint[0])/1000.
-                        ploty=(north-refpoint[1])/1000.
-            else:
-                raise NameError('mapscale not recognized')
-                    
-            
-            phimin=pt.phimin[jj]
-            phimax=pt.phimax[jj]
-            eangle=pt.azimuth[jj]
-            #create an ellipse object
-            if phimax==0 or phimax>100 or phimin==0 or pt.phiminang[jj]<0 or \
-                pt.phiminang[jj]>100:
-                eheight=.0000001*esize
-                ewidth=.0000001*esize
-            else:
-                scaling=esize/phimax
-                eheight=phimin*scaling
-                ewidth=phimax*scaling
-            ellipd=Ellipse((plotx,ploty),width=ewidth,height=eheight,
-                          angle=eangle)
-            #print imp.lon,imp.lat,scaling,ewidth,eheight,phimin,phimax
-            elliplst.append(ellipd)
-            ax.add_artist(ellipd)
-            
-            #get face color info
-            if colorkey=='phiminang' or  colorkey=='phimin':
-                cvar=(pt.phiminang[jj]-ckmin)/(ckmax-ckmin)
-            elif colorkey=='phidet':
-                cvar=(pt.phidet[jj]-ckmin)/(ckmax-ckmin)
-            elif colorkey=='beta':
-                cvar=(pt.beta[jj]-abs(ckmin))/(ckmax-ckmin)
-            elif colorkey=='ellipticity':
-                cvar=(pt.ellipticity[jj]-ckmin)/(ckmax-ckmin)
-            else:
-                raise NameError('color key '+colorkey+' not supported')
-            
-            #set facecolor depending on the colormap
-            #yellow to red
-            if cmap=='ptcmap':
-                if abs(cvar)>1:
-                    ellipd.set_facecolor((1,0,0))
-                elif cvar<0:
-                    ellipd.set_facecolor((1-abs(cvar),1,abs(cvar)))
-                else:
-                    ellipd.set_facecolor((1,1-abs(cvar),.1))
-            #white to blue
-            elif cmap=='ptcmap3':
-                if abs(cvar)>1:
-                    ellipd.set_facecolor((0,0,0))
-                else:
-                    ellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-            #blue to yellow to red
-            elif cmap=='skcmap2':
-                if cvar<0 and cvar>-1:
-                    ellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-                elif cvar<-1:
-                    ellipd.set_facecolor((0,0,1))
-                elif cvar>0 and cvar<1:
-                    ellipd.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
-                elif cvar>1:
-                    ellipd.set_facecolor((1,0,0))
-            #blue to white to red
-            elif cmap=='skcmap':
-                if cvar<0 and cvar>-1:
-                    ellipd.set_facecolor((abs(cvar),abs(cvar),1-abs(cvar)))
-                elif cvar<-1:
-                    ellipd.set_facecolor((0,0,1))
-                elif cvar>0 and cvar<1:
-                    ellipd.set_facecolor((1,1-abs(cvar),.01))
-                elif cvar>1:
-                    ellipd.set_facecolor((1,0,0))
-                    
-            #-----------Plot Induction Arrows---------------------------
-            if indarrows.find('y')==0:
-#                if mapscale=='latlon':
-#                    print 'Might try mapscale=latlon for better scale of arrows'
-                    
-                tip=imp.getTipper(thetar=rotz)
-                aheight=arrowprop['headheight']
-                awidth=arrowprop['headwidth']
-                ascale=arrowprop['arrowscale']
-                #plot real tipper
-                if indarrows=='yri' or indarrows=='yr':
-                    if tip.magreal[jj]<=1.0:
-                        txr=tip.magreal[jj]*ascale*\
-                            np.sin((tip.anglereal[jj])*np.pi/180)
-                        tyr=tip.magreal[jj]*ascale*\
-                            np.cos((tip.anglereal[jj])*np.pi/180)
+            ns = len(res_object_lst)
+            mt_lst = [MTplot(res_phase_object=res_obj) 
+                        for res_obj in res_object_lst]
+            try:
+                nt = len(tipper_object_lst)
+                if nt != ns:
+                    raise mtex.MTpyError_inputarguments('length '+\
+                          ' of z_lst is not equal to tip_lst'+\
+                          '; nz={0}, nt={1}'.format(ns, nt))
+                for mt,tip_obj in zip(mt_lst,tipper_object_lst):
+                    mt._Tipper = tip_obj 
+            except TypeError:
+                pass
+            print 'Reading {0} stations'.format(ns)
+            return mt_lst
+        except TypeError:
+            try: 
+                ns = len(z_object_lst)
+                mt_lst = [MTplot(z_object=z_obj) for z_obj in z_object_lst]
+                try:
+                    nt = len(tipper_object_lst)
+                    if nt != ns:
+                        raise mtex.MTpyError_inputarguments('length '+\
+                              ' of z_lst is not equal to tip_lst'+\
+                              '; nz={0}, nt={1}'.format(ns, nt))
+                    for mt,tip_obj in zip(mt_lst,tipper_object_lst):
+                        mt._Tipper = tip_obj 
+                except TypeError:
+                    pass
+                print 'Reading {0} stations'.format(ns)
+                return mt_lst
+                
+            except TypeError:
+                try:
+                    ns = len(mt_object_lst)
+                    print 'Reading {0} stations'.format(ns)
+                    return mt_lst
+                except TypeError:
+                    raise IOError('Need to input an iteratable list')
+
+#==============================================================================
+# sort an mt_lst by offset values in a particular direction                  
+#==============================================================================
+def sort_by_offsets(mt_lst, line_direction='ew'):
+    """
+    get list of offsets for the given line_direction.
     
-                        ax.arrow(plotx,ploty,txr,tyr,lw=arrowprop['linewidth'],
-                             facecolor='k',edgecolor='k',
-                             length_includes_head=False,
-                             head_width=awidth,head_length=aheight)
+    Arguments:
+    ----------
+        **mt_lst**: list
+                    list of MTplot objects
+        
+        **line_direction**: [ 'ew' | 'ns' ]
+        
+    Returns:
+    --------
+        **sort_mt_lst**: list
+                         list of MTplot objects sorted by offset in the
+                         line_direction
+                         
+        **station_lst**: list
+                         list of stations sorted by offset
+        
+        **offset_lst**: np.ndarray(num_stations)
+                        array of sorted offset values corresponding to station
+                        in station_lst
+    """
+    
+    dtype = [('station', 'S10'), ('offset', float), ('spot', int)]
+    slst = []
+    #get offsets
+    for ii, mt in enumerate(mt_lst):
+        #get offsets between stations
+        if ii == 0:
+            east0 = mt.lon
+            north0 = mt.lat
+            offset = 0.0
+        else:
+            east = mt.lon
+            north = mt.lat
+            #if line is predominantly e-w
+            if line_direction == 'ew': 
+                if east0 < east:
+                    offset = np.sqrt((east0-east)**2+(north0-north)**2)
+                elif east0 > east:
+                    offset = -1*np.sqrt((east0-east)**2+(north0-north)**2)
+                else:
+                    offset = 0
+            #if line is predominantly n-s
+            elif line_direction == 'ns':
+                if north0 < north:
+                    offset = np.sqrt((east0-east)**2+(north0-north)**2)
+                elif north0 > north:
+                    offset = -1*np.sqrt((east0-east)**2+(north0-north)**2)
+                else:
+                    offset=0
+        #append values to list for sorting            
+        slst.append((mt.station, offset, ii))
+    
+    #create a structured array according to the data type and values
+    v_array = np.array(slst, dtype=dtype)
+    
+    #sort the structured array by offsets
+    sorted_array = np.sort(v_array, order=['offset'])
+    
+    #create an offset list as an attribute
+    offset_lst = np.array([ss[1] for ss in sorted_array])
+    
+    #create a station lst as an attribute
+    station_lst = np.array([ss[0] for ss in sorted_array])
+    
+    #create an index list of the sorted index values 
+    index_lst = [ss[2] for ss in sorted_array]
+    
+    #create a new mt_lst according to the offsets from the new index_lst
+    sort_mt_lst = [mt_lst[ii] for ii in index_lst]
+    
+    return sort_mt_lst, station_lst, offset_lst
+
+#==============================================================================
+# get map values
+#==============================================================================
+def get_station_locations(mt_lst, map_scale='latlon', ref_point=(0,0)):
+    """
+    creates a dictionary where the keys are the stations and the values
+    are the index in the plot_mesh grid for the station location.
+    
+    *Note*: the handling of zone changes in UTM coordinates is rough and 
+    needs to be changed.  If there are zone changes in your survey, stick
+    to latlon.
+    
+    Arguments:
+    ----------
+        **map_scale**: [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
+        
+        **ref_point**: (map_scale_x, map_scale_y)
+                       reference point to center the map on, needs to be in
+                       map_scale coordinates.
+ 
+                       
+    Returns:
+    --------
+        **map_dict**: dictionary
+                      where keys are station names, and the values are the
+                      index values (x, y) for the plot_meshgrid
+                      
+        **plot_meshgrid**: np.ndarray(num_stations, num_stations)
+                           a meshgrid (x, y) for plotting map view in 
+                           map_scale coordinates.  
+    """
+    
+    #make some empty arrays
+    latlst = np.zeros(len(mt_lst))
+    lonlst = np.zeros(len(mt_lst))
+    xarr = np.zeros(len(mt_lst))
+    yarr = np.zeros(len(mt_lst))
+    
+    if map_scale == 'eastnorth':
+        dscale = 1.
+    elif map_scale == 'eastnorth':
+        dscale = 1000.
+    
+    map_station_dict = {}
+    #need to sort by station
+    for ii,mt in enumerate(mt_lst):
+        latlst[ii] = mt.lat
+        lonlst[ii] = mt.lon
+        
+        #if map scale is lat lon set parameters                
+        if map_scale == 'latlon':
+            x = mt.lon-ref_point[0]
+            y = mt.lat-ref_point[1]
+        
+        #if map scale is in meters easting and northing
+        elif map_scale == 'eastnorth' or map_scale == 'eastnorthkm' :
+            zone, east, north = utm2ll.LLtoUTM(23, mt.lat, mt.lon)
+            
+            east /= dscale
+            north /= dscale
+            
+            #set the first point read in as a refernce other points                    
+            if ii == 0:
+                zone1 = zone
+                x = east-ref_point[0]
+                y = north-ref_point[1]
+                
+            #read in all the other point
+            else:
+                #check to make sure the zone is the same this needs
+                #to be more rigorously done
+                if zone1!=zone:
+                    print 'Zone change at station '+mt.station
+                    if zone1[0:2] == zone[0:2]:
+                        pass
+                    elif int(zone1[0:2]) < int(zone[0:2]):
+                        east += 500000
+                    else:
+                        east -= -500000
+                        
+                    x = east-ref_point[0]
+                    y = north-ref_point[1]
+                else:
+                    x = east-ref_point[0]
+                    y = north-ref_point[1]
+        else:
+            raise NameError('mapscale not recognized')
+        
+        #put the location of each ellipse into an array in x and y
+        xarr[ii] = x
+        yarr[ii] = y
+        
+        map_station_dict[mt.station] = (x, y)
+        
+    return map_station_dict, xarr, yarr
+    
+    
+#==============================================================================
+# grid data onto a map view
+#==============================================================================
+def grid_data(data_array, x, y, nx=None, ny=None):
+    """
+    Project data onto a regular grid for plotting.
+    
+    
+    Arguments:
+    -----------
+        **data_array**: np.ndarray (len(x), len(y))
+                        array of data values to be gridded
+                        
+        **x**: np.ndarray(len(x))
+               array of values that coorespond  
+    
+        **nx**: int
+                number of cells in the x-direction.  If none, 2 times the 
+                number of x components
+                
+        **ny**: int
+                number of cells in the x-direction.  If none, 2 times the 
+                number of y components
+                
+    Returns:
+    ---------
+        **grid_array**: np.ndarray(nx, ny)
+                        array of data set on a regular grid
+        
+        **xg**: np.ndarray(nx, ny)
+                array of x-grid values
+                
+        **yg**: np.ndarray(nx, ny)
+                array of y-grid values
+                
+        
+    """
+    
+    if nx is None:
+        nx = 2*len(x)
+        
+    if ny is None:
+        ny = 2*len(y)
+     
+    #create evenly spaced intervals to grid over
+    xi = np.linspace(x.min(), x.max(), num=nx, endpoint=True)
+    yi = np.linspace(y.min(), y.max(), num=ny, endpoint=True)
+    
+    xg, yg = np.meshgrid(xi, yi)
+
+    grid_array = mlab.griddata(x, y, data_array, xg, yg)        
+    
+    return grid_array, xg, yg
+    
+    
+
+#==============================================================================
+# get resistivity and phase arrays for plotting
+#==============================================================================
+def get_rp_arrays(mt_lst, plot_period, sort_by='line', line_direction='ew', 
+                  map_scale='latlon', ref_point=(0, 0), ftol=.1):
+    """
+    get resistivity and phase values in the correct order according to 
+    offsets and periods for either map view or pseudosection.
+
+    Attributes:
+    -----------
+        **sort_by**: [ 'line' | 'map' ]
+                     * 'line' --> sort the station distances into a line 
+                                  according to line_direction
+                     * 'map' --> sort the station distances into map 
+                                 coordinates
+        
+        **line_direction**: [ 'ew' | 'ns' ]
+        
+        **map_scale**: [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
+        
+        **ref_point**: (x, y)
+                       reference point to center the plot on, this point needs
+                       to be in map coordinates
+                       
+        **ftol**: float
+                  tolerance to match periods in mt_lst with plot_period
+                  
+        **plot_period**: np.ndarray(nt)
+                         array of periods in seconds to get data for.
+                         
+    Returns:
+    --------
+        Returns the individual components of resisitivity (in log scale) and 
+        phase (deg) with a shape according to sort_by.  
+        
+        * If sort_by == 'line', the returned shape is (num_periods, 
+                                                       num_stations)
+        * If sort_by == 'map', the returned shape is (num_periods, 
+                                                      num_stations, 
+                                                      num_stations)
+                                                       
+    
+        **resxx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   apparent resistivity (log 10 scale) for xx component
+        **resxy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   apparent resistivity (log 10 scale) for xy component
+        **resyx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   apparent resistivity (log 10 scale) for yx component
+        **resyy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   apparent resistivity (log 10 scale) for yy component
+                   
+        **phasexx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   phase (deg) for xx component
+        **phasexy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   phase (deg) for xy component
+        **phaseyx**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   phase (deg) for yx component
+        **phaseyy**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   phase (deg) for yy component
+    
+    """        
+    if plot_period is None:
+            raise mtex.MTpyError_inputarguments('Need to input an array of '+\
+                                                'periods')
+                                                
+    ns = len(mt_lst)
+    nt = len(plot_period)
+    
+    #make a dictionary of the periods to plot for a reference
+    period_dict = dict([(key, vv) 
+                         for vv, key in enumerate(plot_period)])
+                         
+    #get arrays in pseudosection format
+    if sort_by == 'line':
+        #sort the data by offset
+        mt_lst_sort, station_lst, offset_lst = sort_by_offsets(mt_lst, 
+                                                  line_direction=line_direction)
+                                                  
+        #create empty arrays to put data into 
+        resxx = np.zeros((nt, ns))
+        resxy = np.zeros((nt, ns))
+        resyx = np.zeros((nt, ns))
+        resyy = np.zeros((nt, ns))
+        
+        phasexx = np.zeros((nt, ns))
+        phasexy = np.zeros((nt, ns))
+        phaseyx = np.zeros((nt, ns))
+        phaseyy = np.zeros((nt, ns))
+                             
+        for ii, mt in enumerate(mt_lst_sort):
+            #get resisitivity and phase in a dictionary and append to a list
+            rp = mt.get_ResPhase()
+            
+            for rr, rper in enumerate(plot_period):
+                jj = None
+                for kk, iper in enumerate(mt.period):
+                    if iper == rper:
+                        jj = period_dict[rper]
+                        resxx[jj, ii] = np.log10(rp.resxx[kk])
+                        resxy[jj, ii] = np.log10(rp.resxy[kk])
+                        resyx[jj, ii] = np.log10(rp.resyx[kk])
+                        resyy[jj, ii] = np.log10(rp.resyy[kk])
+                        
+                        phasexx[jj, ii] = rp.phasexx[kk]
+                        phasexy[jj, ii] = rp.phasexy[kk]
+                        phaseyx[jj, ii] = rp.phaseyx[kk]
+                        phaseyy[jj, ii] = rp.phaseyy[kk]
+                        
+                        break
+                        
+                    elif rper*(1-ftol) <= iper and \
+                         iper <= rper*(1+ftol):
+                             jj = period_dict[rper]
+                             resxx[jj, ii] = np.log10(rp.resxx[kk])
+                             resxy[jj, ii] = np.log10(rp.resxy[kk])
+                             resyx[jj, ii] = np.log10(rp.resyx[kk])
+                             resyy[jj, ii] = np.log10(rp.resyy[kk])
+                            
+                             phasexx[jj, ii] = rp.phasexx[kk]
+                             phasexy[jj, ii] = rp.phasexy[kk]
+                             phaseyx[jj, ii] = rp.phaseyx[kk]
+                             phaseyy[jj, ii] = rp.phaseyy[kk]
+                             
+                             break
                     else:
                         pass
-                #plot imaginary tipper
-                if indarrows=='yri' or indarrows=='yi':
-                    if tip.magimag[jj]<=1.0:
-                        txi=tip.magimag[jj]*\
-                            np.sin((tip.angleimag[jj])*np.pi/180)*scaling
-                        tyi=tip.magimag[jj]*\
-                            np.cos((tip.angleimag[jj])*np.pi/180)*scaling
-    
-                        ax.arrow(plotx,ploty,txi,tyi,lw=arrowprop['linewidth'],
-                                 facecolor='b',edgecolor='b',
-                                 length_includes_head=False,
-                                 head_width=awidth,head_length=aheight)
+                        
+                if jj is None:
+                    print 'did not find period {0:.6g} (s) for {1}'.format(
+                               rper, mt.station)
+        return resxx, resxy, resyx, resyy, phasexx, phasexy, phaseyx, phaseyy,\
+               station_lst, offset_lst
+        
+    elif sort_by == 'map':
+        map_dict, x, y = get_station_locations(mt_lst, 
+                                               map_scale=map_scale, 
+                                               ref_point=ref_point)
+                                            
+        resxx = np.zeros((nt, ns))
+        resxy = np.zeros((nt, ns))
+        resyx = np.zeros((nt, ns, ns))
+        resyy = np.zeros((nt, ns, ns))
+        
+        phasexx = np.zeros((nt, ns))
+        phasexy = np.zeros((nt, ns))
+        phaseyx = np.zeros((nt, ns))
+        phaseyy = np.zeros((nt, ns))
+        
+        
+        for ii, mt in enumerate(mt_lst):
+            #get resisitivity and phase in a dictionary and append to a list
+            rp = mt.get_ResPhase()
+            
+            for rr, rper in enumerate(plot_period):
+                jj = None
+                for kk, iper in enumerate(mt.period):
+                    if iper == rper:
+                        jj = period_dict[rper]
+                        
+                        resxx[jj, ii] = np.log10(rp.resxx[kk])
+                        resxy[jj, ii] = np.log10(rp.resxy[kk])
+                        resyx[jj, ii] = np.log10(rp.resyx[kk])
+                        resyy[jj, ii] = np.log10(rp.resyy[kk])
+                        
+                        phasexx[jj, ii] = rp.phasexx[kk]
+                        phasexy[jj, ii] = rp.phasexy[kk]
+                        phaseyx[jj, ii] = rp.phaseyx[kk]
+                        phaseyy[jj, ii] = rp.phaseyy[kk]
+                        
+                        break
+                        
+                    elif rper*(1-ftol) <= iper and \
+                         iper <= rper*(1+ftol):
+                        jj = period_dict[rper]
+                        
+                        resxx[jj, ii] = np.log10(rp.resxx[kk])
+                        resxy[jj, ii] = np.log10(rp.resxy[kk])
+                        resyx[jj, ii] = np.log10(rp.resyx[kk])
+                        resyy[jj, ii] = np.log10(rp.resyy[kk])
+                        
+                        phasexx[jj, ii] = rp.phasexx[kk]
+                        phasexy[jj, ii] = rp.phasexy[kk]
+                        phaseyx[jj, ii] = rp.phaseyx[kk]
+                        phaseyy[jj, ii] = rp.phaseyy[kk]
                          
-            
-            #------------Plot station name------------------------------
-            if stationid!=None:
-                ax.text(plotx,ploty+stationpad,
-                        imp.station[stationid[0]:stationid[1]],
-                        horizontalalignment='center',
-                        verticalalignment='baseline',
-                        fontdict=sfdict)
-                
-        #if the period is not there 
-        except IndexError:
-            print 'Did not find index for station'.format(jj)+imp.station
-    
-    if mapscale=='latlon':    
-        ax.set_xlabel('longitude',fontsize=10,fontweight='bold')
-        ax.set_ylabel('latitude',fontsize=10,fontweight='bold')
-        ax.set_xlim(min(lonlst)-xpad,max(lonlst)+xpad)
-        ax.xaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-        ax.set_ylim(min(latlst)-xpad,max(latlst)+xpad)
-        ax.yaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-    elif mapscale=='eastnorth':
-        ax.set_xlabel('Easting (m)',fontsize=10,fontweight='bold')
-        ax.set_ylabel('Northing (m)',fontsize=10,fontweight='bold')
-        ax.set_xlim(min(lonlst)-xpad,max(lonlst)+xpad)
-        ax.xaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-        ax.set_ylim(min(latlst)-xpad,max(latlst)+xpad)
-        ax.yaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-    elif mapscale=='eastnorthkm':
-        ax.set_xlabel('Easting (km)',fontsize=10,fontweight='bold')
-        ax.set_ylabel('Northing (km)',fontsize=10,fontweight='bold')
-        ax.set_xlim(min(lonlst)-xpad,max(lonlst)+xpad)
-        ax.xaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-        ax.set_ylim(min(latlst)-xpad,max(latlst)+xpad)
-        ax.yaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-    if tscale=='period':
-        titlefreq='{0:.5g} (s)'.format(1./freq)
-    else:
-        titlefreq='{0:.5g} (Hz)'.format(freq)
-    ax.set_title('Phase Tensor Map for '+titlefreq,
-                 fontsize=10,fontweight='bold')
-    #plot induction arrow scale bar
-    if indarrows.find('y')==0:
-        parrx=ax.get_xlim()
-        parry=ax.get_ylim()
-        try:
-            axpad=arrowlegend['xborderpad']
-        except KeyError:
-            axpad=xpad+arrowprop['arrowscale']
-        try:
-            aypad=arrowlegend['yborderpad']
-        except KeyError:
-            aypad=ypad
-        try:
-            txtpad=arrowlegend['fontpad']
-        except KeyError:
-            txtpad=.25*esize
-            
+                        break
+                    else:
+                        pass
+                        
+                if jj is None:
+                    print 'did not find period {0:.6g} (s) for {1}'.format(
+                               rper, mt.station)
+        return resxx, resxy, resyx, resyy, +\
+                phasexx, phasexy, phaseyx, phaseyy, x, y, map_dict
         
-        if arrowlegend['placement']=='lower right':
-            pax=parrx[1]-axpad
-            pay=parry[0]+aypad
-            ptx=arrowprop['arrowscale']
-            pty=0
-            txa=parrx[1]-axpad+arrowprop['arrowscale']/2.
-            txy=pay+txtpad
-        elif arrowlegend['placement']=='upper right':
-            pax=parrx[1]-axpad
-            pay=parry[1]-aypad
-            ptx=arrowprop['arrowscale']
-            pty=0
-            txa=parrx[1]-axpad+arrowprop['arrowscale']/2.
-            txy=pay+txtpad
-        elif arrowlegend['placement']=='lower left':
-            pax=parrx[0]+axpad
-            pay=parry[0]+aypad
-            ptx=arrowprop['arrowscale']
-            pty=0
-            txa=parrx[0]+axpad+arrowprop['arrowscale']/2.
-            txy=pay+txtpad
-        elif arrowlegend['placement']=='upper left':
-            pax=parrx[0]+axpad
-            pay=parry[1]-aypad
-            ptx=arrowprop['arrowscale']
-            pty=0
-            txa=parrx[0]+axpad+arrowprop['arrowscale']/2.
-            txy=pay+txtpad
-        else:
-            raise NameError('arrowlegend not supported.')
-            
-        ax.arrow(pax,pay,ptx,pty,lw=arrowprop['linewidth'],
-                             facecolor='k',edgecolor='k',
-                             length_includes_head=False,
-                             head_width=arrowprop['headwidth'],
-                             head_length=arrowprop['headheight'])
-        
-        ax.text(txa,txy,'|T|=1',
-                horizontalalignment='center',
-                verticalalignment='baseline',
-                fontdict={'size':10,'weight':'bold'})
-                
-    ax.grid(alpha=galpha)
-    
-#    if indarrows.find('y')==0:
-#        if indarrows=='yri':
-#            treal=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'k')
-#            timag=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'b')
-#            ax.legend([treal[0],timag[0]],['Tipper_real','Tipper_imag'],
-#                      loc='upper center',
-#                      prop={'size':10,'weight':'bold'},
-#                      ncol=2,markerscale=.5,borderaxespad=.005,
-#                      borderpad=.25)
-#        elif indarrows=='yr':
-#            treal=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'k')
-#            ax.legend([treal[0]],['Tipper_real'],
-#                      loc='upper center',
-#                      prop={'size':10,'weight':'bold'},
-#                      ncol=2,markerscale=.5,borderaxespad=.005,
-#                      borderpad=.25)
-#        elif indarrows=='yi':
-#            timag=ax.plot(np.arange(10)*.000005,np.arange(10)*.00005,'b')
-#            ax.legend([timag[0]],['Tipper_imag'],
-#                      loc='upper center',
-#                      prop={'size':10,'weight':'bold'},
-#                      ncol=2,markerscale=.5,borderaxespad=.005,
-#                      borderpad=.25)
-    
-    
-    
-    #make a colorbar with appropriate colors             
-    ax2=make_axes(ax,shrink=cbshrink)
-    if cmap=='ptcmap': 
-        cb=ColorbarBase(ax2[0],cmap=ptcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='ptcmap3': 
-        cb=ColorbarBase(ax2[0],cmap=ptcmap3,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='skcmap': 
-        cb=ColorbarBase(ax2[0],cmap=skcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='skcmap2': 
-        cb=ColorbarBase(ax2[0],cmap=skcmap2,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    elif cmap=='rtcmap': 
-        cb=ColorbarBase(ax2[0],cmap=rtcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-
-    #label the color bar accordingly
-    if colorkey=='phimin' or colorkey=='phiminang':
-        cb.set_label('$\Phi_{min}$ (deg)',fontdict={'size':10,'weight':'bold'})
-    elif colorkey=='beta':
-        cb.set_label('Skew (deg)',fontdict={'size':10,'weight':'bold'})
-    elif colorkey=='phidet':
-        cb.set_label('Det{$\Phi$} (deg)',fontdict={'size':10,'weight':'bold'})
-    elif colorkey=='ellipticity':
-        cb.set_label('Ellipticity',fontdict={'size':10,'weight':'bold'})
-        
-    plt.show()
-    
-    #save the figure if desired
-    if figsave=='y':
-        sf='_{0}_{1:.6g}'.format(freqspot,freq)
-        savepath=os.path.join(os.path.dirname(edifilelst[0]),'PTfigures')
-        if not os.path.exists(savepath):
-            os.mkdir(savepath)
-            print 'Made directory: '+savepath
-        else:
-            pass
-        for f in fmt:
-            fig.savefig(os.path.join(savepath,
-                                 'PTmap_'+colorkey+sf+'Hz.'+f),
-                                 format=f)
-            print 'Saved file figures to: '+ os.path.join(savepath, \
-                                     'PTmap_'+colorkey+sf+'Hz.'+f)
-        plt.close()
-        
-
-def plotResPhasePseudoSection(edifilelst,stationid=[0,4],ffactor=1,
-                              maxperiod=60,aspect=4,cmap='jet_r',xtickspace=2,
-                              linedir='ns',rotz=0,dpi=300):
+#==============================================================================
+# get phase tensor arrays for plotting
+#==============================================================================
+def get_pt_arrays(mt_lst, plot_period, sort_by='line', line_direction='ew', 
+                  map_scale='latlon', ref_point=(0, 0), ftol=.1):
     """
-    plotResPhasePseudoSection(edifilelst,stationid=4,ffactor=10E3,df=100.,
-                              maxperiod=24,aspect=4,cmap='jet_r') plots a 
-    pseudo section from a list of edifiles with full path with descending 
-    frequency or ascending period on the y axis and relative position on the x. 
-    keyword arguments can be:
-        stationid = start and finish of station string for plotting
-        ffactor = fudge factor to make sure resistivities plot correctly
-        df = sampling frequency (Hz)
-        maxperiod = maximum period to plot
-        aspect = horizontal to vertical ratio of plot
-        cmap = colormap of image
-    """
-    
-    fs=int(dpi/40)
-    plt.rcParams['font.size']=fs
-    plt.rcParams['figure.subplot.left']=.07
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.06
-    plt.rcParams['figure.subplot.top']=.94
-    plt.rcParams['figure.subplot.wspace']=.01
-    plt.rcParams['figure.subplot.hspace']=.20
-    #plt.rcParams['font.family']='helvetica'
-    
-    
-    #create a plot instance
-#    ax1=fig.add_subplot(2,2,1)
-#    ax2=fig.add_subplot(2,2,2,sharex=ax1)
-#    ax3=fig.add_subplot(2,2,3,sharex=ax1)
-#    ax4=fig.add_subplot(2,2,4,sharex=ax1)
-    
-    #create empty lists to put things into
-    stationlst=[]
-    offsetlst=[]
-    minperiodlst=[]
-    maxperiodlst=[]
-    periodlst=[]
-    nlst=[]
-    
-    #create empty arrays to put data into
-    n=len(edifilelst)
-    resxx=np.zeros((maxperiod,n))
-    resxy=np.zeros((maxperiod,n))
-    resyx=np.zeros((maxperiod,n))
-    resyy=np.zeros((maxperiod,n))
-    
-    phasexx=np.zeros((maxperiod,n))
-    phasexy=np.zeros((maxperiod,n))
-    phaseyx=np.zeros((maxperiod,n))
-    phaseyy=np.zeros((maxperiod,n))
-    
-    #get data into arrays
-    for ii,fn in enumerate(edifilelst):
-        #get offsets between stations
-        imp=Z.Z(fn)
-        stationlst.append(imp.station[stationid[0]:stationid[1]])
-        zone,east,north=utm2ll.LLtoUTM(23,imp.lat,imp.lon)
-        
-        if ii==0:
-            east0=east
-            north0=north
-            offset=0.0
-        else:
-            if linedir=='ew': 
-                if east0<east:
-                    offset=np.sqrt((east0-east)**2+(north0-north)**2)
-                elif east0>east:
-                    offset=-1*np.sqrt((east0-east)**2+(north0-north)**2)
-                else:
-                    offset=0
-            elif linedir=='ns':
-                if north0<north:
-                    offset=np.sqrt((east0-east)**2+(north0-north)**2)
-                elif north0>north:
-                    offset=-1*np.sqrt((east0-east)**2+(north0-north)**2)
-                else:
-                    offset=0
-        offsetlst.append(offset)
-        #get resisitivity and phase in a dictionary and append to a list
-        rp=imp.getResPhase(ffactor=ffactor,thetar=rotz)
-        m=len(imp.period)
-        resxx[0:m,ii]=np.log10(rp.resxx)#[::-1]
-        resxy[0:m,ii]=np.log10(rp.resxy)#[::-1]
-        resyx[0:m,ii]=np.log10(rp.resyx)#[::-1]
-        resyy[0:m,ii]=np.log10(rp.resyy)#[::-1]
-        
-        phasexx[0:m,ii]=rp.phasexx#[::-1]
-        phasexy[0:m,ii]=rp.phasexy#[::-1]
-        phaseyx[0:m,ii]=rp.phaseyx+180#[::-1]
-        phaseyy[0:m,ii]=rp.phaseyy#[::-1]
-        
-        #get min and max of the period, just in case some edi files have 
-        #different period information
-        minperiodlst.append(min(imp.period))
-        maxperiodlst.append(max(imp.period))
-        nlst.append(len(imp.period))
-        periodlst.append(imp.period)
-        
-    nperiod=max(nlst)
-    for pp in range(len(periodlst)):
-        if nlst[pp]==nperiod:
-            period=np.log10(periodlst[pp])#[::-1]
+    get resistivity and phase values in the correct order according to 
+    offsets and periods for either map view or pseudosection.
 
-    #plot data
-    fig=plt.figure(1,[12,4],dpi=150)
-    extent=(0,n,period[-1],period[0])
-    aspect=aspect
-    cmap=cmap
-    pad=.2
-    kwargs={'aspect':aspect,'cmap':cmap,'extent':extent}
-    cbarkwargs={'shrink':.7,'orientation':'horizontal','pad':pad}
-
-    
-    ax2=plt.subplot(2,4,2)
-    plt.imshow(resxy[0:nperiod,:],**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-#    plt.ylabel('Log$_{10}$ Period',fontsize=10,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('Log$_{10}\mathbf{(1/\sigma_{xy})}$',fontsize=fs+4,fontweight='bold')
-    ax2.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-    ax3=plt.subplot(2,4,3)
-    plt.imshow(resyx[0:nperiod,:],**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-#    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('Log$_{10}\mathbf{(1/\sigma_{yx})}$',fontsize=fs+4,fontweight='bold')
-    ax3.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-    ax6=plt.subplot(2,4,6)
-    plt.imshow(phasexy[0:nperiod,:],vmin=0,vmax=90,**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-#    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('$\mathbf{\phi_{xy}}$',fontsize=fs+4)
-    ax6.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-    ax7=plt.subplot(2,4,7)
-    plt.imshow(phaseyx[0:nperiod,:],vmin=0,vmax=90,**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-#    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('$\mathbf{\phi_{yx}}$',fontsize=fs+4)
-    ax7.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-#    fig2=plt.figure(2,dpi=150)    
-
-    ax1=plt.subplot(2,4,1)
-    plt.imshow(resxx[0:nperiod,:],**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('Log$_{10}\mathbf{(1/\sigma_{xx})}$',fontsize=fs+4,fontweight='bold')
-    ax1.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-    ax4=plt.subplot(2,4,4)
-    plt.imshow(resyy[0:nperiod,:],**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-#    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('Log$_{10}\mathbf{(1/\sigma_{yy})}$',fontsize=fs+4,fontweight='bold')
-    ax4.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-    ax5=plt.subplot(2,4,5)
-    plt.imshow(phasexx[0:nperiod,:],**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('$\mathbf{\phi_{xx}}$',fontsize=fs+4)
-    ax5.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    
-    ax8=plt.subplot(2,4,8)
-    plt.imshow(phaseyy[0:nperiod,:],**kwargs)
-    plt.colorbar(**cbarkwargs)
-    plt.xticks(np.arange(0,n,xtickspace),
-               [stationlst[st] for st in range(0,n,xtickspace)])
-#    plt.ylabel('Log$_{10}$ Period',fontsize=fs+4,fontweight='bold')
-    plt.xlabel('Station',fontsize=fs+4,fontweight='bold')
-    plt.title('$\mathbf{\phi_{yy}}$',fontsize=fs+4)
-    ax8.yaxis.set_minor_locator(MultipleLocator(.2))
-    plt.grid()
-    plt.show()
-    
-def plotRTMaps(edifilelst,freqspot=10,esize=2.0,colorkey='rhodet',xpad=.2,
-               ypad=.2,tickstrfmt='%2.4f',cborientation='vertical',
-               colorkeymm=[0,4],figsave='y',fmt=['png'],rotz=0,pxy=[10,12],
-                galpha=.25):
-    """ 
-    plotPTMaps(edifilelst,freqspot=10,esize=2.0,colorkey='phimin',xpad=.2,
-               ypad=.2,tickstrfmt='%2.4f',cborientation='vertical',
-               colorkeymax=90.,figsave='y',fmt=['png']) 
-    plots phase tensor ellipses in map view from a list of edifiles with full 
-    path.  Parameters are:
+    Attributes:
+    -----------
+        **sort_by**: [ 'line' | 'map' ]
+                     * 'line' --> sort the station distances into a line 
+                                  according to line_direction
+                     * 'map' --> sort the station distances into map 
+                                 coordinates
         
-        freqspot = position in frequency list for plotting, an integer
-        esize = size of ellipse, float
-        colorkey =  the fill color of the ellipses and can be any of the 
-        dictionary keys returned by Z.getPhaseTensor(), note skew is beta:
-        'phimin','phi', 'phiminvar', 'azimuthvar', 'azimuth', 'betavar', 
-        'phivar', 'alphavar', 'beta', 'ellipticityvar', 'phiminangvar', 
-        'ellipticity', 'phimaxangvar', 'alpha', 'phiminang', 'phimaxvar', 
-        'phimaxang', 'phimax'
-        colorkeymm = [min,max] min and max of colorkey to which colorbar is
-                    normalized to.
-        xpad = pad from xmin and xmax on plot
-        ypad = pad from ymin and ymax on plot
-        tickstrfmt = format of tick strings needs to be a string format
-        cborientation = colorbar orientation horizontal or vertical
-        figsave = y or n, if yes figure will be saved to edifilelist path in 
-                a folder called PTfigures.
-        fmt = ['png'] is format of save figure can be pdf,eps or any other 
-            formats supported by matplotlib. Can be a list of multiple formats.
-            Note that pdf and eps do not properly yet.
+        **line_direction**: [ 'ew' | 'ns' ]
         
-    """
-    jj=freqspot
-    fig=plt.figure(1,pxy,dpi=150)
-    ax=fig.add_subplot(1,1,1,aspect='equal')
-    elliplst=[]
-    latlst=[]
-    lonlst=[]
-    if not esize is float:
-        esize=float(esize)
+        **map_scale**: [ 'latlon' | 'eastnorth' | 'eastnorthkm' ]
+        
+        **ref_point**: (x, y)
+                       reference point to center the plot on, this point needs
+                       to be in map coordinates
+                       
+        **ftol**: float
+                  tolerance to match periods in mt_lst with plot_period
+                  
+        **plot_period**: np.ndarray(nt)
+                         array of periods in seconds to get data for.
+                         
+    Returns:
+    --------
+        Returns the individual parameters of the phase tensor (deg)
+        
+        * If sort_by == 'line', the returned shape is (num_periods, 
+                                                       num_stations)
+        * If sort_by == 'map', the returned shape is (num_periods, 
+                                                      num_stations, 
+                                                      num_stations)
+                                                       
     
-    ckmin=colorkeymm[0]
-    ckmax=colorkeymm[1]
+        **phimin**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                   minimum phase or 2nd principal component of phase tensor
+                   
+        **phimax**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                    maximum phase or 1st principal component of phase tensor
+                   
+        **skew**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                  skew angle of phase tensor
+                   
+        **azimuth**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                     regional strike direction estimated from phase tensor,
+                     with a 90 degree ambiguity
+                   
+        **ellipticity**: np.ndarray(nt, ns) or np.ndarray(nt, ns, ns)
+                         ratio of phimin to phimax suggesting dimensionality.
     
-    plt.rcParams['font.size']=8
-    plt.rcParams['figure.subplot.left']=.1
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.1
-    plt.rcParams['figure.subplot.top']=.93
-    plt.rcParams['figure.subplot.wspace']=.55
-    plt.rcParams['figure.subplot.hspace']=.70
-    #plt.rcParams['font.family']='helvetica'
+    """        
+    if plot_period is None:
+            raise mtex.MTpyError_inputarguments('Need to input an array of '+\
+                                                'periods')
+                                                
+    ns = len(mt_lst)
+    nt = len(plot_period)
     
-    for ii,filename in enumerate(edifilelst):
-        #get phase tensor info
-        imp=Z.Z(filename)
-        try:
-            freq=1./imp.period[jj]
-            latlst.append(imp.lat)
-            lonlst.append(imp.lon)
-            rt=imp.getResTensor(thetar=rotz)
-            phimax=rt.rhomax[jj]
-            phimin=rt.rhomin[jj]
-            eangle=rt.rhoazimuth[jj]
-            if colorkey=='rhomin':
-                colorarray=phimin
-            elif colorkey=='rhomax':
-                colorarray=phimax
-            elif colorkey=='rhobeta':
-                colorarray=rt.rhobeta[jj]
-            elif colorkey=='rhodet':
-                colorarray=rt.rhodet[jj]
-            eangle=rt.rhoazimuth[jj]
-            #create an ellipse object
-            scaling=esize/phimax
-            eheight=phimin*scaling
-            ewidth=phimax*scaling
+    #make a dictionary of the periods to plot for a reference
+    period_dict = dict([(key, vv) 
+                         for vv, key in enumerate(plot_period)])
+                         
+    #get arrays in pseudosection format
+    if sort_by == 'line':
+        
+        mt_lst_sort, slst, olst = sort_by_offsets(mt_lst, 
+                                                  line_direction=line_direction)
+                                                  
+        #create empty arrays to put data into need to reset to zero in case 
+        #something has changed
+        
+        
+        phimin = np.zeros((nt, ns))
+        phimax = np.zeros((nt, ns))
+        skew = np.zeros((nt, ns))
+        azimuth = np.zeros((nt, ns))
+        ellipticity = np.zeros((nt, ns))
+                             
+        for ii, mt in enumerate(mt_lst_sort):
+            #get resisitivity and phase in a dictionary and append to a list
+            pt = mt.get_PhaseTensor()
             
-#            ellipd=Ellipse((imp.lon,imp.lat),width=ewidth,height=eheight,
-#                          angle=eangle)
-#            #print imp.lon,imp.lat,scaling,ewidth,eheight,phimin,phimax
-#            elliplst.append(ellipd)
-#            ax.add_artist(ellipd)
-#            #get face color info
+            for rr, rper in enumerate(plot_period):
+                jj = None
+                for kk, iper in enumerate(mt.period):
+                    if iper == rper:
+                        jj = period_dict[rper]
+                        phimin[jj, ii] = pt.phimin[kk]
+                        phimax[jj, ii] = pt.phimax[kk]
+                        skew[jj, ii] = pt.beta[kk]
+                        azimuth[jj, ii] = pt.azimuth[kk]
+                        ellipticity[jj, ii] = pt.ellipticity[kk]
+                        
+                        break
+                        
+                    elif rper*(1-ftol) <= iper and \
+                         iper <= rper*(1+ftol):
+                        jj = period_dict[rper]
+                        phimin[jj, ii] = pt.phimin[kk]
+                        phimax[jj, ii] = pt.phimax[kk]
+                        skew[jj, ii] = pt.beta[kk]
+                        azimuth[jj, ii] = pt.azimuth[kk]
+                        ellipticity[jj, ii] = pt.ellipticity[kk]
+                             
+                        break
+                    else:
+                        pass
+                        
+                if jj is None:
+                    print 'did not find period {0:.6g} (s) for {1}'.format(
+                               rper, mt.station)
+        return phimin, phimax, skew, azimuth, ellipticity, slst, olst
         
-            #create an ellipse scaled by phimin and phimax and oriented along
-            #the azimuth 
-            emax=10*esize
-#            print eheight,ewidth,emax
-            if eheight>emax or ewidth>emax:
-                pass
-            else:
-                ellip=Ellipse((imp.lon,imp.lat),width=ewidth,
-                              height=eheight,
-                              angle=eangle)
-                #color the ellipse as red high conductivity, blue low
-                cvars=(np.log10(abs(colorarray))-ckmin)/(ckmax-ckmin)
-                #print cvars
-                if cvars>1:
-                    ellip.set_facecolor((0,0,1))
-                elif cvars<float(ckmin)/ckmax or cvars<0:
-                    ellip.set_facecolor((1,0,0))
-                else:
-                    ellip.set_facecolor((1-cvars,0,cvars))
-                ax.add_artist(ellip)            
+    elif sort_by == 'map':
+        map_dict, x, y = get_station_locations(mt_lst, 
+                                               map_scale=map_scale, 
+                                               ref_point=ref_point)
+                                            
+        phimin = np.zeros((nt, ns))
+        phimax = np.zeros((nt, ns))
+        skew = np.zeros((nt, ns))
+        azimuth = np.zeros((nt, ns))
+        ellipticity = np.zeros((nt, ns))
+        
+        
+        for ii, mt in enumerate(mt_lst):
+            #get resisitivity and phase in a dictionary and append to a list
+            pt = mt.get_PhaseTensor()
             
-        except IndexError:
-            pass
-        
-    ax.set_xlabel('longitude',fontsize=10,fontweight='bold')
-    ax.set_ylabel('latitude',fontsize=10,fontweight='bold')
-    ax.set_xlim(min(lonlst)-xpad,max(lonlst)+xpad)
-    ax.xaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-    ax.set_ylim(min(latlst)-xpad,max(latlst)+xpad)
-    ax.yaxis.set_major_formatter(FormatStrFormatter(tickstrfmt))
-    titlefreq='%2.3f' % (1/freq)
-    ax.set_title('Resistivity Tensor for '+titlefreq+'(s)',
-                 fontsize=10,fontweight='bold')
-    ax.grid(alpha=galpha)
-                 
-    ax2=make_axes(ax,shrink=.8)
-    if colorkey=='rhodet' or colorkey=='phidet':
-        cb=ColorbarBase(ax2[0],cmap=rtcmap,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label('Log$_{10}$ '+colorkey+' ($\Omega \cdot$m)')
-    elif colorkey=='beta' or colorkey=='ellipticity':
-        cb=ColorbarBase(ax2[0],cmap=ptcmap3,norm=Normalize(vmin=ckmin,vmax=ckmax))
-        cb.set_label(colorkey+' (deg)')
-    plt.show()
+            for rr, rper in enumerate(plot_period):
+                jj = None
+                for kk, iper in enumerate(mt.period):
+                    if iper == rper:
+                        jj = period_dict[rper]
+
+                        phimin[jj, ii] = pt.phimin[0][kk]
+                        phimax[jj, ii] = pt.phimax[0][kk]
+                        skew[jj, ii] = pt.beta[0][kk]
+                        azimuth[jj, ii] = pt.azimuth[0][kk]
+                        ellipticity[jj, ii] = pt.ellipticity[0][kk]
+                        
+                        break
+                        
+                    elif rper*(1-ftol) <= iper and \
+                         iper <= rper*(1+ftol):
+                        jj = period_dict[rper]
+                        phimin[jj, ii] = pt.phimin[0][kk]
+                        phimax[jj, ii] = pt.phimax[0][kk]
+                        skew[jj, ii] = pt.beta[0][kk]
+                        azimuth[jj, ii] = pt.azimuth[0][kk]
+                        ellipticity[jj, ii] = pt.ellipticity[0][kk]
+                             
+                        break
+                    else:
+                        pass
+                        
+                if jj is None:
+                    print 'did not find period {0:.6g} (s) for {1}'.format(
+                               rper, mt.station)
+        return phimin, phimax, skew, azimuth, ellipticity, x, y, map_dict
+                                                
+                                            
+                                            
     
-    if figsave=='y':
-        sf='%2.3g' % freq
-        savepath=os.path.join(os.path.dirname(edifilelst[0]),'RTfigures')
-        if not os.path.exists(savepath):
-            os.mkdir(savepath)
-            print 'Made directory: '+savepath
-        else:
-            pass
-        for f in fmt:
-            fig.savefig(os.path.join(savepath,
-                                 'RTmap'+sf+'Hz.'+f),
-                                 format=f)
-            print 'Saved file figures to: '+ os.path.join(savepath, \
-                                     'RTmap'+sf+'Hz.'+f)
-        plt.close()
-    
-def plotRoseStrikeAngles(edilst,fignum=1,fs=10,dpi=300,thetar=0,ptol=.05,
-                         tpad=.60,galpha=.25,prange='data',plottype=1,
-                         tipper='n',pterr=None):
+#==============================================================================
+# function for writing values to file
+#==============================================================================
+def _make_value_str(value, value_lst=None, spacing='{0:^8}', 
+                    value_format='{0: .2f}', append=False, add=False):
     """
-    plots the strike angle as determined by phase tensor azimuth (Caldwell et 
-    al. [2004]) and invariants of the impedance tensor (Weaver et al. [2003]).
-    
-    The data is split into decades where the histogram for each is plotted in 
-    the form of a rose diagram with a range of 0 to 180 degrees.
-    Where 0 is North and 90 is East.   The median angle of the period band is 
-    set in polar diagram.  The top row is the strike estimated from
-    the invariants of the impedance tensor.  The bottom row is the azimuth
-    estimated from the phase tensor.  If tipper is 'y' then the 3rd row is the
-    strike determined from the tipper, which is orthogonal to the induction
-    arrow direction.  
+    helper function for writing values to a file, takes in a value and either
+    appends or adds value to value_lst according to the spacing and format of 
+    the string.
     
     Arguments:
     ----------
-        **edilst** : list of full paths to edifiles to be used
+        **value** : float
         
-        **fignum** : int
-                     figure number to be plotted. *Default* is 1
+        **value_lst** : list of values converted to strings
         
-        **fs** : float
-                 font size for labels of plotting. *Default* is 10
-                 
-        **dpi** : int
-                  dots-per-inch resolution of figure, 300 is needed for 
-                  publications. *Default* is 300
-                  
-        **thetar** : float
-                     angle of rotation clockwise positive. *Default* is 0
-                     
-        **ptol** : float
-                   Tolerance level to match periods from different edi files.
-                   *Default* is 0.05
-                   
-        **tpad** : float
-                   padding of the angle label at the bottom of each polar 
-                   diagram.  *Default* is 1.65
-                   
-        **galpha** : float (0:1)
-                     transparency of the font boxes and grid lines.  0 is fully
-                     tranparent and 1 is opaque.  *Default* is 0.25
-                     
-        **prange** : [ 'data' | (period_min,period_max) ]
-                    period range to estimate the strike angle. Options are:
-                        * *'data'* for estimating the strike for all periods
-                            in the data.
-                        * (pmin,pmax) for period min and period max, input as
-                          (log10(pmin),log10(pmax))
-        
-        **plottype** : [ 1 | 2 ]
-                        * *1* to plot individual decades in one plot
-                        * *2* to plot all period ranges into one polar diagram
-                              for each strike angle estimation
-        
-        **tipper** : [ 'y' | 'n' ]
-                      * *'y'* to plot the tipper strike
-                      * *'n'* to not plot tipper strike
+        **spacing** : spacing of the string that the value will be converted
+                      to.
                       
-        **pterr** : float   
-                    Maximum error in degrees that is allowed to estimate strike.
-                    *Default* is None allowing all estimates to be used.
-                
-
-    :Example: ::
+        **value_format** : format of the string that the value is being 
+                            coverted to.
         
-        >>> import os
-        >>> import mtpy.imaging.mtplottools as mtplot
-        >>> edipath = r"/home/EDIFiles"
-        >>> edilst = [os.path.join(edipath,edi) for edi in os.listdir(edipath)
-        >>> ...       if edi.find('.edi')>0]
-        >>> # plot rose plots in decades with tipper and an error floor on pt
-        >>> mtplot.plotRoseStrikeAngles(edilst,plottype=1,pterr=5)
-        >>> # plot all decades into one rose plot for each estimation
-        >>> mtplot.plotRoseStrikeAngles(edilst,plottype=2,pterr=5)
-    """
-    plt.rcParams['font.size']=fs-2
-    plt.rcParams['figure.subplot.left']=.07
-    plt.rcParams['figure.subplot.right']=.98
-    plt.rcParams['figure.subplot.bottom']=.09
-    plt.rcParams['figure.subplot.top']=.90
-    plt.rcParams['figure.subplot.wspace']=.2
-    plt.rcParams['figure.subplot.hspace']=.4   
+        **append** : [ True | False]
+                     if True then appends the value to value list
+        
+        **add** : [ True | False ]
+                  if True adds value string to the other value strings in
+                  value_lst
     
-    invlst=[]
-    ptlst=[]
+    Returns:
+    --------
+        **value_lst** : the input value_lst with the new value either 
+                        added or appended.
+        or
+        
+        **value_str** : value string if add and append are false
+    """                        
     
-    if tipper=='y':
-        tiprlst=[]
+    value_str = spacing.format(value_format.format(value))
     
-    nc=len(edilst)
-    nt=0
-    kk=0
-    
-    for dd,edi in enumerate(edilst):
-        z1=Z.Z(edi)
-        mm=np.remainder(dd,4)
-        period=z1.period
-    
-        #get maximum length of periods and which index that is
-        if len(period)>nt:
-            nt=len(period)
-            kk=dd
-        #-----------get strike angle from invariants--------------------------
-        zinv=z1.getInvariants(thetar=thetar)
+    if append is True:
+        value_lst.append(value_str)
+        return value_lst
+    if add is True:
+        value_lst += value_str
+        return value_lst
         
-        #add 90 degrees because invariants assume 0 is north, but plotting assumes
-        #that 90 is north and measures clockwise, thus the negative
-        zs=90-zinv.strike
+    if append == False and add == False:
+        return value_str
         
-        #for plotting put the NW angles into the SE quadrant 
-        zs[np.where(zs>90)]=zs[np.where(zs>90)]-180
-        zs[np.where(zs<-90)]=zs[np.where(zs<-90)]+180
-        
-        #make a dictionary of strikes with keys as period
-        mdictinv=dict([(ff,jj) for ff,jj in zip(z1.period,zs)])
-        invlst.append(mdictinv)
-    
-        #------------get strike from phase tensor strike angle---------------
-        pt=z1.getPhaseTensor(thetar=thetar)
-        az=pt.azimuth
-        azerr=pt.azimuthvar
-        #put an error max on the estimation of strike angle
-        if pterr:
-            az[np.where(azerr>pterr)]=0.0
-        #don't need to add 90 because pt assumes 90 is north.
-        az[np.where(az>90)]=az[np.where(az>90)]-180
-        az[np.where(az<-90)]=az[np.where(az<-90)]+180
-        #make a dictionary of strikes with keys as period
-        mdictpt=dict([(ff,jj) for ff,jj in zip(z1.period,az)])
-        ptlst.append(mdictpt)
-        
-        #-----------get tipper strike------------------------------------
-        if tipper=='y':
-            tip=z1.getTipper(thetar=thetar)
-            tipr=-tip.anglereal
-            
-            tipr[np.where(tipr>90)]=tipr[np.where(tipr>90)]-180
-            tipr[np.where(tipr<-90)]=tipr[np.where(tipr<-90)]+180
-            
-            tiprdict=dict([(ff,jj) for ff,jj in zip(z1.period,tipr)])
-            tiprlst.append(tiprdict)
-            
-        
-        
-    
-    #get min and max period
-    maxper=np.max([np.max(mm.keys()) for mm in invlst])
-    minper=np.min([np.min(mm.keys()) for mm in ptlst])
-    
-    #make empty arrays to put data into for easy manipulation
-    medinv=np.zeros((nt,nc))
-    medpt=np.zeros((nt,nc))
-    if tipper=='y':
-        medtipr=np.zeros((nt,nc))
-    
-    #make a list of periods from the longest period list
-    plst=np.logspace(np.log10(minper),np.log10(maxper),num=nt,base=10)
-    pdict=dict([(ii,jj) for jj,ii in enumerate(plst)])
-    
-    #put data into arrays
-    for ii,mm in enumerate(invlst):
-        mperiod=mm.keys()
-        for jj,mp in enumerate(mperiod):
-            for kk in pdict.keys():
-                if mp>kk*(1-ptol) and mp<kk*(1+ptol):
-                    ll=pdict[kk]
-                    medinv[ll,ii]=invlst[ii][mp]
-                    medpt[ll,ii]=ptlst[ii][mp]
-                    if tipper=='y':
-                        medtipr[ll,ii]=tiprlst[ii][mp]
-                else:
-                    pass
-        
-    #-----Plot Histograms of the strike angles-----------------------------
-    if prange=='data':
-        brange=np.arange(np.floor(np.log10(minper)),
-                         np.ceil(np.log10(maxper)),1)
-    else:
-        brange=np.arange(np.floor(prange[0]),np.ceil(prange[1]),1)
-    
-    
-    #font dictionary
-    fd={'size':fs,'weight':'normal'}
-    
-    #------------------plot indivdual decades---------------------------------
-    if plottype==1:
-        #plot specs
-        plt.rcParams['figure.subplot.hspace']=.3
-        plt.rcParams['figure.subplot.wspace']=.3
-        
-        fig3=plt.figure(fignum,dpi=dpi)
-        plt.clf()
-        nb=len(brange)
-        for jj,bb in enumerate(brange,1):
-            #make subplots for invariants and phase tensor azimuths
-            if tipper=='n':
-                axhinv=fig3.add_subplot(2,nb,jj,polar=True)
-                axhpt=fig3.add_subplot(2,nb,jj+nb,polar=True)
-                axlst=[axhinv,axhpt]
-            if tipper=='y':
-                axhinv=fig3.add_subplot(3,nb,jj,polar=True)
-                axhpt=fig3.add_subplot(3,nb,jj+nb,polar=True)
-                axhtip=fig3.add_subplot(3,nb,jj+2*nb,polar=True)
-                axlst=[axhinv,axhpt,axhtip]
-            
-            #make a list of indicies for each decades    
-            binlst=[]
-            for ii,ff in enumerate(plst):
-                if ff>10**bb and ff<10**(bb+1):
-                    binlst.append(ii)
-            
-            #extract just the subset for each decade
-            hh=medinv[binlst,:]
-            gg=medpt[binlst,:]
-            if tipper=='y':
-                tr=medtipr[binlst,:]
-                trhist=np.histogram(tr[np.nonzero(tr)].flatten(),bins=72,
-                                       range=(-180,180))
-                bartr=axhtip.bar((trhist[1][:-1])*np.pi/180,trhist[0],
-                                 width=5*np.pi/180)
-                for cc,bar in enumerate(bartr):
-                    fc=float(trhist[0][cc])/trhist[0].max()*.9
-                    bar.set_facecolor((0,1-fc/2,fc))
-                        
-            
-            #estimate the histogram for the decade for invariants and pt
-            invhist=np.histogram(hh[np.nonzero(hh)].flatten(),bins=72,
-                                    range=(-180,180))
-            pthist=np.histogram(gg[np.nonzero(gg)].flatten(),bins=72,
-                                   range=(-180,180))
-            
-            #plot the histograms    
-            barinv=axhinv.bar((invhist[1][:-1])*np.pi/180,invhist[0],width=5*np.pi/180)
-            barpt=axhpt.bar((pthist[1][:-1])*np.pi/180,pthist[0],width=5*np.pi/180)
-            
-            for cc,bar in enumerate(barinv):
-                fc=float(invhist[0][cc])/invhist[0].max()*.8
-                bar.set_facecolor((fc,0,1-fc))
-            for cc,bar in enumerate(barpt):
-                fc=float(pthist[0][cc])/pthist[0].max()*.8
-                bar.set_facecolor((fc,1-fc,0))
-                
-            #make axis look correct with N to the top at 90.
-            for aa,axh in enumerate(axlst):
-                axh.xaxis.set_major_locator(MultipleLocator(30*np.pi/180))
-                axh.xaxis.set_ticklabels(['E','','',
-                                          'N','','',
-                                          'W','','',
-                                          'S','',''])
-                axh.grid(alpha=galpha)
-                if aa==0:
-                    axh.set_xlim(-90*np.pi/180,270*np.pi/180)
-                    axh.text(np.pi,axh.get_ylim()[1]*tpad,
-                             '{0:.1f}$^o$'.format(90-np.median(hh[np.nonzero(hh)])),
-                              horizontalalignment='center',
-                              verticalalignment='baseline',
-                              fontdict={'size':fs-nb},
-                              bbox={'facecolor':(.9,0,.1),'alpha':.25})
-                    print '-----Period Range {0:.3g} to {1:.3g} (s)-----'.format(10**bb,
-                          10**(bb+1))
-                         
-                    print '   *Z-Invariants:  median={0:.1f} mode={1:.1f} mean={2:.1f}'.format(
-                            90-np.median(hh[np.nonzero(hh)]),
-                            90-invhist[1][np.where(invhist[0]==invhist[0].max())[0][0]],
-                            90-np.mean(hh[np.nonzero(hh)])) 
-                    if bb==-5:
-                        axh.set_title('10$^{-5}$-10$^{-4}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==-4:
-                        axh.set_title('10$^{-4}$-10$^{-3}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==-3:
-                        axh.set_title('10$^{-3}$-10$^{-2}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==-2:
-                        axh.set_title('10$^{-2}$-10$^{-1}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==-1:
-                        axh.set_title('10$^{-1}$-10$^{0}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==0:
-                        axh.set_title('10$^{0}$-10$^{1}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==1:
-                        axh.set_title('10$^{1}$-10$^{2}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==2:
-                        axh.set_title('10$^{2}$-10$^{3}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==3:
-                        axh.set_title('10$^{3}$-10$^{4}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==4:
-                        axh.set_title('10$^{4}$-10$^{5}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    elif bb==5:
-                        axh.set_title('10$^{5}$-10$^{6}$s',fontdict=fd,
-                                      bbox={'facecolor':'white','alpha':galpha})
-                    axh.titleOffsetTrans._t=(0,.1)
-        
-                elif aa==1:
-                    axh.set_xlim(-180*np.pi/180,180*np.pi/180)
-                    axh.text(np.pi,axh.get_ylim()[1]*tpad,
-                             '{0:.1f}$^o$'.format(90-np.median(gg[np.nonzero(gg)])),
-                              horizontalalignment='center',
-                              verticalalignment='baseline',
-                              fontdict={'size':fs-nb},
-                              bbox={'facecolor':(.9,.9,0),'alpha':galpha})
-                    print '   *PT Strike:     median={0:.1f} mode={1:.1f} mean={2:.1f}'.format(
-                            90-np.median(gg[np.nonzero(gg)]),
-                            90-pthist[1][np.where(pthist[0]==pthist[0].max())[0][0]],
-                            90-np.mean(gg[np.nonzero(gg)]))
-                    if tipper!='y':
-                        print '\n'
-                    if nb>5: 
-                        if bb==-5:
-                            axh.set_title('10$^{-5}$-10$^{-4}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-4:
-                            axh.set_title('10$^{-4}$-10$^{-3}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-3:
-                            axh.set_title('10$^{-3}$-10$^{-2}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-2:
-                            axh.set_title('10$^{-2}$-10$^{-1}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-1:
-                            axh.set_title('10$^{-1}$-10$^{0}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==0:
-                            axh.set_title('10$^{0}$-10$^{1}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==1:
-                            axh.set_title('10$^{1}$-10$^{2}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==2:
-                            axh.set_title('10$^{2}$-10$^{3}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==3:
-                            axh.set_title('10$^{3}$-10$^{4}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==4:
-                            axh.set_title('10$^{4}$-10$^{5}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==5:
-                            axh.set_title('10$^{5}$-10$^{6}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                elif aa==2:
-                    axh.set_xlim(-180*np.pi/180,180*np.pi/180)
-                    axh.text(np.pi,axh.get_ylim()[1]*tpad,
-                             '{0:.1f}$^o$'.format(90-np.median(tr[np.nonzero(tr)])),
-                              horizontalalignment='center',
-                              verticalalignment='baseline',
-                              fontdict={'size':fs-nb},
-                              bbox={'facecolor':(0,.1,.9),'alpha':galpha})
-                    print '   *Tipper Strike: median={0:.1f} mode={1:.1f} mean={2:.1f}'.format(
-                            90-np.median(tr[np.nonzero(tr)]),
-                            90-trhist[1][np.where(trhist[0]==trhist[0].max())[0][0]],
-                            90-np.mean(tr[np.nonzero(tr)])) 
-                    print '\n'
-                    if nb>5: 
-                        if bb==-5:
-                            axh.set_title('10$^{-5}$-10$^{-4}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-4:
-                            axh.set_title('10$^{-4}$-10$^{-3}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-3:
-                            axh.set_title('10$^{-3}$-10$^{-2}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-2:
-                            axh.set_title('10$^{-2}$-10$^{-1}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==-1:
-                            axh.set_title('10$^{-1}$-10$^{0}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==0:
-                            axh.set_title('10$^{0}$-10$^{1}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==1:
-                            axh.set_title('10$^{1}$-10$^{2}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==2:
-                            axh.set_title('10$^{2}$-10$^{3}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==3:
-                            axh.set_title('10$^{3}$-10$^{4}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==4:
-                            axh.set_title('10$^{4}$-10$^{5}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                        elif bb==5:
-                            axh.set_title('10$^{5}$-10$^{6}$s',fontdict=fd,
-                                          bbox={'facecolor':'white',
-                                                'alpha':galpha})
-                                  
-                if jj==1:
-                    if aa==0:
-                        axh.set_ylabel('Strike (Z)',fontdict=fd,labelpad=5000./dpi,
-                                       bbox={'facecolor':(.9,0,.1),'alpha':galpha})
-                    elif aa==1:
-                        axh.set_ylabel('PT Azimuth',fontdict=fd,labelpad=5000./dpi,
-                                       bbox={'facecolor':(.9,.9,0),'alpha':galpha})
-                    elif aa==2:
-                        axh.set_ylabel('Tipper Strike',fd,labelpad=5000./dpi,
-                                       bbox={'facecolor':(0,.1,.9),'alpha':galpha})
-                
-                plt.setp(axh.yaxis.get_ticklabels(),visible=False)
-                
-        print 'Note: North is assumed to be 0 and the strike angle is measured'+\
-              'clockwise positive.'
-        
-        plt.show()
-    
-    #------------------Plot strike angles for all period ranges--------------------
-    elif plottype==2:
-        #plot specs
-        plt.rcParams['figure.subplot.left']=.07
-        plt.rcParams['figure.subplot.right']=.98
-        plt.rcParams['figure.subplot.bottom']=.100
-        plt.rcParams['figure.subplot.top']=.88
-        plt.rcParams['figure.subplot.hspace']=.3
-        plt.rcParams['figure.subplot.wspace']=.2
-        
-        fig3=plt.figure(fignum,dpi=dpi)
-        plt.clf()
-        #make subplots for invariants and phase tensor azimuths
-        if tipper=='n':
-            axhinv=fig3.add_subplot(1,2,1,polar=True)
-            axhpt=fig3.add_subplot(1,2,2,polar=True)
-            axlst=[axhinv,axhpt]
-        else:
-            axhinv=fig3.add_subplot(1,3,1,polar=True)
-            axhpt=fig3.add_subplot(1,3,2,polar=True)
-            axhtip=fig3.add_subplot(1,3,3,polar=True)
-            axlst=[axhinv,axhpt,axhtip]
-        
-        #make a list of indicies for each decades    
-        binlst=[pdict[ff] for ff in plst 
-                if ff>10**brange.min() and ff<10**brange.max()]
-        
-        #extract just the subset for each decade
-        hh=medinv[binlst,:]
-        gg=medpt[binlst,:]
-        
-        #estimate the histogram for the decade for invariants and pt
-        invhist=np.histogram(hh[np.nonzero(hh)].flatten(),bins=72,range=(-180,180))
-        pthist=np.histogram(gg[np.nonzero(gg)].flatten(),bins=72,range=(-180,180))
-        
-        #plot the histograms    
-        barinv=axhinv.bar((invhist[1][:-1])*np.pi/180,invhist[0],width=5*np.pi/180)
-        barpt=axhpt.bar((pthist[1][:-1])*np.pi/180,pthist[0],width=5*np.pi/180)
-        
-        for cc,bar in enumerate(barinv):
-            fc=float(invhist[0][cc])/invhist[0].max()*.8
-            bar.set_facecolor((fc,0,1-fc))
-        for cc,bar in enumerate(barpt):
-            fc=float(pthist[0][cc])/pthist[0].max()*.8
-            bar.set_facecolor((fc,1-fc,0))
-            
-        if tipper=='y':
-                tr=medtipr[binlst,:]
-                trhist=np.histogram(tr[np.nonzero(tr)].flatten(),bins=72,
-                                       range=(-180,180))
-                bartr=axhtip.bar((trhist[1][:-1])*np.pi/180,trhist[0],
-                                 width=5*np.pi/180)
-                for cc,bar in enumerate(bartr):
-                    fc=float(trhist[0][cc])/trhist[0].max()*.9
-                    bar.set_facecolor((0,1-fc/2,fc))
-                    
-        #make axis look correct with N to the top at 90.
-        for aa,axh in enumerate(axlst):
-            axh.xaxis.set_major_locator(MultipleLocator(30*np.pi/180))
-            axh.grid(alpha=galpha)
-            plt.setp(axh.yaxis.get_ticklabels(),visible=False)
-            axh.xaxis.set_ticklabels(['E','','',
-                                      'N','','',
-                                      'W','','',
-                                      'S','',''])
-                                      
-            #put median angle in a box at bottom of polar diagram
-            if aa==0:
-                axh.set_ylim(0,invhist[0].max())
-                axh.text(170*np.pi/180,axh.get_ylim()[1]*.65,
-                         '{0:.1f}$^o$'.format(90-np.median(hh[np.nonzero(hh)])),
-                          horizontalalignment='center',
-                          verticalalignment='baseline',
-                          fontdict={'size':fs-2},
-                          bbox={'facecolor':(.9,0,.1),'alpha':.25})
-                print '-----Period Range {0:.3g} to {1:.3g} (s)-----'.format(min(plst),
-                          max(plst))
-                         
-                print '   *Z-Invariants:  median={0:.1f} mode={1:.1f} mean={2:.1f}'.format(
-                        90-np.median(hh[np.nonzero(hh)]),
-                        90-invhist[1][np.where(invhist[0]==invhist[0].max())[0][0]],
-                        90-np.mean(hh[np.nonzero(hh)])) 
-    
-            elif aa==1:
-                axh.set_ylim(0,pthist[0].max())
-                axh.text(170*np.pi/180,axh.get_ylim()[1]*.65,
-                         '{0:.1f}$^o$'.format(90-np.median(gg[np.nonzero(gg)])),
-                          horizontalalignment='center',
-                          verticalalignment='baseline',
-                          fontdict={'size':fs-2},
-                          bbox={'facecolor':(.9,.9,0),'alpha':galpha})
-                print '   *PT Strike:     median={0:.1f} mode={1:.1f} mean={2:.1f}'.format(
-                        90-np.median(gg[np.nonzero(gg)]),
-                        90-pthist[1][np.where(pthist[0]==pthist[0].max())[0][0]],
-                        90-np.mean(gg[np.nonzero(gg)]))
-                if tipper!='y':
-                    print '\n'
-            elif aa==2:
-                axh.set_ylim(0,trhist[0].max())
-                axh.text(170*np.pi/180,axh.get_ylim()[1]*.65,
-                         '{0:.1f}$^o$'.format(90-np.median(tr[np.nonzero(tr)])),
-                          horizontalalignment='center',
-                          verticalalignment='baseline',
-                          fontdict={'size':fs-2},
-                          bbox={'facecolor':(0,.1,.9),'alpha':galpha})
-                print '   *Tipper Stike:  median={0:.1f} mode={1:.1f} mean={2:.1f}\n'.format(
-                        90-np.median(tr[np.nonzero(tr)]),
-                        90-trhist[1][np.where(trhist[0]==trhist[0].max())[0][0]],
-                        90-np.mean(tr[np.nonzero(tr)]))
-            #set the title of the diagrams
-            if aa==0:
-                axh.set_title('Strike (Z)',fontdict=fd,
-                               bbox={'facecolor':(.9,0,.1),'alpha':galpha})
-            elif aa==1:
-                axh.set_title('PT Azimuth',fontdict=fd,
-                               bbox={'facecolor':(.9,.9,0),'alpha':galpha})
-            elif aa==2:
-                axh.set_title('Tipper Strike',fontdict=fd,
-                               bbox={'facecolor':(0,.1,.9),'alpha':galpha})
-            axh.titleOffsetTrans._t=(0,.15)
-            
-                
-                
-        print 'Note: North is assumed to be 0 and the strike angle is measured '+\
-              'clockwise positive.'
-        
-        plt.show()
+    return value_lst
