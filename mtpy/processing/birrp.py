@@ -480,6 +480,11 @@ def write_script_file(processing_dict, save_path=None):
                        North)(N,E,rot)',
     thetar             Rotation angles for calculation (relative to geomagnetic 
                        North)(N,E,rot)'
+    hx_cal             full path to calibration file for hx 
+    hy_cal             full path to calibration file for hy 
+    hz_cal             full path to calibration file for hz 
+    rrhx_cal           full path to calibration file for remote reference hx 
+    rrhy_cal           full path to calibration file for remote reference hy 
     ================== ========================================================              
     
     .. see also::                
@@ -491,6 +496,10 @@ def write_script_file(processing_dict, save_path=None):
     Arguments:
     -----------
         **processing_dict** : dictionary with keys as above
+        
+        **save_path** : string (full path to directory to save script file)
+                        if none saves as:
+                            os.path.join(os.path.dirname(fn_lst[0]),'BF')
         
     Outputs:
     --------
@@ -677,6 +686,14 @@ def write_script_file(processing_dict, save_path=None):
     #name of filter file
     nfil = int(pdict.pop('nfil', 0))
     
+    #calibration for coils
+    hx_cal = pdict.pop('hx_cal', None) 
+    hy_cal = pdict.pop('hy_cal', None) 
+    hz_cal = pdict.pop('hz_cal', None)
+    
+    rrhx_cal = pdict.pop('rrhx_cal', None) 
+    rrhy_cal = pdict.pop('rrhy_cal', None) 
+    
     if jmode == 0:
         #number of points to read
         nread = pdict.pop('nread', 1440000)
@@ -685,6 +702,9 @@ def write_script_file(processing_dict, save_path=None):
         #number of points to skip in time series
         try:
             nskip = pdict['nskip']
+            if nds != 0 and type(nskip) is not list and \
+               type(nskip) is not np.ndarray:
+                nskip = [nskip for ii in range(nds)]
         except KeyError:
             if nds != 0:
                 nskip = [0 for ii in range(nds)]
@@ -694,17 +714,14 @@ def write_script_file(processing_dict, save_path=None):
         #number of point to skip from remote reference time series    
         try:
             nskipr = pdict['nskipr']
-            if nds != 0:
-                if type(nskipr) is list:
-                    pass
-        
-                else:        
-                    nskipr = [nskip for ii in range(nds)]
+            if nds != 0 and type(nskipr) is not list and \
+               type(nskipr) is not np.ndarray:
+                nskipr = [nskipr for ii in range(nds)]
         except KeyError:
             if nds==0:
-                nskip = 0
+                nskipr = 0
             else:
-                nskip = [0 for ii in range(nds)]
+                nskipr = [0 for ii in range(nds)]
     
     if jmode == 1:
         #start time of data
@@ -836,15 +853,53 @@ def write_script_file(processing_dict, save_path=None):
     if npcs != 1:
         if jmode == 0:
             fid.write(str(nread[0])+'\n')
-            #write filenames
-            for tfile in pdict['fn_lst'][0]:
-                fid.write(str(nfil)+'\n')
+            #--> write filenames to process with other information for first
+            #    time section
+            for tt, tfile in enumerate(pdict['fn_lst'][0]):
+                #write in calibration files if given
+                if tt == 2:
+                    if hx_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(hx_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                elif tt == 3:
+                    if hy_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(hy_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                elif tt == 4:
+                    if hx_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(hz_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                else:
+                    fid.write(str(nfil)+'\n')
                 fid.write(tfile+'\n')
                 fid.write(str(nskip[0])+'\n')
-            for rfile in pdict['rrfn_lst'][0]:
-                fid.write(str(nfil)+'\n')
+                
+            #--> write remote reference time series
+            for rr, rfile in enumerate(pdict['rrfn_lst'][0]):
+                if rr == 0:
+                    if rrhx_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(rrhx_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                elif rr == 1:
+                    if rrhy_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(rrhy_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
                 fid.write(rfile+'\n')
                 fid.write(str(nskipr[0])+'\n')
+            
+            #--> write in other pieces if there are more, note calibrations 
+            #    are only given for the first time block so it is assumed
+            #    that the same remote referenc is used for all time blocks
             for nn in range(1,npcs):
                 fid.write(str(nread[nn])+'\n')            
                 #write filenames
@@ -854,20 +909,57 @@ def write_script_file(processing_dict, save_path=None):
                 for rfile in pdict['rrfn_lst'][nn]:
                     fid.write(rfile+'\n')
                     fid.write(str(nskipr[nn])+'\n')
+                    
+        #--> if start and end time are give write in those
         elif jmode == 1:
             #write filenames
-            for tfile in pdict['fn_lst'][0]:
-                fid.write(str(nfil)+'\n')
+            for tt, tfile in enumerate(pdict['fn_lst'][0]):
+                #write in calibration files if given
+                if tt == 2:
+                    if hx_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(hx_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                elif tt == 3:
+                    if hy_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(hy_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                elif tt == 4:
+                    if hx_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(hz_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                else:
+                    fid.write(str(nfil)+'\n')
                 fid.write(tfile+'\n')
                 fid.write(dstim+'\n')
                 fid.write(wstim+'\n')
                 fid.write(wetim+'\n')
-            for rfile in pdict['rrfn_lst'][0]:
-                fid.write(str(nfil)+'\n')
+                
+            #--> write remote referenc information
+            for rr, rfile in enumerate(pdict['rrfn_lst'][0]):
+                if rr == 0:
+                    if rrhx_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(rrhx_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
+                if rr == 1:
+                    if rrhy_cal is not None:
+                        fid.write('-2\n')
+                        fid.write(rrhy_cal+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
                 fid.write(rfile+'\n')
                 fid.write(dstim+'\n')
                 fid.write(wstim+'\n')
                 fid.write(wetim+'\n')
+                
+            #--> write other time blocks
             for nn in range(1,npcs):
                 fid.write(str(nread[nn])+'\n')            
                 #write filenames
@@ -887,18 +979,48 @@ def write_script_file(processing_dict, save_path=None):
                 fid.write(str(nread[0])+'\n')
             else:
                 fid.write(str(nread)+'\n')
-            #write filenames
+            #--> write filenames for first block
             if nds==0:
-                for tfile in pdict['fn_lst']:
-                    fid.write(str(nfil)+'\n')
+                for tt, tfile in enumerate(pdict['fn_lst']):
+                    if tt == 2:
+                        if hx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hx_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    elif tt == 3:
+                        if hy_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hy_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    elif tt == 4:
+                        if hx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hz_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
                     fid.write(tfile+'\n')
                     if type(nskip) is list:
                         fid.write(str(nskip[0])+'\n')
                     else:
                         fid.write(str(nskip)+'\n')
-                for rfile in pdict['rrfn_lst']:
-                    fid.write(str(nfil)+'\n')
-                    fid.write(rfile+'\n')
+                for rr, rfile in enumerate(pdict['rrfn_lst']):
+                    if rr == 0:
+                        if rrhx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(rrhx_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    if rr == 1:
+                        if rrhy_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(rrhy_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                        fid.write(rfile+'\n')
                     if type(nskipr) is list:
                         fid.write(str(nskipr[0])+'\n')
                     else:
@@ -922,27 +1044,87 @@ def write_script_file(processing_dict, save_path=None):
         elif jmode == 1:
             #write filenames
             if nds==0:
-                for tfile in pdict['fn_lst']:
-                    fid.write(str(nfil)+'\n')
+                for tt, tfile in enumerate(pdict['fn_lst']):
+                    if tt == 2:
+                        if hx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hx_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    elif tt == 3:
+                        if hy_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hy_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    elif tt == 4:
+                        if hx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hz_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
                     fid.write(tfile+'\n')
                     fid.write(dstim+'\n')
                     fid.write(wstim+'\n')
                     fid.write(wetim+'\n')
-                for rfile in pdict['rrfn_lst']:
-                    fid.write(str(nfil)+'\n')
+                for rr, rfile in enumerate(pdict['rrfn_lst']):
+                    if rr == 0:
+                        if rrhx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(rrhx_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    if rr == 1:
+                        if rrhy_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(rrhy_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
                     fid.write(rfile+'\n')
                     fid.write(dstim+'\n')
                     fid.write(wstim+'\n')
                     fid.write(wetim+'\n')
             else:
-                for tfile in pdict['fn_lst'][0]:
-                    fid.write(str(nfil)+'\n')
+                for tt, tfile in enumerate(pdict['fn_lst'][0]):
+                    if tt == 2:
+                        if hx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hx_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    elif tt == 3:
+                        if hy_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hy_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    elif tt == 4:
+                        if hx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(hz_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    else:
+                        fid.write(str(nfil)+'\n')
                     fid.write(tfile+'\n')
                     fid.write(dstim+'\n')
                     fid.write(wstim+'\n')
                     fid.write(wetim+'\n')
-                for rfile in pdict['rrfn_lst'][0]:
-                    fid.write(str(nfil)+'\n')
+                for rr, rfile in enumerate(pdict['rrfn_lst'][0]):
+                    if rr == 0:
+                        if rrhx_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(rrhx_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
+                    if rr == 1:
+                        if rrhy_cal is not None:
+                            fid.write('-2\n')
+                            fid.write(rrhy_cal+'\n')
+                        else:
+                            fid.write(str(nfil)+'\n')
                     fid.write(rfile+'\n')
                     fid.write(dstim+'\n')
                     fid.write(wstim+'\n')
@@ -951,7 +1133,7 @@ def write_script_file(processing_dict, save_path=None):
     #write rotation angles
     fid.write(thetae.replace(',',' ')+'\n')
     fid.write(thetab.replace(',',' ')+'\n')
-    fid.write(thetaf.replace(',',' '))    
+    fid.write(thetaf.replace(',',' ')+'\n')    
     fid.close()
     
     birrp_dict = {}
@@ -961,6 +1143,7 @@ def write_script_file(processing_dict, save_path=None):
         birrp_dict['nout'] = nout
         birrp_dict['ninp'] = ninp
         birrp_dict['tbw'] = tbw
+        birrp_dict['sampling_rate'] = deltat
         birrp_dict['nfft'] = nfft
         birrp_dict['nsctmax'] = nsctmax
         birrp_dict['uin'] = uin
@@ -970,6 +1153,8 @@ def write_script_file(processing_dict, save_path=None):
         birrp_dict['c2threshe1'] = c2threshe1
         birrp_dict['ofil'] = ofil
         birrp_dict['nlev'] = nlev
+        birrp_dict['npcs'] = npcs
+        birrp_dict['n_samples'] = nread
         birrp_dict['nar'] = nar
         birrp_dict['imode'] = imode
         birrp_dict['jmode'] = jmode
@@ -986,6 +1171,7 @@ def write_script_file(processing_dict, save_path=None):
         birrp_dict['nref'] = nref
         birrp_dict['nrr'] = nrr
         birrp_dict['tbw'] = tbw
+        birrp_dict['sampling_rate'] = deltat
         birrp_dict['nfft'] = nfft
         birrp_dict['nsctinc'] = nsctinc
         birrp_dict['nsctmax'] = nsctmax
@@ -1011,6 +1197,8 @@ def write_script_file(processing_dict, save_path=None):
         birrp_dict['prej'] = prej
         birrp_dict['c2threshe1'] = c2threshe1
         birrp_dict['ofil'] = ofil
+        birrp_dict['npcs'] = npcs
+        birrp_dict['n_samples'] = nread
         birrp_dict['nlev'] = nlev
         birrp_dict['nar'] = nar
         birrp_dict['imode'] = imode
@@ -1027,13 +1215,57 @@ def write_script_file(processing_dict, save_path=None):
         birrp_dict['thetab'] = thetab
         birrp_dict['thetaf'] = thetaf
 
-    print 'Made .script file: '+ofil+'.script'
+    print 'Wrote BIRRP script file: {0}.script'.format(ofil)
     
     return scriptfile,birrp_dict
 
-def run():
+def run(birrp_exe, script_file):
+    """
+    run a birrp script file
+    
+    """
+    if not op.isfile(birrp_exe):
+        raise MTex.MTpyError_inputarguments('birrp executable not found:'+
+                                            '{0}'.format(birrp_exe))
 
-    pass
+    current_dir = op.abspath(os.curdir)
+
+    #change directory to directory of the script file
+    os.chdir(os.path.dirname(script_file))
+
+    sfid = file(script_file,'r')
+    inputstring = ''.join(sfid.readlines())
+    sfid.close()
+    #correct inputstring for potential errorneous line endings due to strange
+    #operating systems:
+    tempstring = inputstring.split()
+    tempstring = [i.strip() for i in tempstring]
+    inputstring = '\n'.join(tempstring)
+    inputstring += '\n'
+
+    #open a log file to catch process and errors of BIRRP executable
+    logfile = open('birrp_logfile.log','w')
+
+    print 'starting Birrp processing at {0}...'.format(time.ctime())
+
+    birrpprocess = subprocess.Popen(birrp_exe, 
+                                    stdin=subprocess.PIPE, 
+                                    stdout=logfile,
+                                    stderr=logfile)
+
+    out, err = birrpprocess.communicate(inputstring)
+    
+    logfile.close()
+
+    print 'logfile closed: {0} at {1}'.format(logfile.name, time.ctime())
+ 
+    print 'Outputs: {0}'.format(out)
+    print 'Errors: {0}'.format(err)
+    
+    #go back to initial directory
+    os.chdir(current_dir)
+
+    print '\n{0} DONE !!! {0}\n'.format('='*20)
 
 
 def validate_data():
@@ -1059,20 +1291,31 @@ def setup_arguments():
     pass
 
 
-def convert2edi(stationname, in_dir, survey_configfile, birrp_configfile, out_dir = None):
+def convert2edi(stationname, in_dir, survey_configfile, birrp_configfile, 
+                out_dir = None):
     """
     Convert BIRRP output files into EDI file.
 
-    The list of BIRRP output files is searched for in the in_dir directory for the given stationname (base part of filenames). Meta-data must be provided in two config files.  If MTpy standard processing has been applied, the first one is the same file as used from the beginning of the processing. If this survey-config-file is missing, a temporary config file must been created from the header information of the time series files that have been used as BIRRP input.
-    A second config file contains information about the BIRRP processing parameters. It's generated when BIRRP is called with MTpy.
+    The list of BIRRP output files is searched for in the in_dir directory 
+    for the given stationname (base part of filenames). Meta-data must be 
+    provided in two config files.  If MTpy standard processing has been 
+    applied, the first one is the same file as used from the beginning of
+    the processing. If this survey-config-file is missing, a temporary 
+    config file must been created from the header information of the time 
+    series files that have been used as BIRRP input.
+    
+    A second config file contains information about the BIRRP processing 
+    parameters. It's generated when BIRRP is called with MTpy.
 
-    The outputfile 'stationname.edi' and is stored in the out_dir directory. If out_dir is not given, the files are stored in the in_dir.
+    The outputfile 'stationname.edi' and is stored in the out_dir directory.
+    If out_dir is not given, the files are stored in the in_dir.
 
     Input:
     - name of the station
     - directory, which contains the BIRRP output files
     - configuration file of the survey, containing all station setup information
-    - configuration file for the processing of the station, containing all BIRRP and other processing parameters
+    - configuration file for the processing of the station, containing all 
+      BIRRP and other processing parameters
     [- location to store the EDI file]
     """ 
 
@@ -1109,7 +1352,7 @@ def convert2edi(stationname, in_dir, survey_configfile, birrp_configfile, out_di
     #     raise EX.MTpyError_config_file( 'Config file cannot be read: %s' % (survey_configfile) )
 
     if not stationname in survey_config_dict:
-        raise EX.MTpyError_config_file( 'No information about station {0} found in configuration file: {1}'.format(stationname, survey_configfile) )
+        raise MTex.MTpyError_config_file( 'No information about station {0} found in configuration file: {1}'.format(stationname, survey_configfile) )
 
     station_config_dict = survey_config_dict[stationname]
 
@@ -1128,7 +1371,7 @@ def convert2edi(stationname, in_dir, survey_configfile, birrp_configfile, out_di
     #find the birrp-output j-file for the current station 
     j_filename_list = [i for i in os.listdir(input_dir) if op.basename(i).upper() == ('%s.j'%stationname).upper() ]
     try:
-        j_filename = j_filename_list[0]
+        j_filename = op.join(input_dir, j_filename_list[0])
     except:
         raise MTex.MTpyError_file_handling('j-file for station %s not found in directory %s'%(stationname, input_dir))
     
@@ -1143,7 +1386,7 @@ def convert2edi(stationname, in_dir, survey_configfile, birrp_configfile, out_di
     # To be converted into .EDI
     # Dictionaries information goes into EDI header: HEAD and INFO section - check for other sections though
     # output EDI file is out_fn
-    
+      
     periods, Z_array, tipper_array = read_j_file(j_filename)
 
 
@@ -1223,7 +1466,7 @@ def convert2edi_incl_instrument_correction(stationname, in_dir, survey_configfil
     #     raise EX.MTpyError_config_file( 'Config file cannot be read: %s' % (survey_configfile) )
 
     if not stationname in survey_config_dict:
-        raise EX.MTpyError_config_file( 'No information about station {0} found in configuration file: {1}'.format(stationname, survey_configfile) )
+        raise MTex.MTpyError_config_file( 'No information about station {0} found in configuration file: {1}'.format(stationname, survey_configfile) )
 
     station_config_dict = survey_config_dict[stationname]
 
@@ -1245,7 +1488,7 @@ def convert2edi_incl_instrument_correction(stationname, in_dir, survey_configfil
     try:
         birrp_config_dict = MTcf.read_configfile(birrp_configfile)
     except:
-        raise EX.MTpyError_config_file( 'Config file with BIRRP processing parameters could not be read: %s' % (birrp_configfile) )
+        raise MTex.MTpyError_config_file( 'Config file with BIRRP processing parameters could not be read: %s' % (birrp_configfile) )
 
 
     #find the birrp-output j-file for the current station 
@@ -1417,14 +1660,16 @@ def _set_edi_info(station_config_dict,birrp_config_dict):
     infostring += '\tStation parameters:\n'
 
     for key in sorted(station_config_dict.iterkeys()):
-        infostring += '\t\t{0}: {1}  \n'.format(str(key),str(station_config_dict[key]))   
+        infostring += '\t\t{0}: {1}  \n'.format(str(key),
+                                                str(station_config_dict[key]))   
     
 
     infostring += '\n'
     infostring += '\tProcessing parameters:\n'
 
     for key in sorted(birrp_config_dict.iterkeys()):
-        infostring += '\t\t{0}: {1}  \n'.format(str(key),str(birrp_config_dict[key]))   
+        infostring += '\t\t{0}: {1}  \n'.format(str(key),
+                                                str(birrp_config_dict[key]))   
     infostring += '\n'    
     if len(birrp_config_dict) == 0 :
         infostring += '\t\tunknown\n\n'
@@ -1436,6 +1681,11 @@ def _set_edi_info(station_config_dict,birrp_config_dict):
 
 
 def _set_edi_head(station_config_dict,birrp_config_dict):
+    """
+    set header string
+    
+    set date to format YYYY-MM-DD
+    """
 
 
     headstring = ''
@@ -1451,43 +1701,44 @@ def _set_edi_head(station_config_dict,birrp_config_dict):
 
     if len(birrp_config_dict) !=0 :
         sampling_rate = float(birrp_config_dict['sampling_rate'])
-        n_samples = int(float(birrp_config_dict['n_samples']))
+        try:
+            n_samples = int(birrp_config_dict['n_samples'])
+        except ValueError:
+            n_samples = sum([int(ii) for ii in 
+                             birrp_config_dict['n_samples'][1:-1].strip().split(',')])
         #new:
-        acq_starttime = float(birrp_config_dict['processing_window_start'])
-        #old:
-        #acq_starttime = float(birrp_config_dict['time_series_start'])
+        try:
+            acq_starttime = float(birrp_config_dict['processing_window_start'])
+            acq_start = time.strftime('%Y-%m-%d,%H:%M:%S', 
+                                      time.gmtime(acq_starttime))
+                                      
+            acq_end = time.strftime('%Y-%m-%d,%H:%M:%S', 
+                                      time.gmtime(acq_starttime+
+                                                 1./sampling_rate*(n_samples)))
 
-        acq_start_date = (time.gmtime(acq_starttime)[:3])[::-1]
-        acq_start_time = (time.gmtime(acq_starttime)[3:6])
-        acq_start = '%02i/%02i/%02i'%(acq_start_date[0],acq_start_date[1],acq_start_date[2]%100)
-        #acq_start = '%02i.%02i.%4i %02i:%02i:%02i UTC'%(acq_start_date[0],acq_start_date[1],acq_start_date[2],acq_start_time[0],acq_start_time[1],acq_start_time[2]) 
+            headstring +='\tACQDATE=%s \n'%(acq_start)
+            headstring +='\tENDDATE=%s \n'%(acq_end)
+        except KeyError:
+            try:
+                acq_start = station_config_dict.has_key('acq_date')
+                headstring += '\tACQDATE={0} \n'.format(acq_start)
+            except KeyError:
+                 headstring += '\tACQDATE={0} \n'.format('1970-01-01')
+                
 
-        acq_endtime = acq_starttime + 1./sampling_rate * (n_samples )
-        acq_end_date = (time.gmtime(acq_endtime)[:3])[::-1]
-        acq_end_time = (time.gmtime(acq_endtime)[3:6])
-        acq_end = '%02i/%02i/%02i'%(acq_end_date[0],acq_end_date[1],acq_end_date[2]%100)
-        #acq_end = '%02i.%02i.%4i %02i:%02i:%02i UTC'%(acq_end_date[0],acq_end_date[1],acq_end_date[2],acq_end_time[0],acq_end_time[1],acq_end_time[2]) 
-
-
-        headstring +='\tACQDATE=%s \n'%(acq_start)
-        headstring +='\tENDDATE=%s \n'%(acq_end)
-
-
-    current_date = (time.gmtime()[:3])[::-1]
-    current_time = time.gmtime()[3:6]
-    todaystring = '%02i/%02i/%02i'%(current_date[0],current_date[1],current_date[2]%100)
-    #todaystring = '%02i.%02i.%4i %02i:%02i:%02i UTC'%(current_date[0],current_date[1],current_date[2],current_time[0],current_time[1],current_time[2]) 
+    todaystring = time.strftime('%Y-%m-%d,%H:%M:%S', 
+                                      time.gmtime())
     headstring += '\tFILEDATE=%s\n'%(todaystring)
 
 
     network = ''
     if station_config_dict.has_key('network'):
-        location = station_config_dicthas_key('network')
+        location = station_config_dict.has_key('network')
     headstring += '\tPROSPECT="%s"\n'%(network)
 
     location = ''
     if station_config_dict.has_key('location'):
-        location = station_config_dicthas_key('location')
+        location = station_config_dict.has_key('location')
     headstring += '\tLOC="%s"\n'%(location)
 
     headstring += '\tLAT=%.5f\n'%station_config_dict['latitude']
@@ -1624,7 +1875,7 @@ def read_j_file(fn):
 
     if tipper != None :
             for idx_comp in range(2):
-                starting_row = tipper_start_row + 2 + ((n_periods +2)* idx_comp)
+                starting_row = tipper_start_row+2+((n_periods +2)*idx_comp)
                 for idx_per in range(n_periods):
                     idx_row = starting_row + idx_per
                     cur_row = j_lines[idx_row]
@@ -1644,8 +1895,7 @@ def read_j_file(fn):
                             value = np.nan
                         if value == -999:
                             value = np.nan
-
-                    tipper[idx_per,idx_z_entry,idx_comp] = value
+                        tipper[idx_per,idx_z_entry,idx_comp] = value
 
     return _check_j_file_content(periods, Z, tipper)
 
@@ -1707,8 +1957,8 @@ def _check_j_file_content( periods_array, Z_array, tipper_array):
             Z_array_out[idx,:,j] = Z_array[idx_tuple[j],:,j]
 
         if n_period_entries == 6:
-            for k in rnage(2):
-                tipper_out[idx,:,k] = tipper_array[idx_tuple[k+4],:,k]
+            for k in range(2):
+                tipper_array_out[idx,:,k] = tipper_array[idx_tuple[k+4],:,k]
 
  
 
@@ -1727,13 +1977,17 @@ def convert2coh(stationname, birrp_output_directory):
 
     stationname = stationname.upper()
     #locate file names
-    cohfilenames = [ op.abspath(i) for i in fnmatch.filter(os.listdir(directory), '*%s*.[123]r.2c2'%stationname.upper()) ] 
+    cohfilenames = [ op.abspath(op.join(directory,i)) for i in fnmatch.filter(
+                os.listdir(directory), '*%s*.[123]r.2c2'%stationname.upper()) ] 
     
     if len(cohfilenames) < 1:
-        raise MTex.MTpyError_file_handling('No coherence files for station %s found in: %s'%(stationname, directory))
+        #raise MTex.MTpyError_file_handling('No coherence files for station %s found in: %s'%(stationname, directory))
+        print 'No coherence files for station %s found in: %s'%(stationname, directory)
+
 
     if len(cohfilenames) > 3:
-        raise MTex.MTpyError_file_handling('Too many coherence files for station %s found in: %s'%(stationname, directory))
+        #raise MTex.MTpyError_file_handling('Too many coherence files for station %s found in: %s'%(stationname, directory))
+        print 'Too many coherence files for station %s found in: %s'%(stationname, directory)
 
     try:
         period,freq,coh1,zcoh1 = MTfh.read_2c2_file(cohfilenames[0])
@@ -1743,7 +1997,8 @@ def convert2coh(stationname, birrp_output_directory):
 
             period,freq,coh3,zcoh3 = MTfh.read_2c2_file(cohfilenames[2])
     except:
-        raise MTex.MTpyError_file_handling('Cannot read coherence files for station %s found in: %s'%(stationname, directory))
+        #raise MTex.MTpyError_file_handling('Cannot read coherence files for station %s found in: %s'%(stationname, directory))
+        print 'Cannot read coherence files for station %s found in: %s'%(stationname, directory)
 
     fn = '%s.coh'%(stationname)
     out_fn = op.abspath(op.join(directory,fn))
