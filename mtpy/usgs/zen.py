@@ -17,6 +17,7 @@ Created on Tue Jun 11 10:53:23 2013
 #==============================================================================
 
 import numpy as np
+import scipy.signal as sps
 import time
 import datetime
 import os
@@ -26,11 +27,10 @@ import win32api
 import shutil
 from collections import Counter
 import mtpy.utils.filehandling as mtfh
-#
 import mtpy.processing.birrp as birrp
 import mtpy.utils.exceptions as mtex
 import mtpy.utils.configfile as mtcf
-#import mtpy.processing.filter as mtfilt
+
 try:
     import mtpy.utils.mseed as mtmseed
 except ImportError:
@@ -388,10 +388,10 @@ class Zen3D(object):
         for ll, kk in enumerate(gps_lst[0:-1]):
             pdiff = ((gps_lst[ll+1]-(kk+self._stamp_len))-(df*4))/4
             self.sample_diff_lst.append(pdiff)
+            dblock = raw_data[kk+self._stamp_len:gps_lst[ll+1]] 
             try:
-                data_array[ll*df:(ll+1)*df+pdiff] = \
-                    np.fromstring(raw_data[kk+self._stamp_len:gps_lst[ll+1]], 
-                          dtype=np.int32)
+                data_array[ll*df:(ll+1)*df+pdiff] = np.fromstring(dblock, 
+                                                                dtype=np.int32)
             except ValueError:
                 print ll, kk, pdiff
                 gfail, gfind = self.get_gps_stamp(kk)
@@ -1041,7 +1041,7 @@ class ZenCache(object):
                           'Check file(s)'+zt_lst[false_test[0]])
         
     
-    def check_time_series(self, zt_lst):
+    def check_time_series(self, zt_lst, decimate=1):
         """
         check to make sure timeseries line up with eachother.
         
@@ -1078,10 +1078,16 @@ class ZenCache(object):
         ts_min = ts_len_lst.min()
         
         #make a time series array for easy access
+        ts_min /= decimate
+            
         ts_array = np.zeros((ts_min, n_fn))
         
         #trim the time series if needed
         for ii, zt in enumerate(zt_lst):
+            if decimate > 1:
+                zt.time_series = sps.resample(zt.time_series, 
+                                              zt.time_series.shape[0]/decimate,
+                                              window='hanning')
             if len(zt.time_series) != ts_min:
                 ts_trim = zt.time_series[:ts_min]
             else:
@@ -1099,10 +1105,18 @@ class ZenCache(object):
                                   '({0}) '.format(zt.ch_cmp)+\
                                   '= {0}'.format(len(ts_trim)))
             self.log_lines.append(', T0 = {0}\n'.format(zt.date_time[0]))
+            
+        if decimate is not None:
+            ts_array = sps.resample(ts_array, ts_min/decimate, 
+                                    window='hanning')
+            ts_min = ts_array.shape[0]
+            
         
         return ts_array, ts_min
+        
+        
     
-    def write_cache_file(self, fn_lst, save_fn, station='ZEN'):
+    def write_cache_file(self, fn_lst, save_fn, station='ZEN', decimate=1):
         """
         write a cache file from given filenames
         
@@ -1150,7 +1164,9 @@ class ZenCache(object):
         self.check_sampling_rate(self.zt_lst)
         
         #make sure the length of time series is the same for all channels
-        self.ts, ts_len = self.check_time_series(self.zt_lst)
+        self.ts, ts_len = self.check_time_series(self.zt_lst,
+                                                 decimate=decimate)
+        
         self.meta_data['TS.NPNT'] = ',{0}'.format(ts_len)
         
         #get the file name to save to 
