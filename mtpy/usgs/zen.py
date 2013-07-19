@@ -31,11 +31,6 @@ import mtpy.processing.birrp as birrp
 import mtpy.utils.exceptions as mtex
 import mtpy.utils.configfile as mtcf
 import mtpy.processing.filter as mtfilt
-import mtpy.core.z as mtz
-import mtpy.utils.format as MTft
-import mtpy.core.edi as mtedi
-import cmath
-import mtpy.usgs.zonge as zonge
 #==============================================================================
 datetime_fmt = '%Y-%m-%d,%H:%M:%S'
 
@@ -2731,7 +2726,6 @@ def delete_files_from_sd(delete_date=None, delete_type=None,
 # copy and merge Z3D files from SD cards          
 #==============================================================================
 def copy_and_merge(station, z3d_savepath=None, merge_savepath=None, 
-                   run_mtft24_yn='y', 
                    channel_dict={'1':'HX', '2':'HY', '3':'HZ','4':'EX', 
                                  '5':'EY', '6':'HZ'},
                    copy_date=None, copy_type='all'):
@@ -2750,10 +2744,6 @@ def copy_and_merge(station, z3d_savepath=None, merge_savepath=None,
                              full path to save merged cache files.  If None
                              saved to z3d_savepath\Merged
                              
-        **run_mtft24_yn** : [ 'y' | 'n' ]
-                            * 'y' --> will run mtft after files have been 
-                                      merged
-                            * 'n' --> does not run mtft 
         
         **channel_dict** : dictionary
                            keys are the channel numbers as strings and the
@@ -2786,12 +2776,7 @@ def copy_and_merge(station, z3d_savepath=None, merge_savepath=None,
     #--> merge files into cache files
     mfn_lst = merge_3d_files(fn_lst, savepath=merge_savepath)
     
-    #--> open an mtft24.exe instance as a command option
-    if run_mtft24_yn == 'y':
-        if len(mfn_lst) > 0:
-            zonge.run_mtft24(os.path.dirname(mfn_lst[0]))
-        else:
-            print 'No files to merge, check log file'
+    return mfn_lst
     
 #==============================================================================
 #   Make mtpy_mt files  
