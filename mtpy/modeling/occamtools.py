@@ -45,7 +45,7 @@ class Occam1D:
   
     def make1DdataFile(self,station,edipath=None,savepath=None,
                        polarization='both',reserr='data',phaseerr='data',
-                       fmt='%+.6e',ss=3*' ',thetar=0):
+                       string_fmt='%+.6e',ss=3*' ',thetar=0):
         """
         make1Ddatafile will write a data file for Occam1D
     
@@ -100,7 +100,7 @@ class Occam1D:
                             - 'data' for errorbars from the data
                             - percent number ex. 10 for ten percent
                         
-            **fmt** : format of the values written to the file. 
+            **string_fmt** : format of the values written to the file. 
                       *default* = %+.6e
             
             **ss** : spacing between values in file.  *default* = ' '*3
@@ -227,51 +227,51 @@ class Occam1D:
                             if polarization=='det':
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resdet[ii]+2*ss+
-                                              fmt % rp.resdeterr[ii]+'\n')
+                                              string_fmt % rp.resdet[ii]+2*ss+
+                                              string_fmt % rp.resdeterr[ii]+'\n')
                             else:
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resxy[ii]+2*ss+
-                                              fmt % rp.resxyerr[ii]+'\n')
+                                              string_fmt % rp.resxy[ii]+2*ss+
+                                              string_fmt % rp.resxyerr[ii]+'\n')
                         elif pol=='yx':
                             if polarization=='det':
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resdet[ii]+2*ss+
-                                              fmt % rp.resdeterr[ii]+'\n')
+                                              string_fmt % rp.resdet[ii]+2*ss+
+                                              string_fmt % rp.resdeterr[ii]+'\n')
                             else:
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resyx[ii]+2*ss+
-                                              fmt % rp.resyxerr[ii]+'\n')
+                                              string_fmt % rp.resyx[ii]+2*ss+
+                                              string_fmt % rp.resyxerr[ii]+'\n')
                     #-----------if percent error is given--------------------                          
                     else:
                         if pol=='xy':
                             if polarization=='det':
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resdet[ii]+2*ss+
-                                              fmt % (rp.resdet[ii]*reserr/100.)+
+                                              string_fmt % rp.resdet[ii]+2*ss+
+                                              string_fmt % (rp.resdet[ii]*reserr/100.)+
                                               '\n')
                             else:
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resxy[ii]+2*ss+
-                                              fmt % (rp.resxy[ii]*reserr/100.)+
+                                              string_fmt % rp.resxy[ii]+2*ss+
+                                              string_fmt % (rp.resxy[ii]*reserr/100.)+
                                               '\n')
                         elif pol=='yx':
                             if polarization=='det':
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resdet[ii]+2*ss+
-                                              fmt % (rp.resdet[ii]*reserr/100.)+
+                                              string_fmt % rp.resdet[ii]+2*ss+
+                                              string_fmt % (rp.resdet[ii]*reserr/100.)+
                                               '\n')
                             else:
                                 datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.resyx[ii]+2*ss+
-                                              fmt % (rp.resyx[ii]*reserr/100.)+
+                                              string_fmt % rp.resyx[ii]+2*ss+
+                                              string_fmt % (rp.resyx[ii]*reserr/100.)+
                                               '\n')
                     
                     #---------------write phase components--------------------
@@ -280,51 +280,51 @@ class Occam1D:
                             if polarization=='det':
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasedet[ii]+2*ss+
-                                              fmt % rp.phasedeterr[ii]+'\n')
+                                              string_fmt % rp.phasedet[ii]+2*ss+
+                                              string_fmt % rp.phasedeterr[ii]+'\n')
                             else:
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasexy[ii]+2*ss+
-                                              fmt % rp.phasexyerr[ii]+'\n')
+                                              string_fmt % rp.phasexy[ii]+2*ss+
+                                              string_fmt % rp.phasexyerr[ii]+'\n')
                         if pol=='yx':
                             if polarization=='det':
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasedet[ii]+2*ss+
-                                              fmt % rp.phasedeterr[ii]+'\n')
+                                              string_fmt % rp.phasedet[ii]+2*ss+
+                                              string_fmt % rp.phasedeterr[ii]+'\n')
                             else:
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasexy[ii]+2*ss+
-                                              fmt % rp.phasexyerr[ii]+'\n')
+                                              string_fmt % rp.phasexy[ii]+2*ss+
+                                              string_fmt % rp.phasexyerr[ii]+'\n')
                     #-----------if percent error is given--------------------                          
                     else:
                         if pol=='xy':
                             if polarization=='det':
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasedet[ii]+2*ss+
-                                              fmt % (phaseerr/100.*(180/np.pi))+
+                                              string_fmt % rp.phasedet[ii]+2*ss+
+                                              string_fmt % (phaseerr/100.*(180/np.pi))+
                                               '\n')
                             else:
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasexy[ii]+2*ss+
-                                              fmt % (phaseerr/100.*(180/np.pi))+
+                                              string_fmt % rp.phasexy[ii]+2*ss+
+                                              string_fmt % (phaseerr/100.*(180/np.pi))+
                                               '\n')
                         if pol=='yx':
                             if polarization=='det':
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phasedet[ii]+2*ss+
-                                              fmt % (phaseerr/100.*(180/np.pi))+
+                                              string_fmt % rp.phasedet[ii]+2*ss+
+                                              string_fmt % (phaseerr/100.*(180/np.pi))+
                                               '\n')
                             else:
                                 datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+
                                               2*ss+'0'+2*ss+'0'+2*ss+
-                                              fmt % rp.phaseyx[ii]+2*ss+
-                                              fmt % (phaseerr/100.*(180/np.pi))+
+                                              string_fmt % rp.phaseyx[ii]+2*ss+
+                                              string_fmt % (phaseerr/100.*(180/np.pi))+
                                               '\n')
                 datafid.write('\n')
                 datafid.close()
@@ -380,45 +380,45 @@ class Occam1D:
                 if reserr=='data':
                     if pol=='xy':
                         datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.resxy[ii]+2*ss+
-                                      fmt % rp.resxyerr[ii]+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.resxy[ii]+2*ss+
+                                      string_fmt % rp.resxyerr[ii]+'\n')
                     elif pol=='yx':
                         datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.resyx[ii]+2*ss+
-                                      fmt % rp.resyxerr[ii]+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.resyx[ii]+2*ss+
+                                      string_fmt % rp.resyxerr[ii]+'\n')
                     elif pol=='det':
                         datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.resyx[ii]+2*ss+
-                                      fmt % rp.resyxerr[ii]+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.resyx[ii]+2*ss+
+                                      string_fmt % rp.resyxerr[ii]+'\n')
                 else:
                     if pol=='xy':
                         datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.resxy[ii]+2*ss+
-                                      fmt % (rp.resxy[ii]*reserr/100.)+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.resxy[ii]+2*ss+
+                                      string_fmt % (rp.resxy[ii]*reserr/100.)+'\n')
                     elif pol=='yx':
                         datafid.write(2*ss+'RhoZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.resyx[ii]+2*ss+
-                                      fmt % (rp.resyx[ii]*reserr/100.)+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.resyx[ii]+2*ss+
+                                      string_fmt % (rp.resyx[ii]*reserr/100.)+'\n')
                 
                 #write phase components
                 if phaseerr=='data':
                     if pol=='xy':
                         datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.phasexy[ii]+2*ss+
-                                      fmt % rp.phasexyerr[ii]+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.phasexy[ii]+2*ss+
+                                      string_fmt % rp.phasexyerr[ii]+'\n')
                     if pol=='yx':
                         datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.phaseyx[ii]+2*ss+
-                                      fmt % rp.phaseyxerr[ii]+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.phaseyx[ii]+2*ss+
+                                      string_fmt % rp.phaseyxerr[ii]+'\n')
                 else:
                     if pol=='xy':
                         datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.phasexy[ii]+2*ss+
-                                      fmt % (phaseerr/100.*(180/np.pi))+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.phasexy[ii]+2*ss+
+                                      string_fmt % (phaseerr/100.*(180/np.pi))+'\n')
                     if pol=='yx':
                         datafid.write(2*ss+'PhsZ'+pol+2*ss+str(ii+1)+2*ss+'0'+
-                                      2*ss+'1'+2*ss+fmt % rp.phaseyx[ii]+2*ss+
-                                      fmt % (phaseerr/100.*(180/np.pi))+'\n')
+                                      2*ss+'1'+2*ss+string_fmt % rp.phaseyx[ii]+2*ss+
+                                      string_fmt % (phaseerr/100.*(180/np.pi))+'\n')
             datafid.close()
             print 'Wrote Data File: ',dfilesave
 
@@ -3021,38 +3021,38 @@ class Occam2DData:
                     #make a list of lines to write to the data file
                     if mmode=='both':
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'1'+ss+
-                                        fmt % lresxy +ss+fmt % lresxyerr+'\n')
+                                        string_fmt % lresxy +ss+string_fmt % lresxyerr+'\n')
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'2'+ss+
-                                        fmt % phasexy +ss+fmt % dphasexyerr+'\n')
+                                        string_fmt % phasexy +ss+string_fmt % dphasexyerr+'\n')
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'5'+ss+
-                                        fmt % lresyx+ss+fmt % lresyxerr+'\n')
+                                        string_fmt % lresyx+ss+string_fmt % lresyxerr+'\n')
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'6'+ss+
-                                        fmt % phaseyx +ss+fmt % dphaseyxerr+'\n')
+                                        string_fmt % phaseyx +ss+string_fmt % dphaseyxerr+'\n')
                         if tippererr!=None and tipyn=='y':
                             reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'3'+ss+
-                                        fmt % projtipr +ss+fmt % projtiperr+'\n')
+                                        string_fmt % projtipr +ss+string_fmt % projtiperr+'\n')
                             reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'4'+ss+
-                                        fmt % projtipi +ss+fmt % projtiperr+'\n')
+                                        string_fmt % projtipi +ss+string_fmt % projtiperr+'\n')
                     elif mmode=='TM':
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'5'+ss+
-                                        fmt % lresyx +ss+fmt % lresyxerr+'\n')
+                                        string_fmt % lresyx +ss+string_fmt % lresyxerr+'\n')
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'6'+ss+
-                                        fmt % phaseyx +ss+fmt % dphaseyxerr+'\n')
+                                        string_fmt % phaseyx +ss+string_fmt % dphaseyxerr+'\n')
                         if tippererr!=None and tipyn=='y':
                             reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'3'+ss+
-                                        fmt % projtipr +ss+fmt % projtiperr+'\n')
+                                        string_fmt % projtipr +ss+string_fmt % projtiperr+'\n')
                             reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'4'+ss+
-                                        fmt % projtipi +ss+fmt % projtiperr+'\n')
+                                        string_fmt % projtipi +ss+string_fmt % projtiperr+'\n')
                     elif mmode=='TE':
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'1'+ss+
-                                        fmt % lresxy+ss+fmt % lresxyerr+'\n')
+                                        string_fmt % lresxy+ss+string_fmt % lresxyerr+'\n')
                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'2'+ss+
-                                        fmt % phasexy+ss+fmt % dphasexyerr+'\n')
+                                        string_fmt % phasexy+ss+string_fmt % dphasexyerr+'\n')
                         if tippererr!=None and tipyn=='y':
                             reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'3'+ss+
-                                        fmt % projtipr +ss+fmt % projtiperr+'\n')
+                                        string_fmt % projtipr +ss+string_fmt % projtiperr+'\n')
                             reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'4'+ss+
-                                        fmt % projtipi +ss+fmt % projtiperr+'\n')
+                                        string_fmt % projtipi +ss+string_fmt % projtiperr+'\n')
                     else:
                         raise NameError('mmode' +mmode+' not defined')
                 except KeyError:
@@ -3133,38 +3133,38 @@ class Occam2DData:
                                 #make a list of lines to write to the data file
                                 if mmode=='both':
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'1'+ss+
-                                                    fmt % lresxy +ss+fmt % lresxyerr+'\n')
+                                                    string_fmt % lresxy +ss+string_fmt % lresxyerr+'\n')
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'2'+ss+
-                                                    fmt % phasexy +ss+fmt % dphasexyerr+'\n')
+                                                    string_fmt % phasexy +ss+string_fmt % dphasexyerr+'\n')
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'5'+ss+
-                                                    fmt % lresyx+ss+fmt % lresyxerr+'\n')
+                                                    string_fmt % lresyx+ss+string_fmt % lresyxerr+'\n')
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'6'+ss+
-                                                    fmt % phaseyx +ss+fmt % dphaseyxerr+'\n')
+                                                    string_fmt % phaseyx +ss+string_fmt % dphaseyxerr+'\n')
                                     if tippererr!=None and tipyn=='y':
                                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'3'+ss+
-                                                    fmt % projtipr +ss+fmt % projtiperr+'\n')
+                                                    string_fmt % projtipr +ss+string_fmt % projtiperr+'\n')
                                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'4'+ss+
-                                                    fmt % projtipi +ss+fmt % projtiperr+'\n')
+                                                    string_fmt % projtipi +ss+string_fmt % projtiperr+'\n')
                                 elif mmode=='TM':
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'5'+ss+
-                                                    fmt % lresyx +ss+fmt % lresyxerr+'\n')
+                                                    string_fmt % lresyx +ss+string_fmt % lresyxerr+'\n')
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'6'+ss+
-                                                    fmt % phaseyx +ss+fmt % dphaseyxerr+'\n')
+                                                    string_fmt % phaseyx +ss+string_fmt % dphaseyxerr+'\n')
                                     if tippererr!=None and tipyn=='y':
                                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'3'+ss+
-                                                    fmt % projtipr +ss+fmt % projtiperr+'\n')
+                                                    string_fmt % projtipr +ss+string_fmt % projtiperr+'\n')
                                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'4'+ss+
-                                                    fmt % projtipi +ss+fmt % projtiperr+'\n')
+                                                    string_fmt % projtipi +ss+string_fmt % projtiperr+'\n')
                                 elif mmode=='TE':
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'1'+ss+
-                                                    fmt % lresxy+ss+fmt % lresxyerr+'\n')
+                                                    string_fmt % lresxy+ss+string_fmt % lresxyerr+'\n')
                                     reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'2'+ss+
-                                                    fmt % phasexy+ss+fmt % dphasexyerr+'\n')
+                                                    string_fmt % phasexy+ss+string_fmt % dphasexyerr+'\n')
                                     if tippererr!=None and tipyn=='y':
                                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'3'+ss+
-                                                    fmt % projtipr +ss+fmt % projtiperr+'\n')
+                                                    string_fmt % projtipr +ss+string_fmt % projtiperr+'\n')
                                         reslst.append(ss+str(kk+1)+ss+str(nn)+ss+'4'+ss+
-                                                    fmt % projtipi +ss+fmt % projtiperr+'\n')
+                                                    string_fmt % projtipi +ss+string_fmt % projtiperr+'\n')
                                 else:
                                     raise NameError('mmode' +mmode+' not defined')    
                             
@@ -3206,13 +3206,13 @@ class Occam2DData:
         #write offsets
         datfid.write('OFFSETS (M):'+'\n')
         for offset in offsetlst:
-            datfid.write(ss+fmt % offset+'\n')
+            datfid.write(ss+string_fmt % offset+'\n')
         
         #write frequencies
         #writefreq=[freq[ff] for ff in range(0,len(freq),freqstep)]
         datfid.write('FREQUENCIES:'+' '*8+str(len(fdict))+'\n')
         for fkey in klst:
-            datfid.write(ss+fmt % float(fkey) +'\n')
+            datfid.write(ss+string_fmt % float(fkey) +'\n')
         
         #write data block
         datfid.write('DATA BLOCKS:'+' '*10+str(len(reslst))+'\n')
@@ -3425,7 +3425,7 @@ class Occam2DData:
         """
         
         ss=3*' '
-        fmt='%2.6f'
+        string_fmt='%2.6f'
         
         #load the data for the data file    
         self.read2DdataFile()
@@ -3563,56 +3563,56 @@ class Occam2DData:
                         if mmode=='both':
                             if rpdict[station]['resxy'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'1'+ss+
-                                            fmt % lresxy +ss+fmt % lresxyerr+'\n')
+                                            string_fmt % lresxy +ss+string_fmt % lresxyerr+'\n')
                             if rpdict[station]['phasexy'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'2'+ss+
-                                            fmt % phasexy+ss+fmt % dphasexyerr+'\n')
+                                            string_fmt % phasexy+ss+string_fmt % dphasexyerr+'\n')
                             if rpdict[station]['resyx'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'5'+ss+
-                                            fmt % lresyx+ss+fmt % lresyxerr+'\n')
+                                            string_fmt % lresyx+ss+string_fmt % lresyxerr+'\n')
                             if rpdict[station]['phaseyx'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'6'+ss+
-                                            fmt % phaseyx+ss+fmt % dphaseyxerr+'\n')
+                                            string_fmt % phaseyx+ss+string_fmt % dphaseyxerr+'\n')
                             if tippererr!=None and tipyn=='y':
                                 if rpdict[station]['realtip'][0,jj-1]!=0.0:
                                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                                                fmt % projtipr+ss+fmt % projtiperr+
+                                                string_fmt % projtipr+ss+string_fmt % projtiperr+
                                                 '\n')
                                 if rpdict[station]['imagtip'][0,jj-1]!=0.0:
                                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                                                fmt % projtipi+ss+fmt % projtiperr+
+                                                string_fmt % projtipi+ss+string_fmt % projtiperr+
                                                 '\n')
                         elif mmode=='TM':
                             if rpdict[station]['resyx'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'5'+ss+
-                                            fmt % lresyx +ss+fmt % lresyxerr+'\n')
+                                            string_fmt % lresyx +ss+string_fmt % lresyxerr+'\n')
                             if rpdict[station]['phaseyx'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'6'+ss+
-                                            fmt % phaseyx+ss+fmt % dphaseyxerr+'\n')
+                                            string_fmt % phaseyx+ss+string_fmt % dphaseyxerr+'\n')
                             if tippererr!=None and tipyn=='y':
                                 if rpdict[station]['realtip'][0,jj-1]!=0.0:
                                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                                                fmt % projtipr+ss+fmt % projtiperr+
+                                                string_fmt % projtipr+ss+string_fmt % projtiperr+
                                                 '\n')
                                 if rpdict[station]['imagtip'][0,jj-1]!=0.0:
                                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                                                fmt % projtipi+ss+fmt % projtiperr+
+                                                string_fmt % projtipi+ss+string_fmt % projtiperr+
                                                 '\n')
                         elif mmode=='TE':
                             if rpdict[station]['resxy'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'1'+ss+
-                                            fmt % lresxy +ss+fmt % lresxyerr+'\n')
+                                            string_fmt % lresxy +ss+string_fmt % lresxyerr+'\n')
                             if rpdict[station]['phasexy'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'2'+ss+
-                                            fmt % phasexy+ss+fmt % dphasexyerr+'\n')
+                                            string_fmt % phasexy+ss+string_fmt % dphasexyerr+'\n')
                             if tippererr!=None and tipyn=='y':
                                 if rpdict[station]['realtip'][0,jj-1]!=0.0:
                                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                                                fmt % projtipr+ss+fmt % projtiperr+
+                                                string_fmt % projtipr+ss+string_fmt % projtiperr+
                                                 '\n')
                                 if rpdict[station]['imagtip'][0,jj-1]!=0.0:
                                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                                                fmt % projtipi+ss+fmt % projtiperr+
+                                                string_fmt % projtipi+ss+string_fmt % projtiperr+
                                                 '\n')
                         else:
                             raise NameError('mmode' +mmode+' not defined')
@@ -3669,65 +3669,65 @@ class Occam2DData:
                     if mmode=='both':
                         if srp['resxy'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'1'+ss+
-                                        fmt % srp['resxy'][0,jj-1]+ss+
-                                        fmt % srp['resxy'][1,jj-1]+'\n')
+                                        string_fmt % srp['resxy'][0,jj-1]+ss+
+                                        string_fmt % srp['resxy'][1,jj-1]+'\n')
                         if srp['phasexy'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'2'+ss+
-                                        fmt % srp['phasexy'][0,jj-1]+ss+
-                                        fmt % srp['phasexy'][1,jj-1]+'\n')
+                                        string_fmt % srp['phasexy'][0,jj-1]+ss+
+                                        string_fmt % srp['phasexy'][1,jj-1]+'\n')
                         if srp['resyx'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'5'+ss+
-                                        fmt % srp['resyx'][0,jj-1]+ss+
-                                        fmt % srp['resyx'][1,jj-1]+'\n')
+                                        string_fmt % srp['resyx'][0,jj-1]+ss+
+                                        string_fmt % srp['resyx'][1,jj-1]+'\n')
                         if srp['phaseyx'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'6'+ss+
-                                        fmt % srp['phaseyx'][0,jj-1]+ss+
-                                        fmt % srp['phaseyx'][1,jj-1]+'\n')
+                                        string_fmt % srp['phaseyx'][0,jj-1]+ss+
+                                        string_fmt % srp['phaseyx'][1,jj-1]+'\n')
                         if tippererr!=None:
                             if srp['realtip'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                                        fmt % srp['realtip'][0,jj-1]+ss+
-                                        fmt % srp['realtip'][1,jj-1]+'\n')
+                                        string_fmt % srp['realtip'][0,jj-1]+ss+
+                                        string_fmt % srp['realtip'][1,jj-1]+'\n')
                             if srp['imagtip'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                                        fmt % srp['imagtip'][0,jj-1]+ss+
-                                        fmt % srp['imagtip'][1,jj-1]+'\n')
+                                        string_fmt % srp['imagtip'][0,jj-1]+ss+
+                                        string_fmt % srp['imagtip'][1,jj-1]+'\n')
                     elif mmode=='TM':
                         if srp['resyx'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'5'+ss+
-                                        fmt % srp['resyx'][0,jj-1]+ss+
-                                        fmt % srp['resyx'][1,jj-1]+'\n')
+                                        string_fmt % srp['resyx'][0,jj-1]+ss+
+                                        string_fmt % srp['resyx'][1,jj-1]+'\n')
                         if srp['phaseyx'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'6'+ss+
-                                        fmt % srp['phaseyx'][0,jj-1]+ss+
-                                        fmt % srp['phaseyx'][1,jj-1]+'\n')
+                                        string_fmt % srp['phaseyx'][0,jj-1]+ss+
+                                        string_fmt % srp['phaseyx'][1,jj-1]+'\n')
                         if tippererr!=None:
                             if srp['realtip'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                                        fmt % srp['realtip'][0,jj-1]+ss+
-                                        fmt % srp['realtip'][1,jj-1]+'\n')
+                                        string_fmt % srp['realtip'][0,jj-1]+ss+
+                                        string_fmt % srp['realtip'][1,jj-1]+'\n')
                             if srp['imagtip'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                                        fmt % srp['imagtip'][0,jj-1]+ss+
-                                        fmt % srp['imagtip'][1,jj-1]+'\n')
+                                        string_fmt % srp['imagtip'][0,jj-1]+ss+
+                                        string_fmt % srp['imagtip'][1,jj-1]+'\n')
                     elif mmode=='TE':
                         if srp['resxy'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'1'+ss+
-                                        fmt % srp['resxy'][0,jj-1]+ss+
-                                        fmt % srp['resxy'][1,jj-1]+'\n')
+                                        string_fmt % srp['resxy'][0,jj-1]+ss+
+                                        string_fmt % srp['resxy'][1,jj-1]+'\n')
                         if srp['phasexy'][0,jj-1]!=0.0:
                             reslst.append(ss+str(kk)+ss+str(jj)+ss+'2'+ss+
-                                        fmt % srp['phasexy'][0,jj-1]+ss+
-                                        fmt % srp['phasexy'][1,jj-1]+'\n')
+                                        string_fmt % srp['phasexy'][0,jj-1]+ss+
+                                        string_fmt % srp['phasexy'][1,jj-1]+'\n')
                         if tippererr!=None:
                             if srp['realtip'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                                        fmt % srp['realtip'][0,jj-1]+ss+
-                                        fmt % srp['realtip'][1,jj-1]+'\n')
+                                        string_fmt % srp['realtip'][0,jj-1]+ss+
+                                        string_fmt % srp['realtip'][1,jj-1]+'\n')
                             if srp['imagtip'][0,jj-1]!=0.0:
                                 reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                                        fmt % srp['imagtip'][0,jj-1]+ss+
-                                        fmt % srp['imagtip'][1,jj-1]+'\n')
+                                        string_fmt % srp['imagtip'][0,jj-1]+ss+
+                                        string_fmt % srp['imagtip'][1,jj-1]+'\n')
     
         #===========================================================================
         #                             write dat file
@@ -3772,14 +3772,14 @@ class Occam2DData:
         projangle=(thetar-self.theta_profile)*np.pi/180.
         for station in stationlst:
             #need to project the stations on to the strike direction
-            datfid.write(ss+fmt % (rpdict[station]['offset']*np.cos(projangle))+
+            datfid.write(ss+string_fmt % (rpdict[station]['offset']*np.cos(projangle))+
                          '\n')
         
         #write frequencies
         #writefreq=[freq[ff] for ff in range(0,len(freq),freqstep)]
         datfid.write('FREQUENCIES:'+' '*8+str(len(freq))+'\n')
         for ff in self.freq:
-            datfid.write(ss+fmt % ff +'\n')
+            datfid.write(ss+string_fmt % ff +'\n')
         
         #write data block
         datfid.write('DATA BLOCKS:'+' '*10+str(len(reslst))+'\n')
@@ -4081,7 +4081,10 @@ class Occam2DData:
                     plt.setp(xx.xaxis.get_ticklabels(),visible=False)
                     
                     #set apparent resistivity scale to logarithmic
-                    xx.set_yscale('log')
+                    try:
+                        xx.set_yscale('log')
+                    except ValueError:
+                        pass
                     
                     #if there are resistivity limits set those
                     if reslimits!=None:
@@ -4223,7 +4226,7 @@ class Occam2DData:
             
         #rewrite the data file 
         ss=3*' '
-        fmt='%2.6f'
+        string_fmt='%2.6f'
         reslst=[]
         
         #make a dictionary of rplst for easier extraction of data
@@ -4239,28 +4242,28 @@ class Occam2DData:
                 #make a list of lines to write to the data file
                 if srp['resxy'][0,jj-1]!=0.0:
                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'1'+ss+
-                                fmt % srp['resxy'][0,jj-1]+ss+
-                                fmt % srp['resxy'][1,jj-1]+'\n')
+                                string_fmt % srp['resxy'][0,jj-1]+ss+
+                                string_fmt % srp['resxy'][1,jj-1]+'\n')
                 if srp['phasexy'][0,jj-1]!=0.0:
                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'2'+ss+
-                                fmt % srp['phasexy'][0,jj-1]+ss+
-                                fmt % srp['phasexy'][1,jj-1]+'\n')
+                                string_fmt % srp['phasexy'][0,jj-1]+ss+
+                                string_fmt % srp['phasexy'][1,jj-1]+'\n')
                 if srp['resyx'][0,jj-1]!=0.0:
                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'5'+ss+
-                                fmt % srp['resyx'][0,jj-1]+ss+
-                                fmt % srp['resyx'][1,jj-1]+'\n')
+                                string_fmt % srp['resyx'][0,jj-1]+ss+
+                                string_fmt % srp['resyx'][1,jj-1]+'\n')
                 if srp['phaseyx'][0,jj-1]!=0.0:
                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'6'+ss+
-                                fmt % srp['phaseyx'][0,jj-1]+ss+
-                                fmt % srp['phaseyx'][1,jj-1]+'\n')
+                                string_fmt % srp['phaseyx'][0,jj-1]+ss+
+                                string_fmt % srp['phaseyx'][1,jj-1]+'\n')
                 if srp['realtip'][0,jj-1]!=0.0:
                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'3'+ss+
-                            fmt % srp['realtip'][0,jj-1]+ss+
-                            fmt % srp['realtip'][1,jj-1]+'\n')
+                            string_fmt % srp['realtip'][0,jj-1]+ss+
+                            string_fmt % srp['realtip'][1,jj-1]+'\n')
                 if srp['imagtip'][0,jj-1]!=0.0:
                     reslst.append(ss+str(kk)+ss+str(jj)+ss+'4'+ss+
-                            fmt % srp['imagtip'][0,jj-1]+ss+
-                            fmt % srp['imagtip'][1,jj-1]+'\n')
+                            string_fmt % srp['imagtip'][0,jj-1]+ss+
+                            string_fmt % srp['imagtip'][1,jj-1]+'\n')
         
         #======================================================================
         #                             write dat file
@@ -4290,13 +4293,13 @@ class Occam2DData:
         #write offsets
         datfid.write('OFFSETS (M):'+'\n')
         for station in self.stationlst:
-            datfid.write(ss+fmt % rpdict[station]['offset']+'\n')
+            datfid.write(ss+string_fmt % rpdict[station]['offset']+'\n')
         
         #write frequencies
         #writefreq=[freq[ff] for ff in range(0,len(freq),freqstep)]
         datfid.write('FREQUENCIES:'+' '*8+str(len(self.freq))+'\n')
         for ff in self.freq:
-            datfid.write(ss+fmt % ff +'\n')
+            datfid.write(ss+string_fmt % ff +'\n')
         
         #write data block
         datfid.write('DATA BLOCKS:'+' '*10+str(len(reslst))+'\n')

@@ -26,11 +26,21 @@ import win32api
 import shutil
 from collections import Counter
 import mtpy.utils.filehandling as mtfh
-import mtpy.utils.mseed as mtmseed
+#
 import mtpy.processing.birrp as birrp
 import mtpy.utils.exceptions as mtex
 import mtpy.utils.configfile as mtcf
-import mtpy.processing.filter as mtfilt
+#import mtpy.processing.filter as mtfilt
+try:
+    import mtpy.utils.mseed as mtmseed
+except ImportError:
+    pass
+
+try:
+    import mtpy.processing.filter as mtfilt
+except ImportError:
+    print 'no scipy.signal, its fucked thanks obspy'
+    
 #==============================================================================
 datetime_fmt = '%Y-%m-%d,%H:%M:%S'
 
