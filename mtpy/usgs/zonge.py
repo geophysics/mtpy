@@ -289,18 +289,35 @@ class ZongeMTFT():
             local_fn_lst = os.path.splitext(ts_dict['LocalFile'])[0].split('_')
             tdiff = self.rr_tdiff_dict[local_fn_lst[3]]
             
+            local_zc = zen.ZenCache()
+            local_zc.read_cache_metadata(os.path.join(self.cache_path,
+                                                      ts_dict['LocalFile']))
+            
+            local_start_date = local_zc.meta_data['DATA.DATE0'][0]
+            local_start_time = local_zc.meta_data['DATA.TIME0'][0].relpace(':',
+                                                                           '')
+            local_df = local_zc.meta_data['TS.ADFREQ'][0]
+            local_npts = int(local_zc.meta_data['TS.NPNT'][0])
+            
             rrfind = False
             #look backwards because if a new file was already created it will
             #be found before the original file
             for rrfn in rrfnlst[::-1]:
                 rrfn_lst = os.path.splitext(rrfn)[0].split('_')
-                if local_fn_lst[1] == rrfn_lst[1] and \
-                   local_fn_lst[3] == rrfn_lst[3]:
-                    if local_fn_lst[2] == rrfn_lst[2]:
-                        zcrr = zen.ZenCache()
-                        zcrr.read_cache_metadata(os.path.join(self.Remote_Path,
-                                                              rrfn))
-                        if int(zcrr.meta_data['TS.NPNT'][0]) == ts_dict['NLocalPnt']:
+                remote_zc = zen.ZenCache()
+                remote_zc.read_cache_metadata(os.path.join(self.Remote_Path,
+                                                           rrfn))
+                
+                remote_start_date = remote_zc.meta_data['DATA.DATE0'][0]
+                remote_start_time = remote_zc.meta_data['DATA.TIME0'][0].relpace(':',
+                                                                           '')
+                remote_df = remote_zc.meta_data['TS.ADFREQ'][0]
+                remote_npts = int(remote_zc.meta_data['TS.NPNT'][0])
+                
+                if local_start_date == remote_start_date and \
+                   local_df == remote_df:
+                    if local_start_time == remote_start_time:
+                        if local_npts == remote_npts:
                             ts_dict['RemoteFile'] = rrfn
                             ts_dict['RemoteBlock'] = ts_dict['LocalBlock']
                             ts_dict['RemoteByte'] = ts_dict['LocalByte']
@@ -313,27 +330,26 @@ class ZongeMTFT():
                             break
                         
                         #if time series is longer than remote reference
-                        elif int(zcrr.meta_data['TS.NPNT'][0]) < ts_dict['NLocalPnt']:
-                            zcl = zen.ZenCache()
-                            zcl.read_cache(os.path.join(self.cache_path, 
+                        elif remote_npts < local_npts:
+                            local_zc.read_cache(os.path.join(self.cache_path, 
                                                         ts_dict['LocalFile']))
-                            zcl.ts = np.resize(zcl.ts, 
-                                               (int(zcrr.meta_data['TS.NPNT'][0]),
-                                                zcl.ts.shape[1]))
-                            zcl.meta_data['TS.NPNT'] = [str(zcl.ts.shape[0])]
-                            zcl.rewrite_cache_file()
+                            local_zc.ts = np.resize(local_zc.ts, 
+                                               (remote_npts,
+                                                local_zc.ts.shape[1]))
+                            local_zc.meta_data['TS.NPNT'] = [remote_npts]
+                            local_zc.rewrite_cache_file()
                             
                             print 'Resized TS in {0} to {1}'.format(
                                     os.path.join(self.cache_path, 
                                                  ts_dict['LocalFile']),
-                                    zcl.ts.shape)
+                                    local_zc.ts.shape)
                                     
                             ts_dict['LocalFile'] = \
-                                              os.path.basename(zcl.save_fn_rw)
+                                        os.path.basename(local_zc.save_fn_rw)
                             ts_dict['RemoteFile'] = rrfn
                             ts_dict['RemoteBlock'] = ts_dict['LocalBlock']
                             ts_dict['RemoteByte'] = ts_dict['LocalByte']
-                            ts_dict['NLocalPnt'] = zcl.ts.shape[0]
+                            ts_dict['NLocalPnt'] = local_zc.ts.shape[0]
                             ts_dict['NRemotePnt'] = ts_dict['NLocalPnt']
                             for ii in range(self.num_comp+1,
                                             self.num_comp+3):
@@ -343,25 +359,22 @@ class ZongeMTFT():
                             break
                                                         
                         #if remote reference is longer than time series
-                        elif int(zcrr.meta_data['TS.NPNT'][0]) > ts_dict['NLocalPnt']:
-                            zcl = zen.ZenCache()
-                            zcl.read_cache_metadata(os.path.join(self.cache_path, 
-                                                        ts_dict['LocalFile']))
+                        elif remote_npts > local_npts:
                             
-                            zcrr.read_cache(os.path.join(self.Remote_Path,
+                            remote_zc.read_cache(os.path.join(self.Remote_Path,
                                                          rrfn))
 
-                            zcrr.ts = np.resize(zcrr.ts, 
-                                                (ts_dict['NLocalPnt'],2))
+                            remote_zc.ts = np.resize(remote_zc.ts, 
+                                                     (local_npts,2))
                                                 
-                            zcrr.meta_data['TS.NPNT'] = [str(zcrr.ts.shape[0])]
-                            zcrr.rewrite_cache_file()
+                            remote_zc.meta_data['TS.NPNT'] = [str(local_npts)]
+                            remote_zc.rewrite_cache_file()
                             
                             print 'Resized RR_TS in {0} to {1}'.format(
                                            os.path.join(self.Remote_Path,rrfn),
-                                           zcrr.ts.shape)
+                                           remote_zc.ts.shape)
                             ts_dict['RemoteFile'] = \
-                                            os.path.basename(zcrr.save_fn_rw)
+                                        os.path.basename(remote_zc.save_fn_rw)
                             ts_dict['RemoteBlock'] = ts_dict['LocalBlock']
                             ts_dict['RemoteByte'] = ts_dict['LocalByte']
                             ts_dict['NRemotePnt'] = ts_dict['NLocalPnt']
@@ -373,31 +386,22 @@ class ZongeMTFT():
                             break
                             
                     #if the starting time is different
-                    elif abs(int(local_fn_lst[2])-int(rrfn_lst[2])) < int(tdiff):
-                        zcl = zen.ZenCache()
-                        zcl.read_cache_metadata(os.path.join(self.cache_path,
-                                                        ts_dict['LocalFile']))
-                                                        
-                        zcrr = zen.ZenCache()
-                        zcrr.read_cache_metadata(os.path.join(self.Remote_Path,
-                                                     rrfn))
-                        
-                        if int(zcl.meta_data['TS.NPNT'][0]) != \
-                           int(zcrr.meta_data['TS.NPNT'][0]):
-                            local_hour = int(local_fn_lst[2][0:2])
-                            local_minute = int(local_fn_lst[2][2:4])
-                            local_second = int(local_fn_lst[2][4:])
+                    elif abs(int(local_start_time)-int(remote_start_time)) < int(tdiff):
+                        if local_npts != remote_npts:
+                            local_hour = int(local_start_time[0:2])
+                            local_minute = int(local_start_time[2:4])
+                            local_second = int(local_start_time[4:])
                             
-                            rr_hour = int(rrfn_lst[2][0:2])
-                            rr_minute = int(rrfn_lst[2][2:4])
-                            rr_second = int(rrfn_lst[2][4:])
+                            rr_hour = int(remote_start_time[0:2])
+                            rr_minute = int(remote_start_time[2:4])
+                            rr_second = int(remote_start_time[4:])
                             
                             hour_diff = (rr_hour-local_hour)*3600
                             minute_diff = (rr_minute-local_minute)*60
                             second_diff = rr_second-local_second
                             
                             time_diff = abs(hour_diff+minute_diff+second_diff)
-                            skip_points = int(local_fn_lst[3])*time_diff
+                            skip_points = int(local_df)*time_diff
                             
                             print ('Time difference is {0} seconds'.format(
                                                                 time_diff))
@@ -406,22 +410,22 @@ class ZongeMTFT():
                                                 os.path.join(self.Remote_Path,
                                                              rrfn))
                             
-                            zcrr.read_cache(os.path.join(self.Remote_Path,
-                                                         rrfn))
+                            remote_zc.read_cache(os.path.join(self.Remote_Path,
+                                                              rrfn))
                             #resize remote reference
-                            new_rr_ts = zcrr.ts[skip_points:,:]
+                            new_rr_ts = remote_zc.ts[skip_points:,:]
                             
-                            zcrr.ts = new_rr_ts
-                            zcrr.meta_data['TS.NPNT'] = [str(zcrr.ts.shape[0])]
+                            remote_zc.ts = new_rr_ts
+                            remote_zc.meta_data['TS.NPNT'] = [str(local_npts)]
                             
-                            zcrr.rewrite_cache_file()
+                            remote_zc.rewrite_cache_file()
                             
                             print 'Resized RR_TS in {0} to {1}'.format(
                                    os.path.join(self.cache_path, rrfn),
-                                   zcrr.ts.shape)
+                                   remote_zc.ts.shape)
                                    
                             ts_dict['RemoteFile'] = \
-                                                os.path.basename(zcrr.save_fn_rw)
+                                        os.path.basename(remote_zc.save_fn_rw)
                             ts_dict['RemoteBlock'] = ts_dict['LocalBlock']
                             ts_dict['RemoteByte'] = ts_dict['LocalByte']
                             ts_dict['NRemotePnt'] = ts_dict['NLocalPnt']
@@ -433,7 +437,7 @@ class ZongeMTFT():
                             break
                         else:
                             ts_dict['RemoteFile'] = \
-                                                os.path.basename(zcrr.save_fn)
+                                            os.path.basename(remote_zc.save_fn)
                             ts_dict['RemoteBlock'] = ts_dict['LocalBlock']
                             ts_dict['RemoteByte'] = ts_dict['LocalByte']
                             ts_dict['NRemotePnt'] = ts_dict['NLocalPnt']

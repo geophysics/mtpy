@@ -142,41 +142,16 @@ class Zen3D(object):
         self.verbose = True
         self._skip_sample_tolerance = 5
         self.sample_diff_lst = []
-        self.counts_to_mv_conversion = 9.5367431640625e-10 
-    
-    
-    def read_3d(self):
+        self.counts_to_mv_conversion = 9.5367431640625e-10
+        self.gps_week = 1740
+        
+    def read_header(self, header_string):
         """
-        read in the time series and gps time stamps.
-        
-        Makes sure that the number of samples between each time stamp is
-        the sampling rate.  If it is not an error is raised if the difference
-        is more than 5 samples.  
-        
-        Creates a time series that starts at the time where the first gps
-        time stamp has the correct number of points, and stops where the first
-        incorrect number of points occurs.  A corresponding time,date array
-        is created.
-
+        read header information
         """
-        #read in as a binary file.
-        raw_data = open(self.fn, 'rb').read()
-        self._raw_data = raw_data
-        
-        try:
-            self.log_lines[0] != '-'*72+'\n'
-        except IndexError:
-            self.log_lines.append('-'*72+'\n')
-            self.log_lines.append('--> Reading File: {0}\n'.format(self.fn))
-        
-        #number of bytes in the file
-        num_bytes = len(raw_data)
-        
-        #beginning index of data blocks
-        ds = self._header_len+self._meta_len
         
         #----read in header information----------------------------------------
-        header_lst = raw_data[0:self._header_len].replace('\n', ',').split(',')
+        header_lst = header_string.replace('\n', ',').split(',')
         
         header_dict = {}
         for hh in header_lst:
@@ -236,10 +211,12 @@ class Zen3D(object):
             self.ch_adcard_sn = header_dict['serial']
         except KeyError:
             self.ch_adcard_sn = header_dict['brd339 serial']
-        
-        #---read in meta raw_data----------------------------------------------------------
-        meta_lst = raw_data[self._header_len-1:ds].replace('\n','|').split('|')
-        
+            
+    def read_metadata(self, meta_data_string):
+        """
+        read in meta data and make important information attributes
+        """
+        meta_lst = meta_data_string.replace('\n','|').split('|') 
         meta_dict = {}
         for mm in meta_lst:
             mlst = mm.split(',')
@@ -253,10 +230,49 @@ class Zen3D(object):
         self.ch_length = meta_dict['ch.varasp']
         self.rx_stn = meta_dict['rx.stn']
         self.tx_id = meta_dict['tx.id']
+    
+    def read_3d(self):
+        """
+        read in the time series and gps time stamps.
         
-        #---read in gps raw_data-------------------------------------------------
+        Makes sure that the number of samples between each time stamp is
+        the sampling rate.  If it is not an error is raised if the difference
+        is more than 5 samples.  
+        
+        Creates a time series that starts at the time where the first gps
+        time stamp has the correct number of points, and stops where the first
+        incorrect number of points occurs.  A corresponding time,date array
+        is created.
+
+        """
+        #read in as a binary file.
+        raw_data = open(self.fn, 'rb').read()
+        self._raw_data = raw_data
+        
+        try:
+            self.log_lines[0] != '-'*72+'\n'
+        except IndexError:
+            self.log_lines.append('-'*72+'\n')
+            self.log_lines.append('--> Reading File: {0}\n'.format(self.fn))
+        
+        #number of bytes in the file
+        num_bytes = len(raw_data)
+        
+        #beginning index of data blocks
+        ds = self._header_len+self._meta_len
+        
+        #----read in header information----------------------------------------
+        header_string = raw_data[0:self._header_len]
+        self.read_header(header_string)
+        
+        #---read in meta raw_data----------------------------------------------
+        meta_string = raw_data[self._header_len-1:ds]
+        self.read_metadata(meta_string)
+        
+                
+        #---read in gps raw_data-----------------------------------------------
         #sampling rate times 4 bytes for 32 bit measurement
-        df = int(header_dict['a/d rate'])      
+        df = int(self.df)      
         dt = df*4
         
         #length of data block plus gps stamp
@@ -639,7 +655,7 @@ class Zen3D(object):
         
         gps_time = np.floor(gps_seconds)+gps_ms+cc
         
-        return gps_time
+        return gps_time, gps_week
         
     def get_date_time(self, gps_week, gps_time):
         """
@@ -1106,7 +1122,7 @@ class ZenCache(object):
                                   '= {0}'.format(len(ts_trim)))
             self.log_lines.append(', T0 = {0}\n'.format(zt.date_time[0]))
             
-        if decimate is not None:
+        if decimate is not 1:
             ts_array = sps.resample(ts_array, ts_min/decimate, 
                                     window='hanning')
             ts_min = ts_array.shape[0]

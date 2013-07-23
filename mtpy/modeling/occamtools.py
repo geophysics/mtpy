@@ -4523,6 +4523,8 @@ class Occam2DData:
             #boolean for plotting response
             plotresp=False
             
+        legend_keys = ['teo', 'tem', 'tmo', 'tmm', 'wlte', 'wltm']
+            
         #make a local copy of the rplst    
         rplst=list(self.rplst)
         
@@ -4897,8 +4899,8 @@ class Occam2DData:
                 gs=gridspec.GridSpec(6,2,wspace=.1,left=.07,top=.93,bottom=.1,
                                      hspace=hspace)
             for jj,ii in enumerate(pstationlst):
-                rlst=[]
-                llst=[]
+                legend_dict = dict([(lkey, None) for lkey in legend_keys])
+                legend_label = dict([(lkey, None) for lkey in legend_keys])
                 
                 #get RMS values for TE and TM separately
                 rmslstte=np.hstack((rplst[ii]['resxy'][3],
@@ -4942,8 +4944,8 @@ class Occam2DData:
                                     yerr=np.log(10)*rplst[ii]['resxy'][1][rxy]*\
                                     10**rplst[ii]['resxy'][0][rxy],
                                     ecolor=cted,picker=2)
-                    rlst.append(rte[0])
-                    llst.append('$Obs_{TE}$')
+                    legend_dict['teo'] = rte[0]
+                    legend_label['teo'] = '$Obs_{TE}$'
                 else:
                     pass
                 
@@ -4956,8 +4958,9 @@ class Occam2DData:
                                        yerr=np.log(10)*rplst[ii]['resyx'][1][ryx]*\
                                        10**rplst[ii]['resyx'][0][ryx],
                                        ecolor=ctmd,picker=2)
-                    rlst.append(rtm[0])
-                    llst.append('$Obs_{TM}$')
+                    legend_dict['tmo'] = rtm[0]
+                    legend_label['tmo'] = '$Obs_{TM}$'
+
                 else:
                     pass                                
                 
@@ -5002,8 +5005,8 @@ class Occam2DData:
                                           yerr=10**(rplst[ii]['resxy'][3][mrxy]*\
                                           rplst[ii]['resxy'][2][mrxy]/np.log(10)),
                                           ecolor=ctem)
-                        rlst.append(r3[0])
-                        llst.append('$Mod_{TE}$')
+                        legend_dict['tem'] = r3[0]
+                        legend_label['tem'] = '$Mod_{TE}$'
                     else:
                         pass
                     
@@ -5016,8 +5019,8 @@ class Occam2DData:
                                           yerr=10**(rplst[ii]['resyx'][3][mryx]*\
                                           rplst[ii]['resyx'][2][mryx]/np.log(10)),
                                           ecolor=ctmm)
-                        rlst.append(r4[0])
-                        llst.append('$Mod_{TM}$')
+                        legend_dict['tmm'] = r4[0]
+                        legend_label['tmm'] = '$Mod_{TM}$'
                                     
                     #plot the model phase
                     #check for removed points
@@ -5082,10 +5085,10 @@ class Occam2DData:
                                        ls='-.',marker=mtmwl,ms=5,color=ctmwl,
                                        mfc=ctmwl)
                         
-                        rlst.append(r5[0])
-                        rlst.append(r6[0])
-                        llst.append('$WLMod_{TE}$')
-                        llst.append('$WLMod_{TM}$')
+                        legend_dict['wlte'] = r5[0]
+                        legend_label['wlte'] = '$WLMod_{TE}$'
+                        legend_dict['wltm'] = r6[0]
+                        legend_label['wltm'] = '$WLMod_{TM}$'
                     except IndexError:
                         print 'Station not present'
                 else:
@@ -5123,33 +5126,51 @@ class Occam2DData:
                                fontdict={'size':fs,'weight':'bold'})
                     if plotnum==1:
                         if aa==0:
+                            rlst = [legend_dict[lkey] for lkey in legend_keys
+                                    if legend_dict[lkey]!=None]
+                            llst = [legend_label[lkey] for lkey in legend_keys
+                                    if legend_label[lkey]!=None]
                             axr.legend(rlst,llst,
                                loc=2,markerscale=1,borderaxespad=.05,
                                labelspacing=.08,
                                handletextpad=.15,borderpad=.05,prop={'size':fs})
                     elif plotnum==2:
                         if aa==0:
+                            rlst = [legend_dict[lkey] for lkey in legend_keys
+                                        if legend_dict[lkey]!=None and 
+                                        lkey.find('te')>=0]
+                            llst = [legend_label[lkey] for lkey in legend_keys
+                                        if legend_label[lkey]!=None and 
+                                        lkey.find('te')>=0]
                             if plotresp==True:
-                                axr.legend([rlst[0],rlst[2]],[llst[0],llst[2]],
+                                
+
+                                axr.legend(rlst, llst,
                                    loc=2,markerscale=1,borderaxespad=.05,
                                    labelspacing=.08,
                                    handletextpad=.15,borderpad=.05,
                                    prop={'size':fs}) 
                             else:
-                                axr.legend([rlst[0]],[llst[0]],
+                                axr.legend(rlst, llst,
                                    loc=2,markerscale=1,borderaxespad=.05,
                                    labelspacing=.08,
                                    handletextpad=.15,borderpad=.05,
                                    prop={'size':fs})
                         if aa==1:
+                            rlst = [legend_dict[lkey] for lkey in legend_keys
+                                        if legend_dict[lkey]!=None and 
+                                        lkey.find('tm')>=0]
+                            llst = [legend_label[lkey] for lkey in legend_keys
+                                        if legend_label[lkey]!=None and 
+                                        lkey.find('tm')>=0]
                             if plotresp==True:
-                                axr.legend([rlst[1],rlst[3]],[llst[1],llst[3]],
+                                axr.legend(rlst, llst,
                                    loc=2,markerscale=1,borderaxespad=.05,
                                    labelspacing=.08,
                                    handletextpad=.15,borderpad=.05,
                                    prop={'size':fs}) 
                             else:
-                                axr.legend([rlst[1]],[llst[1]],
+                                axr.legend(rlst, llst,
                                    loc=2,markerscale=1,borderaxespad=.05,
                                    labelspacing=.08,
                                    handletextpad=.15,borderpad=.05,
