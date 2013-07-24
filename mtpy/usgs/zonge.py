@@ -286,36 +286,39 @@ class ZongeMTFT():
                    if rrfn.find('.cac')>0]
                        
         for ts_dict in ts_info_lst:
-            local_fn_lst = os.path.splitext(ts_dict['LocalFile'])[0].split('_')
-            tdiff = self.rr_tdiff_dict[local_fn_lst[3]]
-            
             local_zc = zen.ZenCache()
             local_zc.read_cache_metadata(os.path.join(self.cache_path,
                                                       ts_dict['LocalFile']))
             
             local_start_date = local_zc.meta_data['DATA.DATE0'][0]
-            local_start_time = local_zc.meta_data['DATA.TIME0'][0].relpace(':',
+            local_start_time = local_zc.meta_data['DATA.TIME0'][0].replace(':',
                                                                            '')
             local_df = local_zc.meta_data['TS.ADFREQ'][0]
             local_npts = int(local_zc.meta_data['TS.NPNT'][0])
+            tdiff = self.rr_tdiff_dict[local_df]
+            
+            print '='*60
+            print ts_dict['LocalFile']
             
             rrfind = False
             #look backwards because if a new file was already created it will
             #be found before the original file
             for rrfn in rrfnlst[::-1]:
-                rrfn_lst = os.path.splitext(rrfn)[0].split('_')
                 remote_zc = zen.ZenCache()
                 remote_zc.read_cache_metadata(os.path.join(self.Remote_Path,
                                                            rrfn))
                 
                 remote_start_date = remote_zc.meta_data['DATA.DATE0'][0]
-                remote_start_time = remote_zc.meta_data['DATA.TIME0'][0].relpace(':',
+                remote_start_time = remote_zc.meta_data['DATA.TIME0'][0].replace(':',
                                                                            '')
                 remote_df = remote_zc.meta_data['TS.ADFREQ'][0]
                 remote_npts = int(remote_zc.meta_data['TS.NPNT'][0])
+
                 
                 if local_start_date == remote_start_date and \
-                   local_df == remote_df:
+                   local_df == remote_df and \
+                   local_start_time[0:2] == remote_start_time[0:2]:
+                    print rrfn
                     if local_start_time == remote_start_time:
                         if local_npts == remote_npts:
                             ts_dict['RemoteFile'] = rrfn
@@ -416,19 +419,43 @@ class ZongeMTFT():
                             new_rr_ts = remote_zc.ts[skip_points:,:]
                             
                             remote_zc.ts = new_rr_ts
-                            remote_zc.meta_data['TS.NPNT'] = [str(local_npts)]
+                            
+                            #if for some reason after reshaping the remote
+                            #the local time series is still larger, cull
+                            #the local to match the remote so mtft doesn't
+                            #get angry
+                            if remote_zc.ts.shape[0] < local_npts:
+                                local_zc.read_cache(os.path.join(self.cache_path,
+                                                      ts_dict['LocalFile']))
+                                local_zc.ts = np.resize(local_zc.ts, 
+                                                        (remote_zc.ts.shape[0],
+                                                         local_zc.ts.shape[1]))
+                                local_zc.meta_data['TS.NPNT'] = \
+                                                [str(local_zc.ts.shape[0])]
+                                local_zc.rewrite_cache_file()
+                                ts_dict['LocalFile'] = \
+                                        os.path.basename(local_zc.save_fn_rw)
+                                ts_dict['NLocalPnt'] = local_zc.ts.shape[0]
+                                print 'Resized TS in {0} to {1}'.format(
+                                   os.path.join(self.cache_path, 
+                                                ts_dict['LocalFile']),
+                                   local_zc.ts.shape)
+                            
+                            
+                            remote_zc.meta_data['TS.NPNT'] = \
+                                                [str(remote_zc.ts.shape[0])]
                             
                             remote_zc.rewrite_cache_file()
                             
                             print 'Resized RR_TS in {0} to {1}'.format(
-                                   os.path.join(self.cache_path, rrfn),
+                                   os.path.join(self.Remote_Path, rrfn),
                                    remote_zc.ts.shape)
                                    
                             ts_dict['RemoteFile'] = \
                                         os.path.basename(remote_zc.save_fn_rw)
                             ts_dict['RemoteBlock'] = ts_dict['LocalBlock']
                             ts_dict['RemoteByte'] = ts_dict['LocalByte']
-                            ts_dict['NRemotePnt'] = ts_dict['NLocalPnt']
+                            ts_dict['NRemotePnt'] = remote_zc.ts.shape[0]
                             for ii in range(self.num_comp+1,
                                             self.num_comp+3):
                                 ts_dict['ChnGain{0}'.format(ii)] = '1'
@@ -703,19 +730,21 @@ class ZongeMTFT():
         self.cache_path = cache_path
         
         #--> get information about the time series
-        self.get_ts_info_lst(cache_path)
+        self.get_ts_info_lst(self.cache_path)
         
         #--> get number of components
         self.compute_number_of_setups()
+        print 'Number of setups = {0}'.format(self.Setup_Number)
         
         #--> get remote reference information if needed
         if remote_path is not None:
-            self.set_remote_reference_info(remote_path)
             if rrstation is None:
                 rrstation = os.path.basename(os.path.dirname(
                                              os.path.dirname(remote_path)))
 
-        self.get_rr_ts(self.ts_info_lst)
+        self.get_rr_ts(self.ts_info_lst, remote_path=remote_path)
+        
+        self.set_remote_reference_info(remote_path)
         
         #--> sort the time series such that each section with the same sampling
         #    rate is in sequential order

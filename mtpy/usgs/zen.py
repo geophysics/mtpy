@@ -314,8 +314,9 @@ class Zen3D(object):
                                      dtype=self._data_type)
                                      
             gps_info['time'] = gps_info['time'].astype(np.float32)
-            gps_info['time'] = self.get_gps_time(gps_info['time'])
-            start_test = self.get_date_time(self.gps_week, gps_info['time'])
+            gps_info['time'], gps_dweek = self.get_gps_time(gps_info['time'])
+            start_test = self.get_date_time(self.gps_week+gps_dweek, 
+                                            gps_info['time'])
             if s1 == self._seconds_diff:
                 s1 = 0
                 self.start_dt = self.start_dt[:-2]+\
@@ -342,7 +343,7 @@ class Zen3D(object):
             sfind = self.get_gps_stamp_location(gps_lst[ii-1]+7)
             #make sure it isn't the same time stamp as before
             if sfind != gps_lst[ii-1] and sfind != -1:
-                gps_info, gps_index = self.get_gps_stamp(sfind)
+                gps_info, gps_index, gps_week = self.get_gps_stamp(sfind)
                 if gps_info is not None:
                     gps_lst[ii] = gps_index
                     for jj, key in enumerate(self._stamp_lst):
@@ -410,7 +411,7 @@ class Zen3D(object):
                                                                 dtype=np.int32)
             except ValueError:
                 print ll, kk, pdiff
-                gfail, gfind = self.get_gps_stamp(kk)
+                gfail, gfind, gweek = self.get_gps_stamp(kk)
                 print gfail, kk, gfind
                           
         if sum(self.sample_diff_lst) != 0:
@@ -444,7 +445,7 @@ class Zen3D(object):
         self.date_time = np.zeros_like(gps_dict['time'], dtype='|S24')
 
         for gg, gtime in enumerate(gps_dict['time']):
-            self.date_time[gg] = self.get_date_time(self.gps_week, gtime)
+            self.date_time[gg]= self.get_date_time(self.gps_week, gtime)
         
         try:
             self.start_dt = self.date_time[0]
@@ -566,61 +567,50 @@ class Zen3D(object):
         get the gps stamp data
         
         """
-               
         #get numbers from binary format
         try:
             
             gps_info = np.fromstring(self._raw_data[gps_index:gps_index+self._stamp_len], 
                                      dtype=self._data_type)
-            gps_info['time'] = gps_info['time'].astype(np.float32)
-            gps_info['time'] = self.get_gps_time(gps_info['time'])
             while gps_info['time'] < 0:
                 gps_index = self.get_gps_stamp_location(start_index=gps_index+7)
                 gps_info = np.fromstring(self._raw_data[gps_index:gps_index+self._stamp_len], 
                                          dtype=self._data_type)
-                gps_info['time'] = gps_info['time'].astype(np.float32)
-                gps_info['time'] = self.get_gps_time(gps_info['time'])
             
             while gps_info['status'] < 0:
                 gps_index = self.get_gps_stamp_location(start_index=gps_index+7)
                 gps_info = np.fromstring(self._raw_data[gps_index:gps_index+self._stamp_len], 
                                          dtype=self._data_type)
-                gps_info['time'] = gps_info['time'].astype(np.float32)
-                gps_info['time'] = self.get_gps_time(gps_info['time'])
             
             while abs(gps_info['temperature']) > 80:
                 gps_index = self.get_gps_stamp_location(start_index=gps_index+7)
                 gps_info = np.fromstring(self._raw_data[gps_index:gps_index+self._stamp_len], 
                                          dtype=self._data_type)
-                gps_info['time'] = gps_info['time'].astype(np.float32)
-                gps_info['time'] = self.get_gps_time(gps_info['time'])
                 
             while abs(gps_info['lat']) > np.pi:
                 gps_index = self.get_gps_stamp_location(start_index=gps_index+7)
                 gps_info = np.fromstring(self._raw_data[gps_index:gps_index+self._stamp_len], 
                                          dtype=self._data_type)
-                gps_info['time'] = gps_info['time'].astype(np.float32)
-                gps_info['time'] = self.get_gps_time(gps_info['time'])
                 
             while np.log10(abs(gps_info['lat'])) < -3:
                 gps_index = self.get_gps_stamp_location(start_index=gps_index+7)
                 gps_info = np.fromstring(self._raw_data[gps_index:gps_index+self._stamp_len], 
                                          dtype=self._data_type)
-                gps_info['time'] = gps_info['time'].astype(np.float32)
-                gps_info['time'] = self.get_gps_time(gps_info['time'])
+
             
             #convert lat and lon into decimal degrees
             gps_info['lat'] = self.get_degrees(gps_info['lat'])
             gps_info['lon'] = self.get_degrees(gps_info['lon'])
+            gps_info['time'] = gps_info['time'].astype(np.float32)
+            gps_info['time'], gps_week = self.get_gps_time(gps_info['time'])
             
-            return gps_info, gps_index            
+            return gps_info, gps_index, gps_week 
             
         except ValueError:
             print 'Ran into end of file, gps stamp not complete.'+\
                   ' Only {0} points.'.format(len(self._raw_data[gps_index:]))
             return None, gps_index
             
-
     def get_gps_time(self, gps_int, gps_week=0):
         """
         from the gps integer get the time in seconds.
