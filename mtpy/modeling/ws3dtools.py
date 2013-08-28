@@ -476,26 +476,29 @@ def make3DGrid(edilst, xspacing=500, yspacing=500, z1layer=10, xpad=5, ypad=5,
     #make grid in east-west direction
     midxgrid = np.arange(start=xleft,stop=xright+xspacing,
                          step=xspacing)
-    xpadleft = np.round(-xspacing*5**np.arange(start=.5,stop=3,step=3./xpad))+\
-                          xleft
-    xpadright = np.round(xspacing*5**np.arange(start=.5,stop=3,step=3./xpad))+\
-                       xright
-    xgridr = np.append(np.append(xpadleft[::-1],midxgrid),xpadright)
+    xpadleft = np.round(-xspacing*xpadroot**np.arange(start=.5,
+                                                      stop=3,
+                                                      step=3./xpad))+xleft
+    xpadright = np.round(xspacing*xpadroot**np.arange(start=.5,
+                                                      stop=3,
+                                                      step=3./xpad))+xright
+    xgridr = np.append(np.append(xpadleft[::-1], midxgrid), xpadright)
     
     #make grid in north-south direction 
-    midygrid = np.arange(start=ybottom,stop=ytop+yspacing,
-                       step=yspacing)
-    ypadbottom = np.round(-yspacing*5**np.arange(start=.5,stop=3,step=3./xpad))+\
-                        ybottom
-    ypadtop = np.round(yspacing*5**np.arange(start=.5,stop=3,step=3./xpad))+\
-                     ytop
-    ygridr = np.append(np.append(ypadbottom[::-1],midygrid),ypadtop)
+    midygrid = np.arange(start= ybottom, stop=ytop+yspacing, step=yspacing)
+    ypadbottom = np.round(-yspacing*ypadroot**np.arange(start=.5,
+                                                        stop=3,
+                                                        step=3./ypad))+ybottom
+    ypadtop = np.round(yspacing*ypadroot**np.arange(start=.5,
+                                                    stop=3,
+                                                    step=3./ypad))+ytop
+    ygridr = np.append(np.append(ypadbottom[::-1], midygrid), ypadtop)
     
     
     #make depth grid
-    zgrid1 = z1layer*2**np.round(np.arange(0,zpadpow[0],
+    zgrid1 = z1layer*zpadroot**np.round(np.arange(0,zpadpow[0],
                                            zpadpow[0]/(nz-float(zpad))))
-    zgrid2 = z1layer*2**np.round(np.arange(zpadpow[0],zpadpow[1],
+    zgrid2 = z1layer*zpadroot**np.round(np.arange(zpadpow[0],zpadpow[1],
                                          (zpadpow[1]-zpadpow[0])/(zpad)))
     
     zgrid = np.append(zgrid1, zgrid2)
@@ -557,6 +560,7 @@ def make3DGrid(edilst, xspacing=500, yspacing=500, z1layer=10, xpad=5, ypad=5,
     #=Plot the data if desired=========================
     if plotyn == 'y':
         fig = plt.figure(1,figsize=[6,6],dpi=300)
+        plt.clf()
         
         #---plot map view    
         ax1 = fig.add_subplot(1,2,1,aspect='equal')
@@ -623,13 +627,13 @@ def make3DGrid(edilst, xspacing=500, yspacing=500, z1layer=10, xpad=5, ypad=5,
     print '      n-s = {0}'.format(ygrid.shape[0])
     print '       z  = {0} (without 7 air layers)'.format(zgrid.shape[0])
     print '   Extensions: '
-    print '      e-w = {0:.1f} (m)'.format(xgrid.__abs__().sum())
-    print '      n-s = {0:.1f} (m)'.format(ygrid.__abs__().sum())
+    print '      e-w = {0:.1f} (m)'.format(xnodes.__abs__().sum())
+    print '      n-s = {0:.1f} (m)'.format(ynodes.__abs__().sum())
     print '      0-z = {0:.1f} (m)'.format(zgrid.__abs__().sum())
     print '-'*15
     
-    loc = np.reshape(np.array([slst['east_c'], slst['north_c']]), (ns, 2))
-    return ynodes, xnodes, zgrid, loc, slst            
+    loc = np.array([slst['east_c'], slst['north_c']])
+    return ynodes, xnodes, zgrid, loc.T, slst            
     
     
 def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
@@ -755,9 +759,11 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
                     zderr = np.array([abs(z1.Z.zerr[kk, nn, mm])/
                                     abs(z1.Z.z[kk, nn, mm])*100 
                                     for nn in range(2) for mm in range(2)])
+                    print '   Matched {0:.6g} to {1:.6g}'.format(f1, f2)
                     fspot['{0:.6g}'.format(f1)] = (kk, f2, zderr[0], zderr[1],
                                                   zderr[2], zderr[3])
                     zarr[ss, ff, :] = z1.Z.z[kk].reshape(4,)
+                    break
                     
         print z1.station, len(fspot)
         sdict['fspot'] = fspot
@@ -1166,9 +1172,16 @@ def readInit3D(init_fn):
     nn += 1    
     
     #get model
-    iline = ilines[nn].strip().split()
+    try:
+        iline = ilines[nn].strip().split()
+        
+    except IndexError:
+        resmodel[:, :, :] = reslst[0]
+        return xgrid,ygrid,zgrid,reslst,titlestr,resmodel,xnodes,ynodes,znodes
+        
     if len(iline) == 0 or len(iline) == 1:
-        return xgrid, ygrid, zgrid, reslst, titlestr, resmodel
+        resmodel[:, :, :] = reslst[0]
+        return xgrid,ygrid,zgrid,reslst,titlestr,resmodel,xnodes,ynodes,znodes
     else:
         while nn < len(ilines):
             
@@ -2356,55 +2369,57 @@ def plotDepthSlice(data_fn,model_fn,savepath=None,map_scale='km',ew_limits=None,
     x, y, z, resarr, idict, xg, yg, zg = readModelFile(model_fn)
     
     #scale the model grid to desired units
-    x/=dscale
-    y/=dscale
-    z/=dscale
+    x /= dscale
+    y /= dscale
+    z /= dscale
 
      
     #create an list of depth slices to plot
-    if depth_index==None:
-        zrange=range(z.shape[0])
+    if depth_index == None:
+        zrange = range(z.shape[0])
     elif type(depth_index) is int:
-        zrange=[depth_index]
+        zrange = [depth_index]
     elif type(depth_index) is list:
-        zrange=depth_index
+        zrange = depth_index
     
     #set the limits of the plot
-    if ew_limits==None:
-        xlimits=(np.floor(ew.min()),np.ceil(ew.max()))
+    if ew_limits == None:
+        xlimits = (np.floor(ew.min()), np.ceil(ew.max()))
     else:
-        xlimits=ew_limits
+        xlimits = ew_limits
         
-    if ns_limits==None:
-        ylimits=(np.floor(ns.min()),np.ceil(ns.max()))
+    if ns_limits == None:
+        ylimits = (np.floor(ns.min()),np.ceil(ns.max()))
     else:
-        ylimits=ns_limits
+        ylimits = ns_limits
         
         
     #make a mesh grid of north and east
-    north1,east1=np.meshgrid(x,y)
+    north1, east1 = np.meshgrid(x,y)
     
-    fdict={'size':font_size+2,'weight':'bold'}
+    fdict = {'size':font_size+2, 'weight':'bold'}
     
     cblabeldict={-2:'$10^{-3}$',-1:'$10^{-1}$',0:'$10^{0}$',1:'$10^{1}$',
                  2:'$10^{2}$',3:'$10^{3}$',4:'$10^{4}$',5:'$10^{5}$',
                  6:'$10^{6}$',7:'$10^{7}$',8:'$10^{8}$'}
     
     
-    plt.rcParams['font.size']=font_size
+    plt.rcParams['font.size'] = font_size
     for ii in zrange: 
-        fig=plt.figure(ii,figsize=fig_dimensions,dpi=dpi)
+        fig = plt.figure(ii,figsize=fig_dimensions,dpi=dpi)
         plt.clf()
-        ax1=fig.add_subplot(1,1,1,aspect='equal')
-        ax1.pcolormesh(east1,north1,
+        ax1 = fig.add_subplot(1, 1, 1, aspect='equal')
+        ax1.pcolormesh(east1, north1,
                        np.log10(np.rot90(resarr[:,:,ii],3)),
-                       cmap=cmap,vmin=climits[0],vmax=climits[1])
+                       cmap=cmap,
+                       vmin=climits[0],
+                       vmax=climits[1])
                        
         #plot the stations
-        for ee,nn in zip(ew,ns):
-            ax1.text(ee,nn,'*',verticalalignment='center',
+        for ee, nn in zip(ew,ns):
+            ax1.text(ee, nn,'*', verticalalignment='center',
                      horizontalalignment='center',
-                     fontdict={'size':5,'weight':'bold'})
+                     fontdict={'size':5, 'weight':'bold'})
 
         #set axis properties
         ax1.set_xlim(xlimits)
@@ -2417,11 +2432,11 @@ def plotDepthSlice(data_fn,model_fn,savepath=None,map_scale='km',ew_limits=None,
                       fontdict=fdict)
         
         #plot the grid if desired              
-        if plot_grid=='y':
+        if plot_grid == 'y':
             for xx in x:
-                ax1.plot([y.min(),y.max()],[xx,xx],lw=.1,color='k')
+                ax1.plot([y.min(),y.max()],[xx,xx], lw=.1, color='k')
             for yy in y:
-                ax1.plot([yy,yy],[x.min(),x.max()],lw=.1,color='k')
+                ax1.plot([yy,yy],[x.min(),x.max()], lw=.1, color='k')
         
         #plot the colorbar
         try:
@@ -2532,6 +2547,18 @@ class WS3DModelManipulator(object):
         self.station_x = None
         self.station_y = None
         
+        #--> set map scale
+        self.mapscale = mapscale
+        
+        self.m_width = 100
+        self.m_height = 100
+        
+        #--> scale the map coordinates
+        if self.mapscale=='km':
+            self.dscale = 1000.
+        if self.mapscale=='m':
+            self.dscale = 1.
+        
         #make a default resistivity list to change values
         if res_lst is None:
             self.res_lst = np.array([.3, 1, 10, 50, 100, 500, 1000, 5000],
@@ -2546,8 +2573,7 @@ class WS3DModelManipulator(object):
         self.res_dict = dict([(res, ii) 
                               for ii,res in enumerate(self.res_lst,1)])
         
-        #--> set map scale
-        self.mapscale = mapscale
+
         self.res_value = self.res_lst[0]
         
         #--> set map limits
@@ -2562,6 +2588,7 @@ class WS3DModelManipulator(object):
         self.figsize = [6,6]
         self.cmap = cm.jet_r
         self.depth_index = 0
+
         
         self.fdict = {'size':self.font_size+2, 'weight':'bold'}
     
@@ -2586,6 +2613,13 @@ class WS3DModelManipulator(object):
         self.plot_yn = plot_yn
         if self.plot_yn=='y':
             self.plot()
+            
+    def set_res_lst(self, res_lst):
+        self.res_lst = res_lst
+        #make a dictionary of values to write to file.
+        self.res_dict = dict([(res, ii) 
+                              for ii,res in enumerate(self.res_lst,1)]) 
+        
     
     #---read files-------------------------------------------------------------    
     def read_file(self):
@@ -2635,8 +2669,11 @@ class WS3DModelManipulator(object):
             
         if self.data_fn is not None:
             dtuple = readDataFile(self.data_fn)
-            self.station_x = dtuple[3]
-            self.station_y = dtuple[4]
+            self.station_x = dtuple[4]
+            self.station_y = dtuple[3]
+            
+        self.m_height = np.median(self.north_nodes[5:-5])/self.dscale
+        self.m_width = np.median(self.east_nodes[5:-5])/self.dscale
             
         #make a copy of original in case there are unwanted changes
         self.res_copy = self.res.copy()
@@ -2657,27 +2694,25 @@ class WS3DModelManipulator(object):
         
         #-->Plot properties
         plt.rcParams['font.size'] = self.font_size
-    
-
-        #--> scale the map coordinates
-        if self.mapscale=='km':
-            dscale = 1000.
-        if self.mapscale=='m':
-            dscale = 1.
-            
-        self.dscale = dscale
-
+        
+        #need to add an extra row and column to east and north to make sure 
+        #all is plotted see pcolor for details.
+        plot_east = np.append(self.east, self.east[-1]*1.25)/self.dscale
+        plot_north = np.append(self.north, self.north[-1]*1.25)/self.dscale
         
         #make a mesh grid for plotting
-        self.northgrid, self.eastgrid = np.meshgrid(self.north/dscale, 
-                                                    self.east/dscale)
+        #the 'ij' makes sure the resulting grid is in east, north
+        self.eastgrid, self.northgrid = np.meshgrid(plot_east, 
+                                                    plot_north,
+                                                    indexing='ij')
         
         self.fig = plt.figure(self.fignum, figsize=self.figsize, dpi=self.dpi)
         self.ax1 = self.fig.add_subplot(1, 1, 1, aspect='equal')
         
-        plot_res = np.log10(np.rot90(self.res[:,:,self.depth_index],3))
+        plot_res = np.log10(self.res[:,:,self.depth_index].T)
         
-        self.mesh_plot = self.ax1.pcolormesh(self.eastgrid, self.northgrid, 
+        self.mesh_plot = self.ax1.pcolormesh(self.eastgrid,
+                                             self.northgrid, 
                                              plot_res,
                                              cmap=self.cmap,
                                              vmin=self.cmin,
@@ -2691,8 +2726,8 @@ class WS3DModelManipulator(object):
                        
         #plot the stations
         if self.station_x is not None:
-            for ee,nn in zip(self.station_x, self.station_y):
-                self.ax1.text(ee/dscale, nn/dscale,
+            for ee, nn in zip(self.station_x, self.station_y):
+                self.ax1.text(ee/self.dscale, nn/self.dscale,
                               '*',
                               verticalalignment='center',
                               horizontalalignment='center',
@@ -2703,17 +2738,17 @@ class WS3DModelManipulator(object):
         if self.xlimits is not None:
             self.ax1.set_xlim(self.xlimits)
         else:
-            self.ax1.set_xlim(xmin=self.north.min()/dscale, 
-                              xmax=self.north.max()/dscale)
+            self.ax1.set_xlim(xmin=self.east.min()/self.dscale, 
+                              xmax=self.east.max()/self.dscale)
         
         if self.ylimits is not None:
             self.ax1.set_ylim(self.ylimits)
         else:
-            self.ax1.set_ylim(ymin=self.east.min()/dscale,
-                              ymax=self.east.max()/dscale)
+            self.ax1.set_ylim(ymin=self.north.min()/self.dscale,
+                              ymax=self.north.max()/self.dscale)
             
-        self.ax1.xaxis.set_minor_locator(MultipleLocator(100*1./dscale))
-        self.ax1.yaxis.set_minor_locator(MultipleLocator(100*1./dscale))
+        #self.ax1.xaxis.set_minor_locator(MultipleLocator(100*1./dscale))
+        #self.ax1.yaxis.set_minor_locator(MultipleLocator(100*1./dscale))
         
         self.ax1.set_ylabel('Northing ('+self.mapscale+')',
                             fontdict=self.fdict)
@@ -2728,14 +2763,16 @@ class WS3DModelManipulator(object):
         
         #plot the grid if desired              
         for xx in self.east:
-            self.ax1.plot([self.north.min()/dscale, self.north.max()/dscale],
-                           [xx/dscale, xx/dscale],
+            self.ax1.plot([xx/self.dscale, xx/self.dscale],
+                          [self.north.min()/self.dscale, 
+                           self.north.max()/self.dscale],
                            lw=.25,
                            color='k')
 
         for yy in self.north:
-            self.ax1.plot([yy/dscale, yy/dscale], 
-                          [self.east.min()/dscale, self.east.max()/dscale],
+            self.ax1.plot([self.east.min()/self.dscale,
+                           self.east.max()/self.dscale],
+                           [yy/self.dscale, yy/self.dscale],
                            lw=.25,
                            color='k')
         
@@ -2773,12 +2810,12 @@ class WS3DModelManipulator(object):
 
     def redraw_plot(self):
         """
-            redraws the plot
+        redraws the plot
         """
         
         self.ax1.cla()
         
-        plot_res = np.log10(np.rot90(self.res[:,:,self.depth_index],3))
+        plot_res = np.log10(self.res[:,:,self.depth_index].T)
         
         self.mesh_plot = self.ax1.pcolormesh(self.eastgrid, self.northgrid, 
                                              plot_res,
@@ -2800,17 +2837,17 @@ class WS3DModelManipulator(object):
         if self.xlimits is not None:
             self.ax1.set_xlim(self.xlimits)
         else:
-            self.ax1.set_xlim(xmin=self.north.min()/self.dscale, 
-                              xmax=self.north.max()/self.dscale)
+            self.ax1.set_xlim(xmin=self.east.min()/self.dscale, 
+                              xmax=self.east.max()/self.dscale)
         
         if self.ylimits is not None:
             self.ax1.set_ylim(self.ylimits)
         else:
-            self.ax1.set_ylim(ymin=self.east.min()/self.dscale,
-                              ymax=self.east.max()/self.dscale)
+            self.ax1.set_ylim(ymin=self.north.min()/self.dscale,
+                              ymax=self.north.max()/self.dscale)
             
-        self.ax1.xaxis.set_minor_locator(MultipleLocator(100*1./self.dscale))
-        self.ax1.yaxis.set_minor_locator(MultipleLocator(100*1./self.dscale))
+        #self.ax1.xaxis.set_minor_locator(MultipleLocator(100*1./self.dscale))
+        #self.ax1.yaxis.set_minor_locator(MultipleLocator(100*1./self.dscale))
         
         self.ax1.set_ylabel('Northing ('+self.mapscale+')',
                             fontdict=self.fdict)
@@ -2825,16 +2862,16 @@ class WS3DModelManipulator(object):
                      
         #plot the grid if desired              
         for xx in self.east:
-            self.ax1.plot([self.north.min()/self.dscale, 
+            self.ax1.plot([xx/self.dscale, xx/self.dscale],
+                          [self.north.min()/self.dscale,
                            self.north.max()/self.dscale],
-                           [xx/self.dscale, xx/self.dscale],
                            lw=.25,
                            color='k')
 
         for yy in self.north:
-            self.ax1.plot([yy/self.dscale, yy/self.dscale], 
-                          [self.east.min()/self.dscale, 
+            self.ax1.plot([self.east.min()/self.dscale, 
                            self.east.max()/self.dscale],
+                           [yy/self.dscale, yy/self.dscale],
                            lw=.25,
                            color='k')
         
@@ -2912,6 +2949,19 @@ class WS3DModelManipulator(object):
             
             self.redraw_plot()
             
+    def change_model_res(self, xchange, ychange):
+        """
+        change resistivity values of resistivity model
+        
+        """
+        if type(xchange) is int and type(ychange) is int:
+            self.res[ychange, xchange, self.depth_index] = self.res_value
+        else:
+            for xx in xchange:
+                for yy in ychange:
+                    self.res[yy, xx, self.depth_index] = self.res_value
+        
+        self.redraw_plot()            
            
     def rect_onselect(self, eclick, erelease):
         """
@@ -2920,21 +2970,11 @@ class WS3DModelManipulator(object):
         x1, y1 = eclick.xdata, eclick.ydata
         x2, y2 = erelease.xdata, erelease.ydata
         
-        
-        ei0, ei1 = self._get_east_index(x1, x2)
-        ni0, ni1 = self._get_north_index(y1, y2)
+        xchange = self._get_east_index(x1, x2)
+        ychange = self._get_north_index(y1, y2)
         
         #reset values of resistivity
-        
-        self.res[ni0:ni1, ei0:ei1, self.depth_index] = self.res_value
-        
-        self.redraw_plot()
-        
-        self.ei0 = ei0
-        self.ei1 = ei1
-        self.ni0 = ni0
-        self.ni1 = ni1
-            
+        self.change_model_res(xchange, ychange)
         
         
     def _get_east_index(self, x1, x2):
@@ -2942,46 +2982,28 @@ class WS3DModelManipulator(object):
         get the index value of the points to be changed
         
         """
-        
-        x1 *= 1.
-        x2 *= 1.
-        
+        print x1, x2
         if x1 < x2:
-            p1 = 0
-        elif x2 < x1:
-            p1 = 0
-        elif x1 == x2:
-            p1 = 0
-        
-        nx = len(self.east)
-        xreturn=[]
-        for xx in [x1, x2]:
-            for ii in range(nx-1):
-                if xx == self.east[ii]/self.dscale:
-                    xreturn.append(ii)
-                    break
+            xchange = np.where((self.east/self.dscale >= x1) & \
+                               (self.east/self.dscale <= x2))[0]
+            if len(xchange) == 0:
+                xchange = np.where(self.east/self.dscale >= x1)[0][0]-1
                 
-                elif xx >= self.east[ii]/self.dscale and \
-                        xx <= self.east[ii+1]/self.dscale:
-                    xreturn.append(ii+p1)
-                    break
+                return [xchange]
                 
-                elif xx > self.east[-1]/self.dscale:
-                    xreturn.append(nx-1)
-                    break
-                
-                elif xx<self.east[0]/self.dscale:
-                    xreturn.append(0)
-                    break
-                
-        if xreturn[0] > xreturn[1]:
-            return xreturn[1], xreturn[0]
+        if x1 > x2:
+            xchange = np.where((self.east/self.dscale <= x1) & \
+                               (self.east/self.dscale >= x2))[0]
+            if len(xchange) == 0:
+                xchange = np.where(self.east/self.dscale >= x2)[0][0]-1
+                return [xchange]
+
             
-        elif xreturn[0] < xreturn[1]:
-            return xreturn[0], xreturn[1]
-            
-        elif xreturn[0]==xreturn[1]:
-            return xreturn[0], xreturn[0]+1
+        #check the edges to see if the selection should include the square
+        xchange = np.append(xchange, xchange[0]-1)
+        xchange.sort()
+
+        return xchange
                 
     def _get_north_index(self, y1, y2):
         """
@@ -2991,45 +3013,29 @@ class WS3DModelManipulator(object):
         
         """
         
-        y1 *= -1
-        y2 *= -1
-        
         if y1 < y2:
-            p1 = 1
-        elif y2 < y1:
-            p1 = 1
-        elif y1 == y2:
-            p1 = 1
-            
-        ny = len(self.north)
-        yreturn=[]
-        for yy in [y1, y2]:
-            for ii in range(ny-1):
-                if yy==self.north[ii]/self.dscale:
-                    yreturn.append(ii)
-                    break
+            ychange = np.where((self.north/self.dscale > y1) & \
+                               (self.north/self.dscale < y2))[0]
+            print 'y = ',ychange, len(ychange)
+            if len(ychange) == 0:
+                print ' north too small '
+                ychange = np.where(self.north/self.dscale >= y1)[0][0]-1
+                print ychange
+                return [ychange]
                 
-                elif yy>=self.north[ii]/self.dscale and \
-                        yy<=self.north[ii+1]/self.dscale:
-                    yreturn.append(ii+p1)
-                    break
-                
-                elif yy>self.north[-1]/self.dscale:
-                    yreturn.append(ny-1)
-                    break
-                
-                elif yy<self.north[0]/self.dscale:
-                    yreturn.append(0)
-                    break
-                    
-        if yreturn[0] > yreturn[1]:
-            return yreturn[1], yreturn[0]
+        elif y1 > y2:
+            ychange = np.where((self.north/self.dscale < y1) & \
+                               (self.north/self.dscale > y2))[0]
+            print 'y = ',ychange, len(ychange)
+            if len(ychange) == 0:
+                ychange = np.where(self.north/self.dscale >= y2)[0][0]-1
+                return [ychange]
         
-        elif yreturn[0] < yreturn[1]:
-            return yreturn[0], yreturn[1]
-            
-        elif yreturn[0]==yreturn[1]:
-            return yreturn[0], yreturn[0]+1
+        ychange -= 1
+        ychange = np.append(ychange, ychange[-1]+1)
+
+        return ychange
+        
             
     def convert_model_to_int(self):
         """
@@ -3083,6 +3089,10 @@ class WS3DModelManipulator(object):
         
         self.convert_model_to_int()
         
+        #need to flip the resistivity model so that the first index is the 
+        #northern most block in N-S
+        self.res_model = self.res_model[::-1, :, :]
+        
         try:
             init_new = writeInit3DFile(self.north_nodes, 
                                           self.east_nodes,
@@ -3125,7 +3135,8 @@ def cmap_discretize(cmap, N):
     indices = np.linspace(0, 1., N+1)
     cdict = {}
     for ki,key in enumerate(('red','green','blue')):
-        cdict[key] = [ (indices[i], colors_rgba[i-1,ki], colors_rgba[i,ki]) for i in xrange(N+1) ]
+        cdict[key] = [(indices[i], colors_rgba[i-1,ki], colors_rgba[i,ki])
+                       for i in xrange(N+1)]
     # Return colormap object.
     return colors.LinearSegmentedColormap(cmap.name + "_%d"%N, cdict, 1024)
 
