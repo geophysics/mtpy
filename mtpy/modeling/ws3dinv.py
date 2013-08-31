@@ -30,6 +30,7 @@ import matplotlib.widgets as widgets
 import matplotlib.colors as colors
 import matplotlib.cm as cm
 import mtpy.utils.winglink as wl
+import mtpy.utils.exceptions as mtex
 
 import mtpy.utils.latlongutmconversion as ll2utm
 
@@ -52,9 +53,9 @@ class WSData(object):
         self.z_err = kwargs.pop('z_err', 0.05)
         self.z_err_map = kwargs.pop('z_err_map', [10,1,1,10])
         self.n_z = kwargs.pop('n_z', 8)
-        self.period_list = None
-        self.edi_list = None
-        self.station_locations = None
+        self.period_list = kwargs.pop('period_list', None)
+        self.edi_list = kwargs.pop('edi_list', None)
+        self.station_locations = kwargs.pop('station_locations', None)
         
         self.wl_site_fn = kwargs.pop('wl_site_fn', None)
         self.wl_out_fn = kwargs.pop('wl_out_fn', None)
@@ -66,8 +67,7 @@ class WSData(object):
         self._data_keys = ['station', 'east', 'north', 'z_data', 'z_data_err']
 
         
-    def write_data_file(self, period_list, edi_list, station_locations, 
-                        **kwargs):
+    def write_data_file(self):
         """
         writes a data file for WSINV3D
         
@@ -134,19 +134,19 @@ class WSData(object):
                          filename
         """
         
-        self.period_list = period_list
-        self.edi_list = edi_list
-        self.station_locations = station_locations
-        
-        self.save_path = kwargs.pop('save_path', None)
-        self.units = kwargs.pop('units', 'mv')
-        self.ncol = kwargs.pop('ncols', 5)
-        self.ptol = kwargs.pop('ptol', 0.15)
-        self.z_err = kwargs.pop('z_err', 0.05)
-        self.z_err_map = kwargs.pop('z_err_map', np.array([10, 1, 1, 10]))
-        self.wl_site_fn = kwargs.pop('wl_site_fn', None)
-        self.wl_out_fn = kwargs.pop('wl_out_fn', None)
-        self.station_fn = kwargs.pop('station_fn', None)
+#        self.period_list = kwargs.pop('period_list', None)
+#        self.edi_list = kwargs.pop('edi_list', None)
+#        self.station_locations = kwargs.pop('station_locations', None)
+#        
+#        self.save_path = kwargs.pop('save_path', None)
+#        self.units = kwargs.pop('units', 'mv')
+#        self.ncol = kwargs.pop('ncols', 5)
+#        self.ptol = kwargs.pop('ptol', 0.15)
+#        self.z_err = kwargs.pop('z_err', 0.05)
+#        self.z_err_map = kwargs.pop('z_err_map', np.array([10, 1, 1, 10]))
+#        self.wl_site_fn = kwargs.pop('wl_site_fn', None)
+#        self.wl_out_fn = kwargs.pop('wl_out_fn', None)
+#        self.station_fn = kwargs.pop('station_fn', None)
         
         
         #get units correctly
@@ -154,7 +154,7 @@ class WSData(object):
             zconv = 1./796.
             
         #define some lengths
-        n_stations = len(edi_list)
+        n_stations = len(self.edi_list)
         n_periods = len(self.period_list)
         
         #make a structured array to keep things in for convenience
@@ -238,7 +238,7 @@ class WSData(object):
                         self.data[ss]['z_data_err'][ff, :] = \
                                     zconv*z1.Z.z[kk].reshape(4,)*self.z_err
                                     
-                        self.data[ss]['z_err_map'][ff, :] = self.z_errmap
+                        self.data[ss]['z_err_map'][ff, :] = self.z_err_map
                         
                         print '   Matched {0:.6g} to {1:.6g}'.format(f1, f2)
                         break
@@ -544,7 +544,6 @@ class WSMesh(object):
         # size of cells within station area in meters
         self.cell_size_east = kwargs.pop('cell_size_east', 500)
         self.cell_size_north = kwargs.pop('cell_size_north', 500)
-        self.first_layer_thickness = kwargs.pop('first_layer_thickness', 10)
         
         #padding cells on either side
         self.pad_east = kwargs.pop('pad_east', 5)
@@ -554,10 +553,10 @@ class WSMesh(object):
         #root of padding cells
         self.pad_root_east = kwargs.pop('pad_root_east', 5)
         self.pad_root_north = kwargs.pop('pad_root_north', 5)
-        self.pad_root_z = kwargs.pop('pad_root_z', 2)
         
-        #padding in vertical direction
-        self.pad_pow_z = kwargs.pop('pad_pow_z', (7, 15))
+        self.z1_layer = kwargs.pop('z1_layer', 10)
+        self.z_target_depth = kwargs.pop('z_target_depth', 50000)
+        self.z_bottom = kwargs.pop('z_bottom', 300000)
         
         #number of vertical layers
         self.n_layers = kwargs.pop('n_layers', 30)
@@ -583,7 +582,7 @@ class WSMesh(object):
         #inital file stuff
         self.initial_fn = None
         self.station_fn = None
-        self.save_path = None
+        self.save_path = kwargs.pop('save_path', None)
         self.title = 'Inital Model File made in MTpy'
         
         
@@ -691,18 +690,33 @@ class WSMesh(object):
         
         
         #--> make depth grid
-        #cells down to number of z-layers
-        zgrid1 = self.first_layer_thickness*\
-                 self.pad_root_z**np.round(np.arange(0,self.pad_pow_z[0],
-                         self.pad_pow_z[0]/(self.n_layers-float(self.pad_z))))
-                         
-        #pad bottom of grid
-        zgrid2 = self.first_layer_thickness*\
-                 self.pad_root_z**np.round(np.arange(self.pad_pow_z[0],
-                                                     self.pad_pow_z[1],
-                             (self.pad_pow_z[1]-self.pad_pow_z[0]/self.pad_z)))
+        log_z = np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.z_target_depth-np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.z_target_depth), 
+                            num=self.n_layers)[-2]), 
+                            num=self.n_layers-self.pad_z)
+        ztarget = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+                           log_z])
+        log_zpad = np.logspace(np.log10(self.z_target_depth), 
+                            np.log10(self.z_bottom-np.logspace(np.log10(self.z_target_depth), 
+                            np.log10(self.z_bottom), 
+                            num=self.pad_z)[-2]), 
+                            num=self.pad_z)
+        zpadding = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+                               log_zpad])
+#        #cells down to number of z-layers
+#        zgrid1 = self.first_layer_thickness*\
+#                 self.pad_root_z**np.round(np.arange(0,self.pad_pow_z[0],
+#                         self.pad_pow_z[0]/(self.n_layers-float(self.pad_z))))
+#                         
+#        #pad bottom of grid
+#        zgrid2 = self.first_layer_thickness*\
+#                 self.pad_root_z**np.round(np.arange(self.pad_pow_z[0],
+#                                                     self.pad_pow_z[1],
+#                             (self.pad_pow_z[1]-self.pad_pow_z[0]/self.pad_z)))
         
-        zgrid = np.append(zgrid1, zgrid2)
+        z_nodes = np.append(ztarget, zpadding)
+        z_grid = np.array([z_nodes[:ii+1].sum() for ii in range(z_nodes.shape[0])])
         
         #---Need to make an array of the individual cell dimensions for
         #   wsinv3d
@@ -738,11 +752,10 @@ class WSMesh(object):
         #make nodes attributes
         self.nodes_east = east_nodes
         self.nodes_north = north_nodes
-        self.nodes_z = zgrid
-        
+        self.nodes_z = z_nodes        
         self.grid_east = east_grid
         self.grid_north = north_grid
-        self.grid_z = zgrid
+        self.grid_z = z_grid
         
         #make sure that the stations are in the center of the cell as requested
         #by the code.
@@ -779,11 +792,11 @@ class WSMesh(object):
         print '   Dimensions: '
         print '      e-w = {0}'.format(east_grid.shape[0])
         print '      n-s = {0}'.format(north_grid.shape[0])
-        print '       z  = {0} (without 7 air layers)'.format(zgrid.shape[0])
+        print '       z  = {0} (without 7 air layers)'.format(z_grid.shape[0])
         print '   Extensions: '
         print '      e-w = {0:.1f} (m)'.format(east_nodes.__abs__().sum())
         print '      n-s = {0:.1f} (m)'.format(north_nodes.__abs__().sum())
-        print '      0-z = {0:.1f} (m)'.format(zgrid.__abs__().sum())
+        print '      0-z = {0:.1f} (m)'.format(self.nodes_z.__abs__().sum())
         print '-'*15
         
         #write a station location file for later
@@ -829,10 +842,11 @@ class WSMesh(object):
         marker_size = kwargs.pop('marker_size', 2)
         
         line_color = kwargs.pop('line_color', 'k')
-        line_width = kwargs.pop('line_width', .75)
+        line_width = kwargs.pop('line_width', .5)
         
         plt.rcParams['figure.subplot.hspace'] = .3
         plt.rcParams['figure.subplot.wspace'] = .3
+        plt.rcParams['figure.subplot.left'] = .08
         plt.rcParams['font.size'] = 7
         
         fig = plt.figure(fig_num, figsize=fig_size, dpi=fig_dpi)
@@ -848,17 +862,32 @@ class WSMesh(object):
                     c=marker_color,
                     s=marker_size)
                 
-        for xp in self.grid_east:
-            ax1.plot([xp,xp],
-                     [self.grid_north.min(), self.grid_north.max()],
-                     color=line_color,
-                     lw=line_width)
-            
-        for yp in self.grid_north:
-            ax1.plot([self.grid_east.min(),self.grid_east.max()],
-                      [yp,yp],
-                      color=line_color,
-                      lw=line_width)
+        #plot the grid if desired
+        east_line_xlist = []
+        east_line_ylist = []            
+        for xx in self.grid_east:
+            east_line_xlist.extend([xx, xx])
+            east_line_xlist.append(None)
+            east_line_ylist.extend([self.grid_north.min(), 
+                                    self.grid_north.max()])
+            east_line_ylist.append(None)
+        ax1.plot(east_line_xlist,
+                      east_line_ylist,
+                      lw=line_width,
+                      color=line_color)
+
+        north_line_xlist = []
+        north_line_ylist = [] 
+        for yy in self.grid_north:
+            north_line_xlist.extend([self.grid_east.min(),
+                                     self.grid_east.max()])
+            north_line_xlist.append(None)
+            north_line_ylist.extend([yy, yy])
+            north_line_ylist.append(None)
+        ax1.plot(north_line_xlist,
+                      north_line_ylist,
+                      lw=line_width,
+                      color=line_color)
         
         if east_limits == None:
             ax1.set_xlim(self.station_locations['east'].min()-\
@@ -881,27 +910,46 @@ class WSMesh(object):
         
         ##----plot depth view
         ax2 = fig.add_subplot(1, 2, 2, aspect='auto', sharex=ax1)
-                
-        for xp in self.grid_east:
-            ax2.plot([xp, xp], 
-                     [0, self.grid_z.sum()],
-                     color=line_color,
-                     lw=line_width)
-            
+        
+
+        #plot the grid if desired
+        east_line_xlist = []
+        east_line_ylist = []            
+        for xx in self.grid_east:
+            east_line_xlist.extend([xx, xx])
+            east_line_xlist.append(None)
+            east_line_ylist.extend([0, 
+                                    self.grid_z.max()])
+            east_line_ylist.append(None)
+        ax2.plot(east_line_xlist,
+                 east_line_ylist,
+                 lw=line_width,
+                 color=line_color)
+
+        z_line_xlist = []
+        z_line_ylist = [] 
+        for zz in self.grid_z:
+            z_line_xlist.extend([self.grid_east.min(),
+                                     self.grid_east.max()])
+            z_line_xlist.append(None)
+            z_line_ylist.extend([zz, zz])
+            z_line_ylist.append(None)
+        ax2.plot(z_line_xlist,
+                 z_line_ylist,
+                 lw=line_width,
+                 color=line_color)
+                      
+        
+        #--> plot stations
         ax2.scatter(self.station_locations['east_c'],
                     [0]*self.station_locations.shape[0],
                     marker=station_marker,
                     c=marker_color,
                     s=marker_size)
-            
-        for zz, zp in enumerate(self.grid_z):
-            ax2.plot([self.grid_east.min(), self.grid_east.max()],
-                     [self.grid_z[0:zz].sum(), self.grid_z[0:zz].sum()],
-                     color=line_color,
-                     lw=line_width)
+
         
         if z_limits == None:
-            ax2.set_ylim(self.grid_z[:self.n_layers].sum(), -200)
+            ax2.set_ylim(self.z_target_depth, -200)
         else:
             ax2.set_ylim(z_limits)
             
@@ -994,15 +1042,17 @@ class WSMesh(object):
             self.res_model = res_model
         
         #--> get path to save initial file to
-        if save_path is None:
-            self.save_path = os.getcwd()
-            self.initial_fn = os.path.join(save_path, "WSInitialModel")
-        elif os.path.isdir(save_path) == True:
+        if save_path is not None:
             self.save_path = save_path
-            self.initial_fn = os.path.join(save_path, "WSInitialModel")
+            
+        if self.save_path is None:
+            self.save_path = os.getcwd()
+            self.initial_fn = os.path.join(self.save_path, "WSInitialModel")
+        elif os.path.isdir(self.save_path) == True:
+            self.initial_fn = os.path.join(self.save_path, "WSInitialModel")
         else:
-            self.save_path = os.path.dirname(save_path)
-            self.initial_fn= os.path.join(save_path)
+            self.save_path = os.path.dirname(self.save_path)
+            self.initial_fn= os.path.join(self.save_path)
         
         #check to see what resistivity in input 
         if type(self.res_list) is not list and \
@@ -1228,6 +1278,9 @@ class WSModel(object):
         self.grid_east = None
         self.grid_z = None
         
+        if os.path.isfile(self.model_fn) == True:
+            self.read_model_file()
+        
     def read_model_file(self):
         """
         read in a model file as x-north, y-east, z-positive down
@@ -1239,9 +1292,12 @@ class WSModel(object):
     
         #get info at the beggining of file
         info = mlines[0].strip().split()
-        self.iteration_number = int(info[1])
-        self.rms = float(info[3])
-        self.lagrange = float(info[5])
+        self.iteration_number = int(info[2])
+        self.rms = float(info[5])
+        try:
+            self.lagrange = float(info[8])
+        except IndexError:
+            print 'Did not get Lagrange Multiplier'
         
         #get lengths of things
         n_north, n_east, n_z, n_res = np.array(mlines[1].strip().split(),
@@ -1999,7 +2055,8 @@ class WSResponse(object):
         self.units = 'mv'
         self._zconv = 796.
         
-        self.read_resp_file()
+        if os.path.isfile(self.resp_fn) == True:
+            self.read_resp_file()
         
         
     def read_resp_file(self, resp_fn=None, wl_sites_fn=None, station_fn=None):
@@ -2241,6 +2298,7 @@ class PlotResponse(object):
     
         #read in response files
         if self.resp_fn != None:
+            self.resp_object = []
             if type(self.resp_fn) is not list:
                 self.resp_object = [WSResponse(self.resp_fn, 
                                                station_fn=self.station_fn)]
@@ -2259,7 +2317,11 @@ class PlotResponse(object):
         plt.rcParams['font.size'] = self.font_size
 
         fontdict = {'size':self.font_size+2, 'weight':'bold'}    
-        gs = gridspec.GridSpec(2, 2, height_ratios=[2, 1.5], hspace=.1)    
+        gs = gridspec.GridSpec(2, 2, height_ratios=[2, 1.5], hspace=.1)
+        
+        ax_list = []
+        line_list = []
+        label_list = []
         
         
         if self.plot_type != '1':
@@ -2309,7 +2371,7 @@ class PlotResponse(object):
                 plotr = False
             
             #make figure 
-            fig = plt.figure(self.fig_num+1, self.fig_size, dpi=self.fig_dpi)
+            fig = plt.figure(self.fig_num+jj, self.fig_size, dpi=self.fig_dpi)
             plt.clf()
             fig.suptitle(str(station), fontdict=fontdict)
             
@@ -2373,44 +2435,44 @@ class PlotResponse(object):
                     #plot resistivity
                     erxx= self.plot_errorbar(axrxx, 
                                               period[nzxx], 
-                                              rp.resxy[nzxx], 
-                                              rp.resxy_err[nzxx],
+                                              rp.resxx[nzxx], 
+                                              rp.resxx_err[nzxx],
                                               self.cted, self.mted)
                     erxy = self.plot_errorbar(axrxy, 
                                               period[nzxy], 
-                                              rp.resyx[nzxy], 
-                                              rp.resyx_err[nzxy],
+                                              rp.resxy[nzxy], 
+                                              rp.resxy_err[nzxy],
                                               self.cted, self.mted)
                     eryx = self.plot_errorbar(axryx, 
                                               period[nzyx], 
-                                              rp.resxy[nzyx], 
-                                              rp.resxy_err[nzyx],
+                                              rp.resyx[nzyx], 
+                                              rp.resyx_err[nzyx],
                                               self.ctmd, self.mtmd)
                     eryy = self.plot_errorbar(axryy, 
                                               period[nzyy], 
-                                              rp.resyx[nzyy], 
-                                              rp.resyx_err[nzyy],
+                                              rp.resyy[nzyy], 
+                                              rp.resyy_err[nzyy],
                                               self.ctmd, self.mtmd)
                     #plot phase                         
                     erxx= self.plot_errorbar(axpxx, 
                                               period[nzxx], 
-                                              rp.phasexy[nzxx], 
-                                              rp.phasexy_err[nzxx],
+                                              rp.phasexx[nzxx], 
+                                              rp.phasexx_err[nzxx],
                                               self.cted, self.mted)
                     erxy = self.plot_errorbar(axpxy, 
                                               period[nzxy], 
-                                              rp.phaseyx[nzxy], 
-                                              rp.phaseyx_err[nzxy],
+                                              rp.phasexy[nzxy], 
+                                              rp.phasexy_err[nzxy],
                                               self.cted, self.mted)
                     eryx = self.plot_errorbar(axpyx, 
                                               period[nzyx], 
-                                              rp.phasexy[nzyx], 
-                                              rp.phasexy_err[nzyx],
+                                              rp.phaseyx[nzyx], 
+                                              rp.phaseyx_err[nzyx],
                                               self.ctmd, self.mtmd)
                     eryy = self.plot_errorbar(axpyy, 
                                               period[nzyy], 
-                                              rp.phaseyx[nzyy], 
-                                              rp.phaseyx_err[nzyy],
+                                              rp.phaseyy[nzyy], 
+                                              rp.phaseyy_err[nzyy],
                                               self.ctmd, self.mtmd)
                     ax_list = [axrxx, axrxy, axryx, axryy, 
                                axpxx, axpxy, axpyx, axpyy]
@@ -2505,44 +2567,44 @@ class PlotResponse(object):
                     #plot resistivity
                     erxx= self.plot_errorbar(axrxx, 
                                               period[nzxx], 
-                                              rp.resxy[nzxx], 
-                                              rp.resxy_err[nzxx],
+                                              rp.resxx[nzxx], 
+                                              rp.resxx_err[nzxx],
                                               self.cted, self.mted)
                     erxy = self.plot_errorbar(axrxy, 
                                               period[nzxy], 
-                                              rp.resyx[nzxy], 
-                                              rp.resyx_err[nzxy],
+                                              rp.resxy[nzxy], 
+                                              rp.resxy_err[nzxy],
                                               self.cted, self.mted)
                     eryx = self.plot_errorbar(axrxy, 
                                               period[nzyx], 
-                                              rp.resxy[nzyx], 
-                                              rp.resxy_err[nzyx],
+                                              rp.resyx[nzyx], 
+                                              rp.resyx_err[nzyx],
                                               self.ctmd, self.mtmd)
                     eryy = self.plot_errorbar(axrxx, 
                                               period[nzyy], 
-                                              rp.resyx[nzyy], 
-                                              rp.resyx_err[nzyy],
+                                              rp.resyy[nzyy], 
+                                              rp.resyy_err[nzyy],
                                               self.ctmd, self.mtmd)
                     #plot phase                         
                     erxx= self.plot_errorbar(axpxx, 
                                               period[nzxx], 
-                                              rp.phasexy[nzxx], 
-                                              rp.phasexy_err[nzxx],
+                                              rp.phasexx[nzxx], 
+                                              rp.phasexx_err[nzxx],
                                               self.cted, self.mted)
                     erxy = self.plot_errorbar(axpxy, 
                                               period[nzxy], 
-                                              rp.phaseyx[nzxy], 
-                                              rp.phaseyx_err[nzxy],
+                                              rp.phasexy[nzxy], 
+                                              rp.phasexy_err[nzxy],
                                               self.cted, self.mted)
                     eryx = self.plot_errorbar(axpxy, 
                                               period[nzyx], 
-                                              rp.phasexy[nzyx], 
-                                              rp.phasexy_err[nzyx],
+                                              rp.phaseyx[nzyx], 
+                                              rp.phaseyx_err[nzyx],
                                               self.ctmd, self.mtmd)
                     eryy = self.plot_errorbar(axpxx, 
                                               period[nzyy], 
-                                              rp.phaseyx[nzyy], 
-                                              rp.phaseyx_err[nzyy],
+                                              rp.phaseyy[nzyy], 
+                                              rp.phaseyy_err[nzyy],
                                               self.ctmd, self.mtmd)
                                               
                     ax_list = [axrxy, axrxx, axpxy, axpxx]
@@ -2649,44 +2711,44 @@ class PlotResponse(object):
                             #plot resistivity
                             rerxx= self.plot_errorbar(axrxx, 
                                                       period[nzxx], 
-                                                      rrp.resxy[nzxx], 
-                                                      rrp.resxy_err[nzxx],
+                                                      rrp.resxx[nzxx], 
+                                                      rrp.resxx_err[nzxx],
                                                       cxy, self.mted)
                             rerxy = self.plot_errorbar(axrxy, 
                                                       period[nzxy], 
-                                                      rrp.resyx[nzxy], 
-                                                      rrp.resyx_err[nzxy],
+                                                      rrp.resxy[nzxy], 
+                                                      rrp.resxy_err[nzxy],
                                                       cxy, self.mted)
                             reryx = self.plot_errorbar(axryx, 
                                                       period[nzyx], 
-                                                      rrp.resxy[nzyx], 
-                                                      rrp.resxy_err[nzyx],
+                                                      rrp.resyx[nzyx], 
+                                                      rrp.resyx_err[nzyx],
                                                       cyx, self.mtmd)
                             reryy = self.plot_errorbar(axryy, 
                                                       period[nzyy], 
-                                                      rrp.resyx[nzyy], 
-                                                      rrp.resyx_err[nzyy],
+                                                      rrp.resyy[nzyy], 
+                                                      rrp.resyy_err[nzyy],
                                                       cyx, self.mtmd)
                             #plot phase                         
                             rerxx= self.plot_errorbar(axpxx, 
                                                       period[nzxx], 
-                                                      rrp.phasexy[nzxx], 
-                                                      rrp.phasexy_err[nzxx],
+                                                      rrp.phasexx[nzxx], 
+                                                      rrp.phasexx_err[nzxx],
                                                       cxy, self.mted)
                             rerxy = self.plot_errorbar(axpxy, 
                                                       period[nzxy], 
-                                                      rrp.phaseyx[nzxy], 
-                                                      rrp.phaseyx_err[nzxy],
+                                                      rrp.phasexy[nzxy], 
+                                                      rrp.phasexy_err[nzxy],
                                                       cxy, self.mted)
                             reryx = self.plot_errorbar(axpyx, 
                                                       period[nzyx], 
-                                                      rrp.phasexy[nzyx], 
-                                                      rrp.phasexy_err[nzyx],
+                                                      rrp.phaseyx[nzyx], 
+                                                      rrp.phaseyx_err[nzyx],
                                                       cyx, self.mtmd)
                             reryy = self.plot_errorbar(axpyy, 
                                                       period[nzyy], 
-                                                      rrp.phaseyx[nzyy], 
-                                                      rrp.phaseyx_err[nzyy],
+                                                      rrp.phaseyy[nzyy], 
+                                                      rrp.phaseyy_err[nzyy],
                                                       cyx, self.mtmd)
                             line_list[0] += [rerxx[0]]
                             line_list[1] += [rerxy[0]]
@@ -2733,44 +2795,44 @@ class PlotResponse(object):
                             #plot resistivity
                             rerxx= self.plot_errorbar(axrxx, 
                                                       period[nzxx], 
-                                                      rrp.resxy[nzxx], 
-                                                      rrp.resxy_err[nzxx],
+                                                      rrp.resxx[nzxx], 
+                                                      rrp.resxx_err[nzxx],
                                                       cxy, self.mted)
                             rerxy = self.plot_errorbar(axrxy, 
                                                       period[nzxy], 
-                                                      rrp.resyx[nzxy], 
-                                                      rrp.resyx_err[nzxy],
+                                                      rrp.resxy[nzxy], 
+                                                      rrp.resxy_err[nzxy],
                                                       cxy, self.mted)
                             reryx = self.plot_errorbar(axrxy, 
                                                       period[nzyx], 
-                                                      rrp.resxy[nzyx], 
-                                                      rrp.resxy_err[nzyx],
+                                                      rrp.resyx[nzyx], 
+                                                      rrp.resyx_err[nzyx],
                                                       cyx, self.mtmd)
                             reryy = self.plot_errorbar(axrxx, 
                                                       period[nzyy], 
-                                                      rrp.resyx[nzyy], 
-                                                      rrp.resyx_err[nzyy],
+                                                      rrp.resyy[nzyy], 
+                                                      rrp.resyy_err[nzyy],
                                                       cyx, self.mtmd)
                             #plot phase                         
                             rerxx= self.plot_errorbar(axpxx, 
                                                       period[nzxx], 
-                                                      rrp.phasexy[nzxx], 
-                                                      rrp.phasexy_err[nzxx],
+                                                      rrp.phasexx[nzxx], 
+                                                      rrp.phasexx_err[nzxx],
                                                       cxy, self.mted)
                             rerxy = self.plot_errorbar(axpxy, 
                                                       period[nzxy], 
-                                                      rrp.phaseyx[nzxy], 
-                                                      rrp.phaseyx_err[nzxy],
+                                                      rrp.phasexy[nzxy], 
+                                                      rrp.phasexy_err[nzxy],
                                                       cxy, self.mted)
                             reryx = self.plot_errorbar(axpxy, 
                                                       period[nzyx], 
-                                                      rrp.phasexy[nzyx], 
-                                                      rrp.phasexy_err[nzyx],
+                                                      rrp.phaseyx[nzyx], 
+                                                      rrp.phaseyx_err[nzyx],
                                                       cyx, self.mtmd)
                             reryy = self.plot_errorbar(axpxx, 
                                                       period[nzyy], 
-                                                      rrp.phaseyx[nzyy], 
-                                                      rrp.phaseyx_err[nzyy],
+                                                      rrp.phaseyy[nzyy], 
+                                                      rrp.phaseyy_err[nzyy],
                                                       cyx, self.mtmd)
                             
                             line_list[0] += [rerxy[0], reryx[0]]
@@ -2794,7 +2856,8 @@ class PlotResponse(object):
                                   borderaxespad=self.legend_border_axes_pad,
                                   labelspacing=self.legend_label_spacing,
                                   handletextpad=self.legend_handle_text_pad,
-                                  borderpad=self.legend_border_pad)
+                                  borderpad=self.legend_border_pad,
+                                  prop={'size':max([self.font_size/nr, 5])})
                 if self.plot_style == 2:
                     if self.plot_component == 2:
                         axrxy.legend(line_list,
@@ -2804,7 +2867,8 @@ class PlotResponse(object):
                                       borderaxespad=self.legend_border_axes_pad,
                                       labelspacing=self.legend_label_spacing,
                                       handletextpad=self.legend_handle_text_pad,
-                                      borderpad=self.legend_border_pad)
+                                      borderpad=self.legend_border_pad,
+                                      prop={'size':max([self.font_size/nr, 5])})
                     else:
                         for aa, ax in enumerate(ax_list[0:self.plot_component/2]):
                             ax.legend(line_list[aa],
@@ -2814,7 +2878,8 @@ class PlotResponse(object):
                                       borderaxespad=self.legend_border_axes_pad,
                                       labelspacing=self.legend_label_spacing,
                                       handletextpad=self.legend_handle_text_pad,
-                                      borderpad=self.legend_border_pad)
+                                      borderpad=self.legend_border_pad,
+                                      prop={'size':max([self.font_size/nr, 5])})
     def redraw_plot(self):
         """
         redraw plot if parameters were changed
@@ -2933,4 +2998,360 @@ class PlotResponse(object):
         
         return ("Plots data vs model response computed by WS3DINV")
 
+#==============================================================================
+# plot depth slices
+#==============================================================================
+class PlotDepthSlice(object):
+    """
+    plot depth slices
+    """
+    
+    def __init__(self, model_fn=None, data_fn=None, station_fn=None, 
+                 initial_fn=None, **kwargs):
+        self.model_fn = model_fn
+        self.data_fn = data_fn
+        self.station_fn = station_fn
+        self.initial_fn = initial_fn
         
+        self.save_path = kwargs.pop('save_path', None)
+        if self.model_fn is not None and self.save_path is None:
+            self.save_path = os.path.dirname(self.model_fn)
+        elif self.initial_fn is not None and self.save_path is None:
+            self.save_path = os.path.dirname(self.initial_fn)
+            
+        if self.save_path is not None:
+            if not os.path.exists(self.save_path):
+                os.mkdir(self.save_path)
+                
+        self.save_plots = kwargs.pop('save_plots', 'y')
+        
+        self.depth_index = kwargs.pop('depth_index', None)
+        self.map_scale = kwargs.pop('map_scale', 'km')
+        #make map scale
+        if self.map_scale=='km':
+            self.dscale=1000.
+        elif self.map_scale=='m':
+            self.dscale=1. 
+        self.ew_limits = kwargs.pop('ew_limits', None)
+        self.ns_limits = kwargs.pop('ns_limits', None)
+        
+        self.plot_grid = kwargs.pop('plot_grid', 'n')
+        
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        self.fig_aspect = kwargs.pop('fig_aspect', 1)
+        self.title = kwargs.pop('title', 'on')
+        self.fig_list = []
+        
+        self.xminorticks = kwargs.pop('xminorticks', 1000)
+        self.yminorticks = kwargs.pop('yminorticks', 1000)
+        
+        self.climits = kwargs.pop('climits', (0,4))
+        self.cmap = kwargs.pop('cmap', 'jet_r')
+        self.font_size = kwargs.pop('font_size', 8)
+        
+        self.cb_shrink = kwargs.pop('cb_shrink', .8)
+        self.cb_pad = kwargs.pop('cb_pad', .01)
+        self.cb_orientation = kwargs.pop('cb_orientation', 'horizontal')
+        self.cb_location = kwargs.pop('cb_location', None)
+        
+        self.subplot_right = .99
+        self.subplot_left = .085
+        self.subplot_top = .92
+        self.subplot_bottom = .1
+        
+        self.res_model = None
+        self.grid_east = None
+        self.grid_north = None
+        self.grid_z  = None
+        
+        self.nodes_east = None
+        self.nodes_north = None
+        self.nodes_z = None
+        
+        self.mesh_east = None
+        self.mesh_north = None
+        
+        self.station_east = None
+        self.station_north = None
+        self.station_names = None
+        
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+        if self.plot_yn == 'y':
+            self.plot()
+            
+    def read_files(self):
+        """
+        read in the files to get appropriate information
+        """
+        #--> read in model file
+        if self.model_fn is not None:
+            if os.path.isfile(self.model_fn) == True:
+                wsmodel = WSModel(self.model_fn)
+                self.res_model = wsmodel.res_model
+                self.grid_east = wsmodel.grid_east/self.dscale
+                self.grid_north = wsmodel.grid_north/self.dscale
+                self.grid_z = wsmodel.grid_z/self.dscale
+                self.nodes_east = wsmodel.nodes_east/self.dscale
+                self.nodes_north = wsmodel.nodes_north/self.dscale
+                self.nodes_z = wsmodel.nodes_z/self.dscale
+            else:
+                raise mtex.MTpyError_file_handling(
+                        '{0} does not exist, check path'.format(self.model_fn))
+        
+        #--> read in data file to get station locations
+        if self.data_fn is not None:
+            if os.path.isfile(self.data_fn) == True:
+                wsdata = WSData()
+                wsdata.read_data_file(self.data_fn)
+                self.station_east = wsdata.data['east']/self.dscale
+                self.station_north = wsdata.data['north']/self.dscale
+                self.station_names = wsdata.data['station']
+            else:
+                print 'Could not find data file {0}'.format(self.data_fn)
+            
+        #--> read in station file
+        if self.station_fn is not None:
+            if os.path.isfile(self.station_fn) == True:
+                wsstations = WSStation(self.station_fn)
+                wsstations.read_station_file()
+                self.station_east = wsstations.east/self.dscale
+                self.station_north = wsstations.north/self.dscale
+                self.station_names = wsstations.names
+            else:
+                print 'Could not find station file {0}'.format(self.station_fn)
+        
+        #--> read in initial file
+        if self.initial_fn is not None:
+            if os.path.isfile(self.initial_fn) == True:
+                wsmesh = WSMesh()
+                wsmesh.read_initial_file(self.initial_fn)
+                self.grid_east = wsmesh.grid_east/self.dscale
+                self.grid_north = wsmesh.grid_north/self.dscale
+                self.grid_z = wsmesh.grid_z/self.dscale
+                self.nodes_east = wsmesh.nodes_east/self.dscale
+                self.nodes_north = wsmesh.nodes_north/self.dscale
+                self.nodes_z = wsmesh.nodes_z/self.dscale
+                
+                #need to convert index values to resistivity values
+                rdict = dict([(ii,res) for ii,res in enumerate(wsmesh.res_list,1)])
+                
+                for ii in range(len(wsmesh.res_list)):
+                    self.res_model[np.where(wsmesh.res_model==ii+1)] = \
+                                                                    rdict[ii+1]
+            else:
+                raise mtex.MTpyError_file_handling(
+                     '{0} does not exist, check path'.format(self.initial_fn))
+        
+        if self.initial_fn is None and self.model_fn is None:
+            raise mtex.MTpyError_inputarguments('Need to input either a model'
+                                                ' file or initial file.')
+
+    def plot(self):
+        """
+        plot depth slices
+        """
+        #--> get information from files
+        self.read_files()
+
+        fdict = {'size':self.font_size+2, 'weight':'bold'}
+        
+        cblabeldict={-2:'$10^{-3}$',-1:'$10^{-1}$',0:'$10^{0}$',1:'$10^{1}$',
+                     2:'$10^{2}$',3:'$10^{3}$',4:'$10^{4}$',5:'$10^{5}$',
+                     6:'$10^{6}$',7:'$10^{7}$',8:'$10^{8}$'}
+                     
+        #create an list of depth slices to plot
+        if self.depth_index == None:
+            zrange = range(self.grid_z.shape[0])
+        elif type(self.depth_index) is int:
+            zrange = [self.depth_index]
+        elif type(self.depth_index) is list or \
+             type(self.depth_index) is np.ndarray:
+            zrange = self.depth_index
+        
+        #set the limits of the plot
+        if self.ew_limits == None:
+            if self.station_east is not None:
+                xlimits = (np.floor(self.station_east.min()), 
+                           np.ceil(self.station_east.max()))
+            else:
+                xlimits = (self.grid_east[5], self.grid_east[-5])
+        else:
+            xlimits = self.ew_limits
+            
+        if self.ns_limits == None:
+            if self.station_north is not None:
+                ylimits = (np.floor(self.station_north.min()), 
+                           np.ceil(self.station_north.max()))
+            else:
+                ylimits = (self.grid_north[5], self.grid_north[-5])
+        else:
+            ylimits = self.ns_limits
+            
+            
+        #make a mesh grid of north and east
+        self.mesh_east, self.mesh_north = np.meshgrid(self.grid_east, 
+                                                      self.grid_north,
+                                                      indexing='ij')
+        
+        plt.rcParams['font.size'] = self.font_size
+        
+        #--> plot depths into individual figures
+        for ii in zrange: 
+            fig = plt.figure(ii, figsize=self.fig_size, dpi=self.fig_dpi)
+            plt.clf()
+            ax1 = fig.add_subplot(1, 1, 1, aspect=self.fig_aspect)
+            plot_res = np.log10(self.res_model[:, :, ii].T)
+            mesh_plot = ax1.pcolormesh(self.mesh_east,
+                                       self.mesh_north, 
+                                       plot_res,
+                                       cmap=self.cmap,
+                                       vmin=self.climits[0],
+                                       vmax=self.climits[1])
+                           
+            #plot the stations
+            if self.station_east is not None:
+                for ee, nn in zip(self.station_east, self.station_north):
+                    ax1.text(ee, nn, '*', 
+                             verticalalignment='center',
+                             horizontalalignment='center',
+                             fontdict={'size':5, 'weight':'bold'})
+    
+            #set axis properties
+            ax1.set_xlim(xlimits)
+            ax1.set_ylim(ylimits)
+            ax1.xaxis.set_minor_locator(MultipleLocator(self.xminorticks/self.dscale))
+            ax1.yaxis.set_minor_locator(MultipleLocator(self.yminorticks/self.dscale))
+            ax1.set_ylabel('Northing ('+self.map_scale+')',fontdict=fdict)
+            ax1.set_xlabel('Easting ('+self.map_scale+')',fontdict=fdict)
+            ax1.set_title('Depth = {0:.3f} ({1})'.format(self.grid_z[ii], 
+                                                        self.map_scale),
+                                                        fontdict=fdict)
+                       
+            #plot the grid if desired
+            if self.plot_grid == 'y':
+                east_line_xlist = []
+                east_line_ylist = []            
+                for xx in self.grid_east:
+                    east_line_xlist.extend([xx, xx])
+                    east_line_xlist.append(None)
+                    east_line_ylist.extend([self.grid_north.min(), 
+                                            self.grid_north.max()])
+                    east_line_ylist.append(None)
+                ax1.plot(east_line_xlist,
+                              east_line_ylist,
+                              lw=.25,
+                              color='k')
+        
+                north_line_xlist = []
+                north_line_ylist = [] 
+                for yy in self.grid_north:
+                    north_line_xlist.extend([self.grid_east.min(),
+                                             self.grid_east.max()])
+                    north_line_xlist.append(None)
+                    north_line_ylist.extend([yy, yy])
+                    north_line_ylist.append(None)
+                ax1.plot(north_line_xlist,
+                              north_line_ylist,
+                              lw=.25,
+                              color='k')
+            
+                
+            #plot the colorbar
+            if self.cb_location is None:
+                if self.cb_orientation == 'horizontal':
+                    ax2 = fig.add_axes((ax1.axes.figbox.bounds[3]-.225,
+                                        ax1.axes.figbox.bounds[1]+.05,.3,.025))
+                                            
+                elif self.cb_orientation == 'vertical':
+                    ax2 = fig.add_axes((ax1.axes.figbox.bounds[2]-.15,
+                                        ax1.axes.figbox.bounds[3]-.21,.025,.3))
+            else:
+                ax2 = fig.add_axes(self.cb_location)
+            
+            cb = mcb.ColorbarBase(ax2,
+                                  cmap=self.cmap,
+                                  norm=Normalize(vmin=self.climits[0],
+                                                 vmax=self.climits[1]),
+                                  orientation=self.cb_orientation)
+                                
+            if self.cb_orientation == 'horizontal':
+                cb.ax.xaxis.set_label_position('top')
+                cb.ax.xaxis.set_label_coords(.5,1.3)
+                
+                
+            elif self.cb_orientation == 'vertical':
+                cb.ax.yaxis.set_label_position('right')
+                cb.ax.yaxis.set_label_coords(1.25,.5)
+                cb.ax.yaxis.tick_left()
+                cb.ax.tick_params(axis='y',direction='in')
+                                
+            cb.set_label('Resistivity ($\Omega \cdot$m)',
+                         fontdict={'size':self.font_size+1})
+            cb.set_ticks(np.arange(self.climits[0],self.climits[1]+1))
+            cb.set_ticklabels([cblabeldict[cc] 
+                                for cc in np.arange(self.climits[0],
+                                                    self.climits[1]+1)])
+            
+            self.fig_list.append(fig)
+            
+            #--> save plots to a common folder
+            if self.save_plots == 'y':
+                
+                fig.savefig(os.path.join(self.save_path,
+                            "Depth_{}_{:.4f}.png".format(ii, self.grid_z[ii])),
+                            dpi=self.fig_dpi, bbox_inches='tight')
+                fig.clear()
+                plt.close()
+    
+            else:
+                pass
+            
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plotAllResponses()
+            >>> #change line width
+            >>> p1.lw = 2
+            >>> p1.redraw_plot()
+        """
+        for fig in self.fig_list:
+            plt.close(fig)
+        self.plot()
+        
+    def update_plot(self, fig):
+        """
+        update any parameters that where changed using the built-in draw from
+        canvas.  
+        
+        Use this if you change an of the .fig or axes properties
+        
+        :Example: ::
+            
+            >>> # to change the grid lines to only be on the major ticks
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotAllResponses()
+            >>> [ax.grid(True, which='major') for ax in [ps1.axrte,ps1.axtep]]
+            >>> ps1.update_plot()
+        
+        """
+
+        fig.canvas.draw()
+                          
+    def __str__(self):
+        """
+        rewrite the string builtin to give a useful message
+        """
+        
+        return ("Plots depth slices of model from WS3DINV")
