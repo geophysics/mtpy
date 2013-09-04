@@ -133,22 +133,7 @@ class WSData(object):
                          savepath where savepath can be a directory or full 
                          filename
         """
-        
-#        self.period_list = kwargs.pop('period_list', None)
-#        self.edi_list = kwargs.pop('edi_list', None)
-#        self.station_locations = kwargs.pop('station_locations', None)
-#        
-#        self.save_path = kwargs.pop('save_path', None)
-#        self.units = kwargs.pop('units', 'mv')
-#        self.ncol = kwargs.pop('ncols', 5)
-#        self.ptol = kwargs.pop('ptol', 0.15)
-#        self.z_err = kwargs.pop('z_err', 0.05)
-#        self.z_err_map = kwargs.pop('z_err_map', np.array([10, 1, 1, 10]))
-#        self.wl_site_fn = kwargs.pop('wl_site_fn', None)
-#        self.wl_out_fn = kwargs.pop('wl_out_fn', None)
-#        self.station_fn = kwargs.pop('station_fn', None)
-        
-        
+
         #get units correctly
         if self.units == 'mv':
             zconv = 1./796.
@@ -3261,14 +3246,14 @@ class PlotDepthSlice(object):
             #plot the colorbar
             if self.cb_location is None:
                 if self.cb_orientation == 'horizontal':
-                    ax2 = fig.add_axes((ax1.axes.figbox.bounds[3]-.225,
-                                        ax1.axes.figbox.bounds[1]+.05,.3,.025))
+                    self.cb_location = (ax1.axes.figbox.bounds[3]-.225,
+                                        ax1.axes.figbox.bounds[1]+.05,.3,.025) 
                                             
                 elif self.cb_orientation == 'vertical':
-                    ax2 = fig.add_axes((ax1.axes.figbox.bounds[2]-.15,
+                    self.cb_location = ((ax1.axes.figbox.bounds[2]-.15,
                                         ax1.axes.figbox.bounds[3]-.21,.025,.3))
-            else:
-                ax2 = fig.add_axes(self.cb_location)
+            
+            ax2 = fig.add_axes(self.cb_location)
             
             cb = mcb.ColorbarBase(ax2,
                                   cmap=self.cmap,
@@ -3355,3 +3340,1067 @@ class PlotDepthSlice(object):
         """
         
         return ("Plots depth slices of model from WS3DINV")
+        
+#==============================================================================
+# plot phase tensors
+#==============================================================================
+class PlotPTMaps(object):
+    """
+    plot phase tensor maps including residual pt
+    """
+    
+    def __init__(self, data_fn=None, resp_fn=None, station_fn=None, 
+                 model_fn=None, **kwargs):
+        
+        self.model_fn = model_fn
+        self.data_fn = data_fn
+        self.station_fn = station_fn
+        
+        self.save_path = kwargs.pop('save_path', None)
+        if self.model_fn is not None and self.save_path is None:
+            self.save_path = os.path.dirname(self.model_fn)
+        elif self.initial_fn is not None and self.save_path is None:
+            self.save_path = os.path.dirname(self.initial_fn)
+            
+        if self.save_path is not None:
+            if not os.path.exists(self.save_path):
+                os.mkdir(self.save_path)
+                
+        self.save_plots = kwargs.pop('save_plots', 'y')
+        
+        self.depth_index = kwargs.pop('depth_index', None)
+        self.map_scale = kwargs.pop('map_scale', 'km')
+        #make map scale
+        if self.map_scale=='km':
+            self.dscale=1000.
+        elif self.map_scale=='m':
+            self.dscale=1. 
+        self.ew_limits = kwargs.pop('ew_limits', None)
+        self.ns_limits = kwargs.pop('ns_limits', None)
+        
+        self.plot_grid = kwargs.pop('plot_grid', 'n')
+        
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        self.fig_aspect = kwargs.pop('fig_aspect', 1)
+        self.title = kwargs.pop('title', 'on')
+        self.fig_list = []
+        
+        self.xminorticks = kwargs.pop('xminorticks', 1000)
+        self.yminorticks = kwargs.pop('yminorticks', 1000)
+        
+        self.climits = kwargs.pop('climits', (0,4))
+        self.cmap = kwargs.pop('cmap', 'jet_r')
+        self.font_size = kwargs.pop('font_size', 8)
+        
+        self.cb_shrink = kwargs.pop('cb_shrink', .8)
+        self.cb_pad = kwargs.pop('cb_pad', .01)
+        self.cb_orientation = kwargs.pop('cb_orientation', 'horizontal')
+        self.cb_location = kwargs.pop('cb_location', None)
+        
+        self.subplot_right = .99
+        self.subplot_left = .085
+        self.subplot_top = .92
+        self.subplot_bottom = .1
+        
+        self.res_model = None
+        self.grid_east = None
+        self.grid_north = None
+        self.grid_z  = None
+        
+        self.nodes_east = None
+        self.nodes_north = None
+        self.nodes_z = None
+        
+        self.mesh_east = None
+        self.mesh_north = None
+        
+        self.station_east = None
+        self.station_north = None
+        self.station_names = None
+        
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+        if self.plot_yn == 'y':
+            self.plot()
+     
+    def plot(self):
+#    def plotTensorMaps(data_fn,resp_fn=None,sites_fn=None,periodlst=None,
+#                   esize=(1,1,5,5),ecolor='phimin',
+#                   colormm=[(0,90),(0,1),(0,4),(-2,2)],
+#                   xpad=.500,units='mv',dpi=150):
+        """
+        plot phase tensor maps for data and or response, each figure is of a
+        different period.  If response is input a third column is added which is 
+        the residual phase tensor showing where the model is not fitting the data 
+        well.  The data is plotted in km in units of ohm-m.
+        
+        Inputs:
+            data_fn = full path to data file
+            resp_fn = full path to response file, if none just plots data
+            sites_fn = full path to sites file
+            periodlst = indicies of periods you want to plot
+            esize = size of ellipses as:
+                    0 = phase tensor ellipse
+                    1 = phase tensor residual
+                    2 = resistivity tensor ellipse
+                    3 = resistivity tensor residual
+            ecolor = 'phimin' for coloring with phimin or 'beta' for beta coloring
+            colormm = list of min and max coloring for plot, list as follows:
+                    0 = phase tensor min and max for ecolor in degrees
+                    1 = phase tensor residual min and max [0,1]
+                    2 = resistivity tensor coloring as resistivity on log scale
+                    3 = resistivity tensor residual coloring as resistivity on 
+                        linear scale
+            xpad = padding of map from stations at extremities (km)
+            units = 'mv' to convert to Ohm-m 
+            dpi = dots per inch of figure
+        """
+        
+        period,zd,zderr,nsarr,ewarr,sitelst=readDataFile(data_fn,sites_fn=sites_fn,
+                                                          units=units)
+        
+        if resp_fn!=None:
+            period,zr,zrerr,nsarr,ewarr,sitelst=readDataFile(resp_fn,sites_fn=sites_fn,
+                                                             units=units)
+        
+        if periodlst==None:
+            periodlst=range(len(period))
+            
+        #put locations into an logical coordinate system in km
+        nsarr=-nsarr/1000
+        ewarr=-ewarr/1000
+    
+        #get coloring min's and max's    
+        if colormm!=None:
+            ptmin,ptmax=(colormm[0][0]*np.pi/180,colormm[0][1]*np.pi/180)
+            ptrmin,ptrmax=colormm[1]
+            rtmin,rtmax=colormm[2]
+            rtrmin,rtrmax=colormm[3]
+        else:
+            pass
+        
+        #get ellipse sizes
+        ptsize=esize[0]
+        ptrsize=esize[1]
+        rtsize=esize[2]
+        rtrsize=esize[3]
+            
+        plt.rcParams['font.size']=10
+        plt.rcParams['figure.subplot.left']=.03
+        plt.rcParams['figure.subplot.right']=.98
+        plt.rcParams['figure.subplot.bottom']=.1
+        plt.rcParams['figure.subplot.top']=.90
+        plt.rcParams['figure.subplot.wspace']=.005
+        plt.rcParams['figure.subplot.hspace']=.005
+        
+        ns=zd.shape[0]
+        
+        for ff,per in enumerate(periodlst):
+            print 'Plotting Period: {0:.5g}'.format(period[per])
+            fig=plt.figure(per+1,dpi=dpi)
+    
+            #get phase tensor
+            pt=Z.PhaseTensor(zd[:,per])
+    
+            #get resistivity tensor
+            rt=Z.ResistivityTensor(zd[:,per],np.repeat(1./period[per],ns))
+            
+            if resp_fn!=None:
+                #get phase tensor and residual phase tensor
+                ptr=Z.PhaseTensor(zr[:,per])
+                ptd=Z.PhaseTensorResidual(zd[:,per],zr[:,per])
+                
+                #get resistivity tensor and residual
+                rtr=Z.ResistivityTensor(zr[:,per],np.repeat(1./period[per],ns))
+                rtd=Z.ResistivityTensorResidual(zd[:,per],zr[:,per],
+                                                np.repeat(1./period[per],ns))
+                
+                if colormm==None:
+                    if ecolor=='phimin':
+                        ptmin,ptmax=(ptr.phimin.min()/(np.pi/2),
+                                     ptr.phimin.max()/(np.pi/2))
+                    elif ecolor=='beta':
+                        ptmin,ptmax=(ptr.beta.min(),ptr.beta.max())
+                        
+                    ptrmin,ptrmax=(ptd.ecolor.min(),ptd.ecolor.max())
+                    rtmin,rtmax=(np.log10(rtr.rhodet.min()),
+                                 np.log10(rtr.rhodet.max()))
+                    rtrmin,rtrmax=rtd.rhodet.min(),rtd.rhodet.max()
+                #make subplots            
+                ax1=fig.add_subplot(2,3,1,aspect='equal')
+                ax2=fig.add_subplot(2,3,2,aspect='equal')
+                ax3=fig.add_subplot(2,3,3,aspect='equal')
+                ax4=fig.add_subplot(2,3,4,aspect='equal')
+                ax5=fig.add_subplot(2,3,5,aspect='equal')
+                ax6=fig.add_subplot(2,3,6,aspect='equal')
+                
+                for jj in range(ns):
+                    #-----------plot data phase tensors---------------
+                    eheightd=pt.phimin[jj]/ptr.phimax.max()*ptsize
+                    ewidthd=pt.phimax[jj]/ptr.phimax.max()*ptsize
+                
+                    ellipd=Ellipse((ewarr[jj],nsarr[jj]),width=ewidthd,
+                                   height=eheightd,angle=pt.azimuth[jj])
+                    #color ellipse:
+                    if ecolor=='phimin':
+                        cvar=(pt.phimin[jj]/(np.pi/2)-ptmin)/(ptmax-ptmin)
+                        if abs(cvar)>1:
+                            ellipd.set_facecolor((1,0,.1))
+                        else:
+                            ellipd.set_facecolor((1,1-abs(cvar),.1))
+                    if ecolor=='beta':
+                        cvar=(abs(pt.beta[jj])-ptmin)/(ptmax-ptmin)
+                        if abs(cvar)>1:
+                            ellipd.set_facecolor((1,1,.1))
+                        else:
+                            ellipd.set_facecolor((1-cvars,1-cvars,1))
+                    
+                    ax1.add_artist(ellipd)
+                    
+                    #----------plot response phase tensors---------------------
+                    eheightr=ptr.phimin[jj]/ptr.phimax.max()*ptsize
+                    ewidthr=ptr.phimax[jj]/ptr.phimax.max()*ptsize
+                
+                    ellipr=Ellipse((ewarr[jj],nsarr[jj]),width=ewidthr,
+                                   height=eheightr,angle=ptr.azimuth[jj])
+                    #color ellipse:
+                    if ecolor=='phimin':
+                        cvar=(ptr.phimin[jj]/(np.pi/2)-ptmin)/(ptmax-ptmin)
+                        if abs(cvar)>1:
+                            ellipr.set_facecolor((1,0,.1))
+                        else:
+                            ellipr.set_facecolor((1,1-abs(cvar),.1))
+                    if ecolor=='beta':
+                        cvar=(abs(ptr.beta[jj])-ptmin)/(ptmax-ptmin)
+                        if abs(cvar)>1:
+                            ellipr.set_facecolor((1,1,.1))
+                        else:
+                            ellipr.set_facecolor((1-cvars,1-cvars,1))
+                    ax2.add_artist(ellipr)
+                    
+                    #--------plot residual phase tensors-------------
+                    eheight=ptd.phimin[jj]/ptd.phimax.max()*ptrsize
+                    ewidth=ptd.phimax[jj]/ptd.phimax.max()*ptrsize
+                
+                    ellip=Ellipse((ewarr[jj],nsarr[jj]),width=ewidth,
+                                   height=eheight,angle=ptd.azimuth[jj]-90)
+                    #color ellipse:
+                    cvar=(ptd.ecolor[jj]-ptrmin)/(ptrmax-ptrmin)
+                    if abs(cvar)>1:
+                        ellip.set_facecolor((0,0,0))
+                    else:
+                        ellip.set_facecolor((abs(cvar),.5,.5))
+                    
+                    ax3.add_artist(ellip)
+                    
+                    #-----------plot data resistivity tensors---------------
+                    rheightd=rt.rhomin[jj]/rtr.rhomax.max()*rtsize
+                    rwidthd=rt.rhomax[jj]/rtr.rhomax.max()*rtsize
+                
+                    rellipd=Ellipse((ewarr[jj],nsarr[jj]),width=rwidthd,
+                                   height=rheightd,angle=rt.rhoazimuth[jj])
+                    #color ellipse:
+                    cvar=(np.log10(rt.rhodet[jj])-rtmin)/(rtmax-rtmin)
+                    if cvar>.5:
+                        if cvar>1:
+                            rellipd.set_facecolor((0,0,1))
+                        else:
+                            rellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
+                    else:
+                        if cvar<-1:
+                            rellipd.set_facecolor((1,0,0))
+                        else:
+                            rellipd.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
+                    
+                    ax4.add_artist(rellipd)
+                    
+                    #----------plot response resistivity tensors---------------------
+                    rheightr=rtr.rhomin[jj]/rtr.rhomax.max()*rtsize
+                    rwidthr=rtr.rhomax[jj]/rtr.rhomax.max()*rtsize
+                
+                    rellipr=Ellipse((ewarr[jj],nsarr[jj]),width=rwidthr,
+                                   height=rheightr,angle=rtr.rhoazimuth[jj])
+    
+                    #color ellipse:
+                    cvar=(np.log10(rtr.rhodet[jj])-rtmin)/(rtmax-rtmin)
+                    if cvar>.5:
+                        if cvar>1:
+                            rellipr.set_facecolor((0,0,1))
+                        else:
+                            rellipr.set_facecolor((1-abs(cvar),1-abs(cvar),1))
+                    else:
+                        if cvar<-1:
+                            rellipr.set_facecolor((1,0,0))
+                        else:
+                            rellipr.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
+                    
+                    ax5.add_artist(rellipr)
+                    
+                    #--------plot residual resistivity tensors-------------
+                    rheight=rtd.rhomin[jj]/rtd.rhomax.max()*rtrsize
+                    rwidth=rtd.rhomax[jj]/rtd.rhomax.max()*rtrsize
+                
+                    rellip=Ellipse((ewarr[jj],nsarr[jj]),width=rwidth,
+                                   height=rheight,angle=rtd.azimuth[jj]-90)
+                    #color ellipse:
+                    cvar=(rtd.rhodet[jj]-rtrmin)/(rtrmax-rtrmin)
+                    if cvar<0:
+                        if cvar<-1:
+                            rellip.set_facecolor((0,0,1))
+                        else:
+                            rellip.set_facecolor((1-abs(cvar),1-abs(cvar),1))
+                    else:
+                        if cvar>1:
+                            rellip.set_facecolor((1,0,0))
+                        else:
+                            rellip.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
+                        
+                    ax6.add_artist(rellip)
+                    
+                for aa,ax in enumerate([ax1,ax2,ax3,ax4,ax5,ax6]):
+                    ax.set_xlim(ewarr.min()-xpad,ewarr.max()+xpad)
+                    ax.set_ylim(nsarr.min()-xpad,nsarr.max()+xpad)
+                    ax.grid('on')
+                    if aa<3:
+                        plt.setp(ax.get_xticklabels(),visible=False)
+                    if aa==0 or aa==3:
+                        pass
+                    else:
+                        plt.setp(ax.get_yticklabels(),visible=False)
+                    
+                    cbax=mcb.make_axes(ax,shrink=.9,pad=.05,orientation='vertical')
+                    if aa==0 or aa==1:
+                        cbx=mcb.ColorbarBase(cbax[0],cmap=ptcmap,
+                                         norm=Normalize(vmin=ptmin*180/np.pi,
+                                                        vmax=ptmax*180/np.pi),
+                                         orientation='vertical',format='%.2g')
+                        
+                        cbx.set_label('Phase (deg)',
+                                      fontdict={'size':7,'weight':'bold'})
+                    if aa==2:
+                        cbx=mcb.ColorbarBase(cbax[0],cmap=ptcmap2,
+                                         norm=Normalize(vmin=ptrmin,
+                                                        vmax=ptrmax),
+                                         orientation='vertical',format='%.2g')
+                        
+                        cbx.set_label('$\Delta_{\Phi}$',
+                                      fontdict={'size':7,'weight':'bold'})
+                    if aa==3 or aa==4:
+                        cbx=mcb.ColorbarBase(cbax[0],cmap=rtcmapr,
+                                         norm=Normalize(vmin=10**rtmin,
+                                                        vmax=10**rtmax),
+                                         orientation='vertical',format='%.2g')
+                        
+                        cbx.set_label('App. Res. ($\Omega \cdot$m)',
+                                      fontdict={'size':7,'weight':'bold'})
+                    if aa==5:
+                        cbx=mcb.ColorbarBase(cbax[0],cmap=rtcmap,
+                                         norm=Normalize(vmin=rtrmin,
+                                                        vmax=rtrmax),
+                                         orientation='vertical',format='%.2g')
+                        
+                        cbx.set_label('$\Delta_{rho}$',
+                                      fontdict={'size':7,'weight':'bold'})
+                     
+                plt.show()
+            
+            #----Plot Just the data------------------        
+            else:
+                if colormm==None:
+                    if ecolor=='phimin':
+                        ptmin,ptmax=(pt.phimin.min()/(np.pi/2),
+                                     pt.phimin.max()/(np.pi/2))
+                    elif ecolor=='beta':
+                        ptmin,ptmax=(pt.beta.min(),pt.beta.max())
+                        
+                    rtmin,rtmax=(np.log10(rt.rhodet.min()),
+                                 np.log10(rt.rhodet.max()))
+                ax1=fig.add_subplot(1,2,1,aspect='equal')
+                ax2=fig.add_subplot(1,2,2,aspect='equal')
+                for jj in range(ns):
+                    #-----------plot data phase tensors---------------
+                    #check for nan in the array cause it messes with the max                
+                    pt.phimax=np.nan_to_num(pt.phimax)
+                    
+                    #scale the ellipse
+                    eheightd=pt.phimin[jj]/pt.phimax.max()*ptsize
+                    ewidthd=pt.phimax[jj]/pt.phimax.max()*ptsize
+                
+                    #make the ellipse
+                    ellipd=Ellipse((ewarr[jj],nsarr[jj]),width=ewidthd,
+                                   height=eheightd,angle=pt.azimuth[jj])
+                    #color ellipse:
+                    if ecolor=='phimin':
+                        cvar=(pt.phimin[jj]/(np.pi/2)-ptmin)/(ptmax-ptmin)
+                        if abs(cvar)>1:
+                            ellipd.set_facecolor((1,0,.1))
+                        else:
+                            ellipd.set_facecolor((1,1-abs(cvar),.1))
+                    if ecolor=='beta':
+                        cvar=(abs(pt.beta[jj])-ptmin)/(ptmax-ptmin)
+                        if abs(cvar)>1:
+                            ellipd.set_facecolor((1,1,.1))
+                        else:
+                            ellipd.set_facecolor((1-cvars,1-cvars,1))
+                    
+                    ax1.add_artist(ellipd)
+                    
+                    #-----------plot data resistivity tensors---------------
+                    rt.rhomax=np.nan_to_num(rt.rhomax)
+                    rheightd=rt.rhomin[jj]/rt.rhomax.max()*rtsize
+                    rwidthd=rt.rhomax[jj]/rt.rhomax.max()*rtsize
+                
+                    rellipd=Ellipse((ewarr[jj],nsarr[jj]),width=rwidthd,
+                                   height=rheightd,angle=rt.rhoazimuth[jj])
+                    #color ellipse:
+                    cvar=(np.log10(rt.rhodet[jj])-rtmin)/(rtmax-rtmin)
+                    if cvar>.5:
+                        if cvar>1:
+                            rellipd.set_facecolor((0,0,1))
+                        else:
+                            rellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
+                    else:
+                        if cvar<-1:
+                            rellipd.set_facecolor((1,0,0))
+                        else:
+                            rellipd.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
+                    
+                    ax2.add_artist(rellipd)
+                    
+                for aa,ax in enumerate([ax1,ax2]):
+                    ax.set_xlim(ewarr.min()-xpad,ewarr.max()+xpad)
+                    ax.set_ylim(nsarr.min()-xpad,nsarr.max()+xpad)
+                    ax.grid('on')
+                    ax.set_xlabel('easting (km)',fontdict={'size':10,
+                                  'weight':'bold'})
+    
+                    if aa==1:
+                        plt.setp(ax.get_yticklabels(),visible=False)
+                    else:
+                        ax.set_ylabel('northing (km)',fontdict={'size':10,
+                                  'weight':'bold'})
+    #                cbax=mcb.make_axes(ax,shrink=.8,pad=.15,orientation='horizontal',
+    #                               anchor=(.5,1))
+                    #l,b,w,h
+    #                cbax=fig.add_axes([.1,.95,.35,.05])
+                    if aa==0:
+                        cbax=fig.add_axes([.12,.97,.31,.02])
+                        cbx=mcb.ColorbarBase(cbax,cmap=ptcmap,
+                                         norm=Normalize(vmin=ptmin*180/np.pi,
+                                                        vmax=ptmax*180/np.pi),
+                                         orientation='horizontal',format='%.2g')
+                        
+                        cbx.set_label('Phase (deg)',
+                                      fontdict={'size':7,'weight':'bold'})
+                    if aa==1:
+                        cbax=fig.add_axes([.59,.97,.31,.02])
+                        cbx=mcb.ColorbarBase(cbax,cmap=rtcmapr,
+                                         norm=Normalize(vmin=10**rtmin,
+                                                        vmax=10**rtmax),
+                                         orientation='horizontal',format='%.2g')
+                        
+                        cbx.set_label('App. Res. ($\Omega \cdot$m)',
+                                      fontdict={'size':7,'weight':'bold'})
+                        cbx.set_ticks((10**rtmin,10**rtmax))
+                plt.show()
+
+#==============================================================================
+# plot slices 
+#==============================================================================
+class PlotSlices(object):
+    """
+    plot all slices and be able to scroll through the model
+    
+    """
+    
+    def __init__(self, model_fn, data_fn=None, station_fn=None, 
+                 initial_fn=None, **kwargs):
+        self.model_fn = model_fn
+        self.data_fn = data_fn
+        self.station_fn = station_fn
+        self.initial_fn = initial_fn
+        
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        self.fig_aspect = kwargs.pop('fig_aspect', 1)
+        self.title = kwargs.pop('title', 'on')
+        self.font_size = kwargs.pop('font_size', 7)
+        
+        self.subplot_wspace = .20
+        self.subplot_hspace = .30
+        self.subplot_right = .98
+        self.subplot_left = .08
+        self.subplot_top = .97
+        self.subplot_bottom = .1
+        
+        self.index_vertical = kwargs.pop('index_vertical', 0)
+        self.index_east = kwargs.pop('index_east', 0)
+        self.index_north = kwargs.pop('index_north', 0)
+        
+        self.cmap = kwargs.pop('cmap', 'jet_r')
+        self.climits = kwargs.pop('climits', (0, 4))
+        
+        self.map_scale = kwargs.pop('map_scale', 'km')
+        #make map scale
+        if self.map_scale=='km':
+            self.dscale=1000.
+        elif self.map_scale=='m':
+            self.dscale=1. 
+        self.ew_limits = kwargs.pop('ew_limits', None)
+        self.ns_limits = kwargs.pop('ns_limits', None)
+        self.z_limits = kwargs.pop('z_limits', None)
+        
+        self.res_model = None
+        self.grid_east = None
+        self.grid_north = None
+        self.grid_z  = None
+        
+        self.nodes_east = None
+        self.nodes_north = None
+        self.nodes_z = None
+        
+        self.mesh_east = None
+        self.mesh_north = None
+        
+        self.station_east = None
+        self.station_north = None
+        self.station_names = None
+        
+        self.station_id = kwargs.pop('station_id', None)
+        self.station_font_size = kwargs.pop('station_font_size', 8)
+        self.station_font_pad = kwargs.pop('station_font_pad', 1.0)
+        self.station_font_weight = kwargs.pop('station_font_weight', 'bold')
+        self.station_font_rotation = kwargs.pop('station_font_rotation', 60)
+        self.station_font_color = kwargs.pop('station_font_color', 'k')
+        self.station_marker = kwargs.pop('station_marker', 
+                                         r"$\blacktriangledown$")
+        self.station_color = kwargs.pop('station_color', 'k')
+        self.ms = kwargs.pop('ms', 10)
+        
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+        if self.plot_yn == 'y':
+            self.plot()
+        
+        
+    def read_files(self):
+        """
+        read in the files to get appropriate information
+        """
+        #--> read in model file
+        if self.model_fn is not None:
+            if os.path.isfile(self.model_fn) == True:
+                wsmodel = WSModel(self.model_fn)
+                self.res_model = wsmodel.res_model
+                self.grid_east = wsmodel.grid_east/self.dscale
+                self.grid_north = wsmodel.grid_north/self.dscale
+                self.grid_z = wsmodel.grid_z/self.dscale
+                self.nodes_east = wsmodel.nodes_east/self.dscale
+                self.nodes_north = wsmodel.nodes_north/self.dscale
+                self.nodes_z = wsmodel.nodes_z/self.dscale
+            else:
+                raise mtex.MTpyError_file_handling(
+                        '{0} does not exist, check path'.format(self.model_fn))
+        
+        #--> read in data file to get station locations
+        if self.data_fn is not None:
+            if os.path.isfile(self.data_fn) == True:
+                wsdata = WSData()
+                wsdata.read_data_file(self.data_fn)
+                self.station_east = wsdata.data['east']/self.dscale
+                self.station_north = wsdata.data['north']/self.dscale
+                self.station_names = wsdata.data['station']
+            else:
+                print 'Could not find data file {0}'.format(self.data_fn)
+            
+        #--> read in station file
+        if self.station_fn is not None:
+            if os.path.isfile(self.station_fn) == True:
+                wsstations = WSStation(self.station_fn)
+                wsstations.read_station_file()
+                self.station_east = wsstations.east/self.dscale
+                self.station_north = wsstations.north/self.dscale
+                self.station_names = wsstations.names
+            else:
+                print 'Could not find station file {0}'.format(self.station_fn)
+        
+        #--> read in initial file
+        if self.initial_fn is not None:
+            if os.path.isfile(self.initial_fn) == True:
+                wsmesh = WSMesh()
+                wsmesh.read_initial_file(self.initial_fn)
+                self.grid_east = wsmesh.grid_east/self.dscale
+                self.grid_north = wsmesh.grid_north/self.dscale
+                self.grid_z = wsmesh.grid_z/self.dscale
+                self.nodes_east = wsmesh.nodes_east/self.dscale
+                self.nodes_north = wsmesh.nodes_north/self.dscale
+                self.nodes_z = wsmesh.nodes_z/self.dscale
+                
+                #need to convert index values to resistivity values
+                rdict = dict([(ii,res) for ii,res in enumerate(wsmesh.res_list,1)])
+                
+                for ii in range(len(wsmesh.res_list)):
+                    self.res_model[np.where(wsmesh.res_model==ii+1)] = \
+                                                                    rdict[ii+1]
+            else:
+                raise mtex.MTpyError_file_handling(
+                     '{0} does not exist, check path'.format(self.initial_fn))
+        
+        if self.initial_fn is None and self.model_fn is None:
+            raise mtex.MTpyError_inputarguments('Need to input either a model'
+                                                ' file or initial file.')
+        
+    def plot(self):
+        """
+        plot:
+            east vs. vertical,
+            north vs. vertical,
+            east vs. north
+            
+        
+        """
+        
+        self.read_files()
+        
+        self.get_station_grid_locations()
+        
+        self.font_dict = {'size':self.font_size+2, 'weight':'bold'}
+        #set the limits of the plot
+        if self.ew_limits == None:
+            if self.station_east is not None:
+                self.ew_limits = (np.floor(self.station_east.min()), 
+                                  np.ceil(self.station_east.max()))
+            else:
+                self.ew_limits = (self.grid_east[5], self.grid_east[-5])
+
+        if self.ns_limits == None:
+            if self.station_north is not None:
+                self.ns_limits = (np.floor(self.station_north.min()), 
+                                  np.ceil(self.station_north.max()))
+            else:
+                self.ns_limits = (self.grid_north[5], self.grid_north[-5])
+        
+        if self.z_limits == None:
+                self.z_limits = (self.grid_z[0]-5000/self.dscale, 
+                                 self.grid_z[-5])
+            
+        
+        self.fig = plt.figure(self.fig_num, figsize=self.fig_size,
+                              dpi=self.fig_dpi)
+        plt.clf()
+        gs = gridspec.GridSpec(2, 2,
+                               wspace=self.subplot_wspace,
+                               left=self.subplot_left,
+                               top=self.subplot_top,
+                               bottom=self.subplot_bottom, 
+                               right=self.subplot_right, 
+                               hspace=self.subplot_hspace)        
+        
+        #make subplots
+        self.ax_ez = self.fig.add_subplot(gs[0, 0], aspect=self.fig_aspect)
+        self.ax_nz = self.fig.add_subplot(gs[1, 1], aspect=self.fig_aspect)
+        self.ax_en = self.fig.add_subplot(gs[1, 0], aspect=self.fig_aspect)
+        self.ax_map = self.fig.add_subplot(gs[0, 1])
+        
+        #make grid meshes being sure the indexing is correct
+        self.mesh_ez_east, self.mesh_ez_vertical = np.meshgrid(self.grid_east,
+                                                               self.grid_z,
+                                                               indexing='ij') 
+        self.mesh_nz_north, self.mesh_nz_vertical = np.meshgrid(self.grid_north,
+                                                                self.grid_z,
+                                                                indexing='ij') 
+        self.mesh_en_east, self.mesh_en_north = np.meshgrid(self.grid_east, 
+                                                            self.grid_north,
+                                                            indexing='ij')
+                                                            
+        #--> plot east vs vertical
+        self._update_ax_ez()
+        
+        #--> plot north vs vertical
+        self._update_ax_nz()
+                              
+        #--> plot east vs north
+        self._update_ax_en()
+                                 
+        #--> plot the grid as a map view 
+        self._update_map()
+        
+        #plot color bar
+        cbx = mcb.make_axes(self.ax_map, fraction=.15, shrink=.75, pad = .1)
+        cb = mcb.ColorbarBase(cbx[0],
+                              cmap=self.cmap,
+                              norm=Normalize(vmin=self.climits[0],
+                                             vmax=self.climits[1]))
+
+   
+        cb.ax.yaxis.set_label_position('right')
+        cb.ax.yaxis.set_label_coords(1.25,.5)
+        cb.ax.yaxis.tick_left()
+        cb.ax.tick_params(axis='y',direction='in')
+                            
+        cb.set_label('Resistivity ($\Omega \cdot$m)',
+                     fontdict={'size':self.font_size+1})
+                     
+        cb.set_ticks(np.arange(np.ceil(self.climits[0]),
+                               np.floor(self.climits[1]+1)))
+        cblabeldict={-2:'$10^{-3}$',-1:'$10^{-1}$',0:'$10^{0}$',1:'$10^{1}$',
+                     2:'$10^{2}$',3:'$10^{3}$',4:'$10^{4}$',5:'$10^{5}$',
+                     6:'$10^{6}$',7:'$10^{7}$',8:'$10^{8}$'}
+        cb.set_ticklabels([cblabeldict[cc] 
+                            for cc in np.arange(np.ceil(self.climits[0]),
+                                                np.floor(self.climits[1]+1))])
+                   
+        plt.show()
+        
+        self.key_press = self.fig.canvas.mpl_connect('key_press_event',
+                                                     self.on_key_press)
+
+
+    def on_key_press(self, event):
+        """
+        on a key press change the slices
+        
+        """                                                            
+
+        key_press = event.key
+        
+        if key_press == 'n':
+            if self.index_north == self.grid_north.shape[0]:
+                print 'Already at northern most grid cell'
+            else:
+                self.index_north += 1
+                if self.index_north > self.grid_north.shape[0]:
+                    self.index_north = self.grid_north.shape[0]
+            self._update_ax_ez()
+            self._update_map()
+       
+        if key_press == 'm':
+            if self.index_north == 0:
+                print 'Already at southern most grid cell'
+            else:
+                self.index_north -= 1 
+                if self.index_north < 0:
+                    self.index_north = 0
+            self._update_ax_ez()
+            self._update_map()
+                    
+        if key_press == 'e':
+            if self.index_east == self.grid_east.shape[0]:
+                print 'Already at eastern most grid cell'
+            else:
+                self.index_east += 1
+                if self.index_east > self.grid_east.shape[0]:
+                    self.index_east = self.grid_east.shape[0]
+            self._update_ax_nz()
+            self._update_map()
+       
+        if key_press == 'w':
+            if self.index_east == 0:
+                print 'Already at western most grid cell'
+            else:
+                self.index_east -= 1 
+                if self.index_east < 0:
+                    self.index_east = 0
+            self._update_ax_nz()
+            self._update_map()
+                    
+        if key_press == 'd':
+            if self.index_vertical == self.grid_z.shape[0]:
+                print 'Already at deepest grid cell'
+            else:
+                self.index_vertical += 1
+                if self.index_vertical > self.grid_z.shape[0]:
+                    self.index_vertical = self.grid_z.shape[0]
+            self._update_ax_en()
+            print 'Depth = {0:.5g} ({1})'.format(self.grid_z[self.index_vertical],
+                                                 self.map_scale)
+       
+        if key_press == 'u':
+            if self.index_vertical == 0:
+                print 'Already at surface grid cell'
+            else:
+                self.index_vertical -= 1 
+                if self.index_vertical < 0:
+                    self.index_vertical = 0
+            self._update_ax_en()
+            print 'Depth = {0:.5gf} ({1})'.format(self.grid_z[self.index_vertical],
+                                                 self.map_scale)
+                    
+    def _update_ax_ez(self):
+        """
+        update east vs vertical plot
+        """
+        self.ax_ez.cla()
+        plot_ez = np.log10(self.res_model[self.index_north, :, :]) 
+        self.ax_ez.pcolormesh(self.mesh_ez_east,
+                              self.mesh_ez_vertical, 
+                              plot_ez,
+                              cmap=self.cmap,
+                              vmin=self.climits[0],
+                              vmax=self.climits[1])
+        #plot stations
+        for sx in self.station_dict_north[self.grid_north[self.index_north]]:
+            self.ax_ez.text(sx,
+                            0,
+                            self.station_marker,
+                            horizontalalignment='center',
+                            verticalalignment='baseline',
+                            fontdict={'size':self.ms,
+                                      'color':self.station_color})
+                                      
+        self.ax_ez.set_xlim(self.ew_limits)
+        self.ax_ez.set_ylim(self.z_limits[1], self.z_limits[0])
+        self.ax_ez.set_ylabel('Depth ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        self.ax_ez.set_xlabel('Easting ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        self.fig.canvas.draw()
+        self._update_map()
+        
+    def _update_ax_nz(self):
+        """
+        update east vs vertical plot
+        """
+        self.ax_nz.cla()
+        plot_nz = np.log10(self.res_model[:, self.index_east, :]) 
+        self.ax_nz.pcolormesh(self.mesh_nz_north,
+                              self.mesh_nz_vertical, 
+                              plot_nz,
+                              cmap=self.cmap,
+                              vmin=self.climits[0],
+                              vmax=self.climits[1])
+        #plot stations
+        for sy in self.station_dict_east[self.grid_east[self.index_east]]:
+            self.ax_nz.text(sy,
+                            0,
+                            self.station_marker,
+                            horizontalalignment='center',
+                            verticalalignment='baseline',
+                            fontdict={'size':self.ms,
+                                      'color':self.station_color})
+        self.ax_nz.set_xlim(self.ns_limits)
+        self.ax_nz.set_ylim(self.z_limits[1], self.z_limits[0])
+        self.ax_nz.set_xlabel('Northing ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        self.ax_nz.set_ylabel('Depth ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        self.fig.canvas.draw()
+        self._update_map()
+        
+    def _update_ax_en(self):
+        """
+        update east vs vertical plot
+        """
+        
+        self.ax_en.cla()
+        plot_en = np.log10(self.res_model[:, :, self.index_vertical].T) 
+        self.ax_en.pcolormesh(self.mesh_en_east,
+                              self.mesh_en_north, 
+                              plot_en,
+                              cmap=self.cmap,
+                              vmin=self.climits[0],
+                              vmax=self.climits[1])
+        self.ax_en.set_xlim(self.ew_limits)
+        self.ax_en.set_ylim(self.ns_limits)
+        self.ax_en.set_ylabel('Northing ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        self.ax_en.set_xlabel('Easting ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        #--> plot the stations
+        if self.station_east is not None:
+            for ee, nn in zip(self.station_east, self.station_north):
+                self.ax_en.text(ee, nn, '*', 
+                                 verticalalignment='center',
+                                 horizontalalignment='center',
+                                 fontdict={'size':5, 'weight':'bold'})
+
+        self.fig.canvas.draw()
+        self._update_map()
+        
+    def _update_map(self):
+        self.ax_map.cla()
+        self.east_line_xlist = []
+        self.east_line_ylist = []            
+        for xx in self.grid_east:
+            self.east_line_xlist.extend([xx, xx])
+            self.east_line_xlist.append(None)
+            self.east_line_ylist.extend([self.grid_north.min(), 
+                                         self.grid_north.max()])
+            self.east_line_ylist.append(None)
+        self.ax_map.plot(self.east_line_xlist,
+                         self.east_line_ylist,
+                         lw=.25,
+                         color='k')
+
+        self.north_line_xlist = []
+        self.north_line_ylist = [] 
+        for yy in self.grid_north:
+            self.north_line_xlist.extend([self.grid_east.min(),
+                                          self.grid_east.max()])
+            self.north_line_xlist.append(None)
+            self.north_line_ylist.extend([yy, yy])
+            self.north_line_ylist.append(None)
+        self.ax_map.plot(self.north_line_xlist,
+                         self.north_line_ylist,
+                         lw=.25,
+                         color='k')
+        #--> e-w indication line 
+        self.ax_map.plot([self.grid_east.min(), 
+                          self.grid_east.max()],
+                         [self.grid_north[self.index_north], 
+                          self.grid_north[self.index_north]],
+                         lw=1,
+                         color='g')
+                         
+        #--> e-w indication line 
+        self.ax_map.plot([self.grid_east[self.index_east], 
+                          self.grid_east[self.index_east]],
+                         [self.grid_north.min(), 
+                          self.grid_north.max()],
+                         lw=1,
+                         color='b')
+         #--> plot the stations
+        if self.station_east is not None:
+            for ee, nn in zip(self.station_east, self.station_north):
+                self.ax_map.text(ee, nn, '*', 
+                                 verticalalignment='center',
+                                 horizontalalignment='center',
+                                 fontdict={'size':5, 'weight':'bold'})
+                                 
+        self.ax_map.set_xlim(self.ew_limits)
+        self.ax_map.set_ylim(self.ns_limits)
+        self.ax_map.set_ylabel('Northing ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        self.ax_map.set_xlabel('Easting ({0})'.format(self.map_scale),
+                              fontdict=self.font_dict)
+        
+        #plot stations                      
+        self.ax_map.text(self.ew_limits[0]*.95, self.ns_limits[1]*.95,
+                 '{0:.5g} ({1})'.format(self.grid_z[self.index_vertical],
+                                        self.map_scale),
+                 horizontalalignment='left',
+                 verticalalignment='top',
+                 bbox={'facecolor': 'white'},
+                 fontdict=self.font_dict)
+        
+        
+        self.fig.canvas.draw()
+        
+    def get_station_grid_locations(self):
+        """
+        get the grid line on which a station resides for plotting
+        
+        """
+        self.station_dict_east = dict([(gx, []) for gx in self.grid_east])
+        self.station_dict_north = dict([(gy, []) for gy in self.grid_north])
+        if self.station_east is not None:
+            for ss, sx in enumerate(self.station_east):
+                gx = np.where(self.grid_east <= sx)[0][-1]
+                self.station_dict_east[self.grid_east[gx]].append(self.station_north[ss])
+            
+            for ss, sy in enumerate(self.station_north):
+                gy = np.where(self.grid_north <= sy)[0][-1]
+                self.station_dict_north[self.grid_north[gy]].append(self.station_east[ss])
+        else:
+            return 
+                  
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plotAllResponses()
+            >>> #change line width
+            >>> p1.lw = 2
+            >>> p1.redraw_plot()
+        """
+        
+        plt.close(self.fig)
+        self.plot()
+            
+    def save_figure(self, save_fn=None, fig_dpi=None, file_format='pdf', 
+                    orientation='landscape', close_fig='y'):
+        """
+        save_figure will save the figure to save_fn.
+        
+        Arguments:
+        -----------
+        
+            **save_fn** : string
+                          full path to save figure to, can be input as
+                          * directory path -> the directory path to save to
+                            in which the file will be saved as 
+                            save_fn/station_name_PhaseTensor.file_format
+                            
+                          * full path -> file will be save to the given 
+                            path.  If you use this option then the format
+                            will be assumed to be provided by the path
+                            
+            **file_format** : [ pdf | eps | jpg | png | svg ]
+                              file type of saved figure pdf,svg,eps... 
+                              
+            **orientation** : [ landscape | portrait ]
+                              orientation in which the file will be saved
+                              *default* is portrait
+                              
+            **fig_dpi** : int
+                          The resolution in dots-per-inch the file will be
+                          saved.  If None then the dpi will be that at 
+                          which the figure was made.  I don't think that 
+                          it can be larger than dpi of the figure.
+                          
+            **close_plot** : [ y | n ]
+                             * 'y' will close the plot after saving.
+                             * 'n' will leave plot open
+                          
+        :Example: ::
+            
+            >>> # to save plot as jpg
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotPseudoSection()
+            >>> ps1.save_plot(r'/home/MT/figures', file_format='jpg')
+            
+        """
+
+        if fig_dpi == None:
+            fig_dpi = self.fig_dpi
+            
+        if os.path.isdir(save_fn) == False:
+            file_format = save_fn[-3:]
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                             orientation=orientation, bbox_inches='tight')
+            
+        else:
+            save_fn = os.path.join(save_fn, '_E{0}_N{1}_Z{2}.{3}'.format(
+                                    self.index_east, self.index_north,
+                                    self.index_vertical, file_format))
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                        orientation=orientation, bbox_inches='tight')
+        
+        if close_fig == 'y':
+            plt.clf()
+            plt.close(self.fig)
+        
+        else:
+            pass
+        
+        self.fig_fn = save_fn
+        print 'Saved figure to: '+self.fig_fn
+        
+        
+        
+        
+        
+        
+        
+        
+        
