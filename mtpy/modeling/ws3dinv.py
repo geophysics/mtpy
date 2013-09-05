@@ -31,6 +31,8 @@ import matplotlib.colors as colors
 import matplotlib.cm as cm
 import mtpy.utils.winglink as wl
 import mtpy.utils.exceptions as mtex
+import mtpy.analysis.pt as mtpt
+import mtpy.imaging.mtcolors as mtcl
 
 import mtpy.utils.latlongutmconversion as ll2utm
 
@@ -3344,17 +3346,19 @@ class PlotDepthSlice(object):
 #==============================================================================
 # plot phase tensors
 #==============================================================================
-class PlotPTMaps(object):
+class PlotPTMaps(mtplottools.MTEllipse):
     """
     plot phase tensor maps including residual pt
     """
     
     def __init__(self, data_fn=None, resp_fn=None, station_fn=None, 
-                 model_fn=None, **kwargs):
+                 model_fn=None, initial_fn=None, **kwargs):
         
         self.model_fn = model_fn
         self.data_fn = data_fn
         self.station_fn = station_fn
+        self.resp_fn = resp_fn
+        self.initial_fn = initial_fn
         
         self.save_path = kwargs.pop('save_path', None)
         if self.model_fn is not None and self.save_path is None:
@@ -3367,6 +3371,7 @@ class PlotPTMaps(object):
                 os.mkdir(self.save_path)
                 
         self.save_plots = kwargs.pop('save_plots', 'y')
+        self.plot_period_list = kwargs.pop('plot_period_list', None)
         
         self.depth_index = kwargs.pop('depth_index', None)
         self.map_scale = kwargs.pop('map_scale', 'km')
@@ -3377,6 +3382,9 @@ class PlotPTMaps(object):
             self.dscale=1. 
         self.ew_limits = kwargs.pop('ew_limits', None)
         self.ns_limits = kwargs.pop('ns_limits', None)
+        
+        self.pad_east = kwargs.pop('pad_east', 2)
+        self.pad_north = kwargs.pop('pad_north', 2)
         
         self.plot_grid = kwargs.pop('plot_grid', 'n')
         
@@ -3390,19 +3398,26 @@ class PlotPTMaps(object):
         self.xminorticks = kwargs.pop('xminorticks', 1000)
         self.yminorticks = kwargs.pop('yminorticks', 1000)
         
-        self.climits = kwargs.pop('climits', (0,4))
-        self.cmap = kwargs.pop('cmap', 'jet_r')
-        self.font_size = kwargs.pop('font_size', 8)
+        self.residual_cmap = kwargs.pop('residual_cmap', 'mt_wh2or')
+        self.font_size = kwargs.pop('font_size', 7)
         
-        self.cb_shrink = kwargs.pop('cb_shrink', .8)
-        self.cb_pad = kwargs.pop('cb_pad', .01)
-        self.cb_orientation = kwargs.pop('cb_orientation', 'horizontal')
-        self.cb_location = kwargs.pop('cb_location', None)
+        self.cb_tick_step = kwargs.pop('cb_tick_step', 45)
+        self.cb_residual_tick_step = kwargs.pop('cb_residual_tick_step', 3)
+        self.cb_pad = kwargs.pop('cb_pad', .14)
+        
+        self.res_limits = kwargs.pop('res_limits', (0,4))
+        self.res_cmap = kwargs.pop('res_cmap', 'jet_r')
+        
+        #--> set the ellipse properties -------------------
+        self._ellipse_dict = kwargs.pop('ellipse_dict', {})
+        self._read_ellipse_dict()
         
         self.subplot_right = .99
         self.subplot_left = .085
         self.subplot_top = .92
         self.subplot_bottom = .1
+        self.subplot_hspace = .2
+        self.subplot_wspace = .05
         
         self.res_model = None
         self.grid_east = None
@@ -3420,15 +3435,63 @@ class PlotPTMaps(object):
         self.station_north = None
         self.station_names = None
         
+        self.data = None
+        self.resp = None
+        self.period_list = None
+        
         self.plot_yn = kwargs.pop('plot_yn', 'y')
         if self.plot_yn == 'y':
             self.plot()
+            
+    def _get_pt(self):
+        """
+        get phase tensors
+        """
+
+        #--> read in data file 
+        if self.data_fn is None:
+            raise mtex.MTpyError_inputarguments('Need to input a data file')
+        wsdata = WSData()
+        wsdata.read_data_file(self.data_fn, station_fn=self.station_fn)
+        self.data = wsdata.data['z_data']
+        self.period_list = wsdata.period_list
+        self.station_east = wsdata.data['east']/self.dscale
+        self.station_north = wsdata.data['north']/self.dscale
+        self.station_names = wsdata.data['station']
+        
+        if self.plot_period_list is None:
+            self.plot_period_list = self.period_list
+        else:
+            if type(self.plot_period_list) is list:
+                #check if entries are index values or actual periods
+                if type(self.plot_period_list[0]) is int:
+                    self.plot_period_list = [self.period_list[ii]
+                                             for ii in self.plot_period_list]
+                else:
+                    pass
+            elif type(self.plot_period_list) is int:
+                self.plot_period_list = self.period_list[self.plot_period_list]
+                
+        #--> read model file 
+        if self.model_fn is not None:
+            wsmodel = WSModel(self.model_fn)
+            self.res_model = wsmodel.res_model
+            self.grid_east = wsmodel.grid_east/self.dscale
+            self.grid_north = wsmodel.grid_north/self.dscale
+            self.grid_z = wsmodel.grid_z/self.dscale
+            self.mesh_east, self.mesh_north = np.meshgrid(self.grid_east, 
+                                                          self.grid_north,
+                                                          indexing='ij')
+            
+        #--> read response file
+        if self.resp_fn is not None:
+            wsresp = WSResponse(self.resp_fn)
+            self.resp = wsresp.resp['z_resp']
+            
+        
+        
      
     def plot(self):
-#    def plotTensorMaps(data_fn,resp_fn=None,sites_fn=None,periodlst=None,
-#                   esize=(1,1,5,5),ecolor='phimin',
-#                   colormm=[(0,90),(0,1),(0,4),(-2,2)],
-#                   xpad=.500,units='mv',dpi=150):
         """
         plot phase tensor maps for data and or response, each figure is of a
         different period.  If response is input a third column is added which is 
@@ -3456,355 +3519,324 @@ class PlotPTMaps(object):
             units = 'mv' to convert to Ohm-m 
             dpi = dots per inch of figure
         """
+                
+        self._get_pt()
+        plt.rcParams['font.size'] = self.font_size
+        plt.rcParams['figure.subplot.left'] = self.subplot_left
+        plt.rcParams['figure.subplot.right'] = self.subplot_right
+        plt.rcParams['figure.subplot.bottom'] = self.subplot_bottom
+        plt.rcParams['figure.subplot.top'] = self.subplot_top
         
-        period,zd,zderr,nsarr,ewarr,sitelst=readDataFile(data_fn,sites_fn=sites_fn,
-                                                          units=units)
-        
-        if resp_fn!=None:
-            period,zr,zrerr,nsarr,ewarr,sitelst=readDataFile(resp_fn,sites_fn=sites_fn,
-                                                             units=units)
-        
-        if periodlst==None:
-            periodlst=range(len(period))
-            
-        #put locations into an logical coordinate system in km
-        nsarr=-nsarr/1000
-        ewarr=-ewarr/1000
-    
-        #get coloring min's and max's    
-        if colormm!=None:
-            ptmin,ptmax=(colormm[0][0]*np.pi/180,colormm[0][1]*np.pi/180)
-            ptrmin,ptrmax=colormm[1]
-            rtmin,rtmax=colormm[2]
-            rtrmin,rtrmax=colormm[3]
-        else:
-            pass
-        
-        #get ellipse sizes
-        ptsize=esize[0]
-        ptrsize=esize[1]
-        rtsize=esize[2]
-        rtrsize=esize[3]
-            
-        plt.rcParams['font.size']=10
-        plt.rcParams['figure.subplot.left']=.03
-        plt.rcParams['figure.subplot.right']=.98
-        plt.rcParams['figure.subplot.bottom']=.1
-        plt.rcParams['figure.subplot.top']=.90
-        plt.rcParams['figure.subplot.wspace']=.005
-        plt.rcParams['figure.subplot.hspace']=.005
-        
-        ns=zd.shape[0]
-        
-        for ff,per in enumerate(periodlst):
-            print 'Plotting Period: {0:.5g}'.format(period[per])
-            fig=plt.figure(per+1,dpi=dpi)
-    
-            #get phase tensor
-            pt=Z.PhaseTensor(zd[:,per])
-    
-            #get resistivity tensor
-            rt=Z.ResistivityTensor(zd[:,per],np.repeat(1./period[per],ns))
-            
-            if resp_fn!=None:
-                #get phase tensor and residual phase tensor
-                ptr=Z.PhaseTensor(zr[:,per])
-                ptd=Z.PhaseTensorResidual(zd[:,per],zr[:,per])
-                
-                #get resistivity tensor and residual
-                rtr=Z.ResistivityTensor(zr[:,per],np.repeat(1./period[per],ns))
-                rtd=Z.ResistivityTensorResidual(zd[:,per],zr[:,per],
-                                                np.repeat(1./period[per],ns))
-                
-                if colormm==None:
-                    if ecolor=='phimin':
-                        ptmin,ptmax=(ptr.phimin.min()/(np.pi/2),
-                                     ptr.phimin.max()/(np.pi/2))
-                    elif ecolor=='beta':
-                        ptmin,ptmax=(ptr.beta.min(),ptr.beta.max())
-                        
-                    ptrmin,ptrmax=(ptd.ecolor.min(),ptd.ecolor.max())
-                    rtmin,rtmax=(np.log10(rtr.rhodet.min()),
-                                 np.log10(rtr.rhodet.max()))
-                    rtrmin,rtrmax=rtd.rhodet.min(),rtd.rhodet.max()
-                #make subplots            
-                ax1=fig.add_subplot(2,3,1,aspect='equal')
-                ax2=fig.add_subplot(2,3,2,aspect='equal')
-                ax3=fig.add_subplot(2,3,3,aspect='equal')
-                ax4=fig.add_subplot(2,3,4,aspect='equal')
-                ax5=fig.add_subplot(2,3,5,aspect='equal')
-                ax6=fig.add_subplot(2,3,6,aspect='equal')
-                
-                for jj in range(ns):
-                    #-----------plot data phase tensors---------------
-                    eheightd=pt.phimin[jj]/ptr.phimax.max()*ptsize
-                    ewidthd=pt.phimax[jj]/ptr.phimax.max()*ptsize
-                
-                    ellipd=Ellipse((ewarr[jj],nsarr[jj]),width=ewidthd,
-                                   height=eheightd,angle=pt.azimuth[jj])
-                    #color ellipse:
-                    if ecolor=='phimin':
-                        cvar=(pt.phimin[jj]/(np.pi/2)-ptmin)/(ptmax-ptmin)
-                        if abs(cvar)>1:
-                            ellipd.set_facecolor((1,0,.1))
-                        else:
-                            ellipd.set_facecolor((1,1-abs(cvar),.1))
-                    if ecolor=='beta':
-                        cvar=(abs(pt.beta[jj])-ptmin)/(ptmax-ptmin)
-                        if abs(cvar)>1:
-                            ellipd.set_facecolor((1,1,.1))
-                        else:
-                            ellipd.set_facecolor((1-cvars,1-cvars,1))
-                    
-                    ax1.add_artist(ellipd)
-                    
-                    #----------plot response phase tensors---------------------
-                    eheightr=ptr.phimin[jj]/ptr.phimax.max()*ptsize
-                    ewidthr=ptr.phimax[jj]/ptr.phimax.max()*ptsize
-                
-                    ellipr=Ellipse((ewarr[jj],nsarr[jj]),width=ewidthr,
-                                   height=eheightr,angle=ptr.azimuth[jj])
-                    #color ellipse:
-                    if ecolor=='phimin':
-                        cvar=(ptr.phimin[jj]/(np.pi/2)-ptmin)/(ptmax-ptmin)
-                        if abs(cvar)>1:
-                            ellipr.set_facecolor((1,0,.1))
-                        else:
-                            ellipr.set_facecolor((1,1-abs(cvar),.1))
-                    if ecolor=='beta':
-                        cvar=(abs(ptr.beta[jj])-ptmin)/(ptmax-ptmin)
-                        if abs(cvar)>1:
-                            ellipr.set_facecolor((1,1,.1))
-                        else:
-                            ellipr.set_facecolor((1-cvars,1-cvars,1))
-                    ax2.add_artist(ellipr)
-                    
-                    #--------plot residual phase tensors-------------
-                    eheight=ptd.phimin[jj]/ptd.phimax.max()*ptrsize
-                    ewidth=ptd.phimax[jj]/ptd.phimax.max()*ptrsize
-                
-                    ellip=Ellipse((ewarr[jj],nsarr[jj]),width=ewidth,
-                                   height=eheight,angle=ptd.azimuth[jj]-90)
-                    #color ellipse:
-                    cvar=(ptd.ecolor[jj]-ptrmin)/(ptrmax-ptrmin)
-                    if abs(cvar)>1:
-                        ellip.set_facecolor((0,0,0))
-                    else:
-                        ellip.set_facecolor((abs(cvar),.5,.5))
-                    
-                    ax3.add_artist(ellip)
-                    
-                    #-----------plot data resistivity tensors---------------
-                    rheightd=rt.rhomin[jj]/rtr.rhomax.max()*rtsize
-                    rwidthd=rt.rhomax[jj]/rtr.rhomax.max()*rtsize
-                
-                    rellipd=Ellipse((ewarr[jj],nsarr[jj]),width=rwidthd,
-                                   height=rheightd,angle=rt.rhoazimuth[jj])
-                    #color ellipse:
-                    cvar=(np.log10(rt.rhodet[jj])-rtmin)/(rtmax-rtmin)
-                    if cvar>.5:
-                        if cvar>1:
-                            rellipd.set_facecolor((0,0,1))
-                        else:
-                            rellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-                    else:
-                        if cvar<-1:
-                            rellipd.set_facecolor((1,0,0))
-                        else:
-                            rellipd.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
-                    
-                    ax4.add_artist(rellipd)
-                    
-                    #----------plot response resistivity tensors---------------------
-                    rheightr=rtr.rhomin[jj]/rtr.rhomax.max()*rtsize
-                    rwidthr=rtr.rhomax[jj]/rtr.rhomax.max()*rtsize
-                
-                    rellipr=Ellipse((ewarr[jj],nsarr[jj]),width=rwidthr,
-                                   height=rheightr,angle=rtr.rhoazimuth[jj])
-    
-                    #color ellipse:
-                    cvar=(np.log10(rtr.rhodet[jj])-rtmin)/(rtmax-rtmin)
-                    if cvar>.5:
-                        if cvar>1:
-                            rellipr.set_facecolor((0,0,1))
-                        else:
-                            rellipr.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-                    else:
-                        if cvar<-1:
-                            rellipr.set_facecolor((1,0,0))
-                        else:
-                            rellipr.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
-                    
-                    ax5.add_artist(rellipr)
-                    
-                    #--------plot residual resistivity tensors-------------
-                    rheight=rtd.rhomin[jj]/rtd.rhomax.max()*rtrsize
-                    rwidth=rtd.rhomax[jj]/rtd.rhomax.max()*rtrsize
-                
-                    rellip=Ellipse((ewarr[jj],nsarr[jj]),width=rwidth,
-                                   height=rheight,angle=rtd.azimuth[jj]-90)
-                    #color ellipse:
-                    cvar=(rtd.rhodet[jj]-rtrmin)/(rtrmax-rtrmin)
-                    if cvar<0:
-                        if cvar<-1:
-                            rellip.set_facecolor((0,0,1))
-                        else:
-                            rellip.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-                    else:
-                        if cvar>1:
-                            rellip.set_facecolor((1,0,0))
-                        else:
-                            rellip.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
-                        
-                    ax6.add_artist(rellip)
-                    
-                for aa,ax in enumerate([ax1,ax2,ax3,ax4,ax5,ax6]):
-                    ax.set_xlim(ewarr.min()-xpad,ewarr.max()+xpad)
-                    ax.set_ylim(nsarr.min()-xpad,nsarr.max()+xpad)
-                    ax.grid('on')
-                    if aa<3:
-                        plt.setp(ax.get_xticklabels(),visible=False)
-                    if aa==0 or aa==3:
-                        pass
-                    else:
-                        plt.setp(ax.get_yticklabels(),visible=False)
-                    
-                    cbax=mcb.make_axes(ax,shrink=.9,pad=.05,orientation='vertical')
-                    if aa==0 or aa==1:
-                        cbx=mcb.ColorbarBase(cbax[0],cmap=ptcmap,
-                                         norm=Normalize(vmin=ptmin*180/np.pi,
-                                                        vmax=ptmax*180/np.pi),
-                                         orientation='vertical',format='%.2g')
-                        
-                        cbx.set_label('Phase (deg)',
-                                      fontdict={'size':7,'weight':'bold'})
-                    if aa==2:
-                        cbx=mcb.ColorbarBase(cbax[0],cmap=ptcmap2,
-                                         norm=Normalize(vmin=ptrmin,
-                                                        vmax=ptrmax),
-                                         orientation='vertical',format='%.2g')
-                        
-                        cbx.set_label('$\Delta_{\Phi}$',
-                                      fontdict={'size':7,'weight':'bold'})
-                    if aa==3 or aa==4:
-                        cbx=mcb.ColorbarBase(cbax[0],cmap=rtcmapr,
-                                         norm=Normalize(vmin=10**rtmin,
-                                                        vmax=10**rtmax),
-                                         orientation='vertical',format='%.2g')
-                        
-                        cbx.set_label('App. Res. ($\Omega \cdot$m)',
-                                      fontdict={'size':7,'weight':'bold'})
-                    if aa==5:
-                        cbx=mcb.ColorbarBase(cbax[0],cmap=rtcmap,
-                                         norm=Normalize(vmin=rtrmin,
-                                                        vmax=rtrmax),
-                                         orientation='vertical',format='%.2g')
-                        
-                        cbx.set_label('$\Delta_{rho}$',
-                                      fontdict={'size':7,'weight':'bold'})
-                     
-                plt.show()
-            
-            #----Plot Just the data------------------        
+        gs = gridspec.GridSpec(1, 3, hspace=self.subplot_hspace,
+                               wspace=self.subplot_wspace)
+                               
+        font_dict = {'size':self.font_size+2, 'weight':'bold'}
+        n_stations = self.data.shape[0]
+        #set some local parameters
+        ckmin = float(self.ellipse_range[0])
+        ckmax = float(self.ellipse_range[1])
+        try:
+            ckstep = float(self.ellipse_range[2])
+        except IndexError:
+            if self.ellipse_cmap == 'mt_seg_bl2wh2rd':
+                raise ValueError('Need to input range as (min, max, step)')
             else:
-                if colormm==None:
-                    if ecolor=='phimin':
-                        ptmin,ptmax=(pt.phimin.min()/(np.pi/2),
-                                     pt.phimin.max()/(np.pi/2))
-                    elif ecolor=='beta':
-                        ptmin,ptmax=(pt.beta.min(),pt.beta.max())
-                        
-                    rtmin,rtmax=(np.log10(rt.rhodet.min()),
-                                 np.log10(rt.rhodet.max()))
-                ax1=fig.add_subplot(1,2,1,aspect='equal')
-                ax2=fig.add_subplot(1,2,2,aspect='equal')
-                for jj in range(ns):
-                    #-----------plot data phase tensors---------------
-                    #check for nan in the array cause it messes with the max                
-                    pt.phimax=np.nan_to_num(pt.phimax)
-                    
-                    #scale the ellipse
-                    eheightd=pt.phimin[jj]/pt.phimax.max()*ptsize
-                    ewidthd=pt.phimax[jj]/pt.phimax.max()*ptsize
-                
-                    #make the ellipse
-                    ellipd=Ellipse((ewarr[jj],nsarr[jj]),width=ewidthd,
-                                   height=eheightd,angle=pt.azimuth[jj])
-                    #color ellipse:
-                    if ecolor=='phimin':
-                        cvar=(pt.phimin[jj]/(np.pi/2)-ptmin)/(ptmax-ptmin)
-                        if abs(cvar)>1:
-                            ellipd.set_facecolor((1,0,.1))
-                        else:
-                            ellipd.set_facecolor((1,1-abs(cvar),.1))
-                    if ecolor=='beta':
-                        cvar=(abs(pt.beta[jj])-ptmin)/(ptmax-ptmin)
-                        if abs(cvar)>1:
-                            ellipd.set_facecolor((1,1,.1))
-                        else:
-                            ellipd.set_facecolor((1-cvars,1-cvars,1))
-                    
-                    ax1.add_artist(ellipd)
-                    
-                    #-----------plot data resistivity tensors---------------
-                    rt.rhomax=np.nan_to_num(rt.rhomax)
-                    rheightd=rt.rhomin[jj]/rt.rhomax.max()*rtsize
-                    rwidthd=rt.rhomax[jj]/rt.rhomax.max()*rtsize
-                
-                    rellipd=Ellipse((ewarr[jj],nsarr[jj]),width=rwidthd,
-                                   height=rheightd,angle=rt.rhoazimuth[jj])
-                    #color ellipse:
-                    cvar=(np.log10(rt.rhodet[jj])-rtmin)/(rtmax-rtmin)
-                    if cvar>.5:
-                        if cvar>1:
-                            rellipd.set_facecolor((0,0,1))
-                        else:
-                            rellipd.set_facecolor((1-abs(cvar),1-abs(cvar),1))
-                    else:
-                        if cvar<-1:
-                            rellipd.set_facecolor((1,0,0))
-                        else:
-                            rellipd.set_facecolor((1,1-abs(cvar),1-abs(cvar)))
-                    
-                    ax2.add_artist(rellipd)
-                    
-                for aa,ax in enumerate([ax1,ax2]):
-                    ax.set_xlim(ewarr.min()-xpad,ewarr.max()+xpad)
-                    ax.set_ylim(nsarr.min()-xpad,nsarr.max()+xpad)
-                    ax.grid('on')
-                    ax.set_xlabel('easting (km)',fontdict={'size':10,
-                                  'weight':'bold'})
-    
-                    if aa==1:
-                        plt.setp(ax.get_yticklabels(),visible=False)
-                    else:
-                        ax.set_ylabel('northing (km)',fontdict={'size':10,
-                                  'weight':'bold'})
-    #                cbax=mcb.make_axes(ax,shrink=.8,pad=.15,orientation='horizontal',
-    #                               anchor=(.5,1))
-                    #l,b,w,h
-    #                cbax=fig.add_axes([.1,.95,.35,.05])
-                    if aa==0:
-                        cbax=fig.add_axes([.12,.97,.31,.02])
-                        cbx=mcb.ColorbarBase(cbax,cmap=ptcmap,
-                                         norm=Normalize(vmin=ptmin*180/np.pi,
-                                                        vmax=ptmax*180/np.pi),
-                                         orientation='horizontal',format='%.2g')
-                        
-                        cbx.set_label('Phase (deg)',
-                                      fontdict={'size':7,'weight':'bold'})
-                    if aa==1:
-                        cbax=fig.add_axes([.59,.97,.31,.02])
-                        cbx=mcb.ColorbarBase(cbax,cmap=rtcmapr,
-                                         norm=Normalize(vmin=10**rtmin,
-                                                        vmax=10**rtmax),
-                                         orientation='horizontal',format='%.2g')
-                        
-                        cbx.set_label('App. Res. ($\Omega \cdot$m)',
-                                      fontdict={'size':7,'weight':'bold'})
-                        cbx.set_ticks((10**rtmin,10**rtmax))
-                plt.show()
+                ckstep = 3
+        nseg = float((ckmax-ckmin)/(2*ckstep))
+        
+        if self.ew_limits == None:
+            if self.station_east is not None:
+                self.ew_limits = (np.floor(self.station_east.min())-self.pad_east, 
+                                  np.ceil(self.station_east.max())+self.pad_east)
+            else:
+                self.ew_limits = (self.grid_east[5], self.grid_east[-5])
 
+        if self.ns_limits == None:
+            if self.station_north is not None:
+                self.ns_limits = (np.floor(self.station_north.min())-self.pad_north, 
+                                  np.ceil(self.station_north.max())+self.pad_north)
+            else:
+                self.ns_limits = (self.grid_north[5], self.grid_north[-5])
+                               
+        for ff, per in enumerate(self.plot_period_list):
+            print 'Plotting Period: {0:.5g}'.format(per)
+            fig = plt.figure('{0:.5g}'.format(per), figsize=self.fig_size,
+                             dpi=self.fig_dpi)
+            fig.clf()
+                             
+            if self.resp_fn is not None:
+                axd = fig.add_subplot(gs[0, 0], aspect='equal')
+                axm = fig.add_subplot(gs[0, 1], aspect='equal')
+                axr = fig.add_subplot(gs[0, 2], aspect='equal')
+                ax_list = [axd, axm, axr]
+            
+            else:
+                axd = fig.add_subplot(gs[0, :], aspect='equal')
+                ax_list = [axd]
+            
+            #plot model below the phase tensors
+            if self.model_fn is not None:
+                approx_depth = 500*np.sqrt(per*50)/self.dscale
+                d_index = np.where(self.grid_z >= approx_depth)[0][0]
+                print approx_depth, self.grid_z[d_index]
+                for ax in ax_list:
+                    plot_res = np.log10(self.res_model[:, :, d_index].T)
+                    ax.pcolormesh(self.mesh_east,
+                                   self.mesh_north, 
+                                   plot_res,
+                                   cmap=self.res_cmap,
+                                   vmin=self.res_limits[0],
+                                   vmax=self.res_limits[1])
+                    
+                    bb = ax.axes.get_position().bounds
+                    cb_position = (bb[2]/5+bb[0], 
+                                   bb[0]-self.cb_pad, .6*bb[2], .02)
+                    
+                
+            #--> get phase tensors
+            pt = mtpt.PhaseTensor(z_array=self.data[:, ff, :].reshape(n_stations,2,2))
+            if self.resp is not None:
+                mpt = mtpt.PhaseTensor(z_array=self.resp[:, ff, :].reshape(n_stations,2,2))
+                rpt = mtpt.ResidualPhaseTensor(pt_object1=pt, pt_object2=mpt)
+                rpt = rpt.residual_pt
+                rcarray = np.sqrt(abs(rpt.phimin[0]*rpt.phimax[0]))
+                rcmin = np.floor(rcarray.min())
+                rcmax = np.floor(rcarray.max())
+            
+            #--> get color array
+            if self.ellipse_cmap == 'mt_seg_bl2wh2rd':
+                bounds = np.arange(ckmin, ckmax+ckstep, ckstep)
+                nseg = float((ckmax-ckmin)/(2*ckstep))
+    
+            #get the properties to color the ellipses by
+            if self.ellipse_colorby == 'phiminang' or \
+               self.ellipse_colorby == 'phimin':
+                colorarray = pt.phimin[0]
+                if self.resp is not None:
+                    mcarray = mpt.phimin[0]
+                                        
+            elif self.ellipse_colorby == 'phidet':
+                 colorarray = np.sqrt(abs(pt.det[0]))*(180/np.pi)
+                 if self.resp is not None:
+                    mcarray = np.sqrt(abs(mpt.det[0]))*(180/np.pi)
+                 
+                
+            elif self.ellipse_colorby == 'skew' or\
+                 self.ellipse_colorby == 'skew_seg':
+                colorarray = pt.beta[0]
+                if self.resp is not None:
+                    mcarray = mpt.beta[0]
+                
+            elif self.ellipse_colorby == 'ellipticity':
+                colorarray = pt.ellipticity[0]
+                if self.resp is not None:
+                    mcarray = mpt.ellipticity[0]
+                
+            else:
+                raise NameError(self.ellipse_colorby+' is not supported')
+        
+            
+            #--> plot phase tensor ellipses for each stations             
+            for jj in range(n_stations):
+                #-----------plot data phase tensors---------------
+                eheight = pt.phimin[0][jj]/pt.phimax[0].max()*self.ellipse_size
+                ewidth = pt.phimax[0][jj]/pt.phimax[0].max()*self.ellipse_size
+                
+                ellipse = Ellipse((self.station_east[jj],
+                                   self.station_north[jj]),
+                                   width=ewidth,
+                                   height=eheight,
+                                   angle=90-pt.azimuth[0][jj])
+                
+                #get ellipse color
+                if self.ellipse_cmap.find('seg')>0:
+                    ellipse.set_facecolor(mtcl.get_plot_color(colorarray[jj],
+                                                         self.ellipse_colorby,
+                                                         self.ellipse_cmap,
+                                                         ckmin,
+                                                         ckmax,
+                                                         bounds=bounds))
+                else:
+                    ellipse.set_facecolor(mtcl.get_plot_color(colorarray[jj],
+                                                         self.ellipse_colorby,
+                                                         self.ellipse_cmap,
+                                                         ckmin,
+                                                         ckmax))
+                
+                axd.add_artist(ellipse)
+                if self.resp is not None:
+                    #-----------plot response phase tensors---------------
+                    eheight = mpt.phimin[0][jj]/mpt.phimax[0].max()*\
+                              self.ellipse_size
+                    ewidth = mpt.phimax[0][jj]/mpt.phimax[0].max()*\
+                              self.ellipse_size
+                
+                    ellipsem = Ellipse((self.station_east[jj],
+                                       self.station_north[jj]),
+                                       width=ewidth,
+                                       height=eheight,
+                                       angle=90-mpt.azimuth[0][jj])
+                    
+                    #get ellipse color
+                    if self.ellipse_cmap.find('seg')>0:
+                        ellipsem.set_facecolor(mtcl.get_plot_color(mcarray[jj],
+                                                             self.ellipse_colorby,
+                                                             self.ellipse_cmap,
+                                                             ckmin,
+                                                             ckmax,
+                                                             bounds=bounds))
+                    else:
+                        ellipsem.set_facecolor(mtcl.get_plot_color(mcarray[jj],
+                                                         self.ellipse_colorby,
+                                                         self.ellipse_cmap,
+                                                         ckmin,
+                                                         ckmax))
+                    
+                    axm.add_artist(ellipsem)
+                    #-----------plot residual phase tensors---------------
+                    eheight = rpt.phimin[0][jj]/rpt.phimax[0].max()*\
+                                self.ellipse_size
+                    ewidth = rpt.phimax[0][jj]/rpt.phimax[0].max()*\
+                                self.ellipse_size
+                
+                    ellipser = Ellipse((self.station_east[jj],
+                                       self.station_north[jj]),
+                                       width=ewidth,
+                                       height=eheight,
+                                       angle=rpt.azimuth[0][jj])
+                    
+                    #get ellipse color
+                    if self.ellipse_cmap.find('seg')>0:
+                        ellipser.set_facecolor(mtcl.get_plot_color(rcarray[jj],
+                                                     self.ellipse_colorby,
+                                                     self.residual_cmap,
+                                                     rcmin,
+                                                     rcmax,
+                                                     bounds=bounds))
+                    else:
+                        ellipser.set_facecolor(mtcl.get_plot_color(rcarray[jj],
+                                                     self.ellipse_colorby,
+                                                     self.residual_cmap,
+                                                     rcmin,
+                                                     rcmax))
+                    
+                    axr.add_artist(ellipser)
+                
+            #--> set axes properties
+            # data
+            axd.set_xlim(self.ew_limits)
+            axd.set_ylim(self.ns_limits)
+            axd.set_xlabel('Easting ({0})'.format(self.map_scale), 
+                           fontdict=font_dict)
+            axd.set_ylabel('Northing ({0})'.format(self.map_scale),
+                           fontdict=font_dict)
+            #make a colorbar ontop of axis
+            bb = axd.axes.get_position().bounds
+            cb_location = (3.25*bb[2]/5+bb[0], 
+                            bb[3]-self.cb_pad, .295*bb[2], .02)
+            cbaxd = fig.add_axes(cb_location)
+            cbd = mcb.ColorbarBase(cbaxd, 
+                                   cmap=mtcl.cmapdict[self.ellipse_cmap],
+                                   norm=Normalize(vmin=ckmin,
+                                                  vmax=ckmax),
+                                   orientation='horizontal')
+            cbd.ax.xaxis.set_label_position('top')
+            cbd.ax.xaxis.set_label_coords(.5, 1.75)
+            cbd.set_label(mtplottools.ckdict[self.ellipse_colorby])
+            cbd.set_ticks(np.arange(ckmin, ckmax+self.cb_tick_step, 
+                                    self.cb_tick_step))
+                                    
+            axd.text(self.ew_limits[0]*.95,
+                     self.ns_limits[1]*.95,
+                     'Data',
+                     horizontalalignment='left',
+                     verticalalignment='top',
+                     bbox={'facecolor':'white'},
+                     fontdict={'size':self.font_size+1})
+                    
+            #Model and residual
+            if self.resp is not None:
+                for aa, ax in enumerate([axm, axr]):
+                    ax.set_xlim(self.ew_limits)
+                    ax.set_ylim(self.ns_limits)
+                    ax.set_xlabel('Easting ({0})'.format(self.map_scale), 
+                                   fontdict=font_dict)
+                    plt.setp(ax.yaxis.get_ticklabels(), visible=False)
+                    #make a colorbar ontop of axis
+                    bb = ax.axes.get_position().bounds
+                    cb_location = (3.25*bb[2]/5+bb[0], 
+                                    bb[3]-self.cb_pad, .295*bb[2], .02)
+                    cbax = fig.add_axes(cb_location)
+                    if aa == 0:
+                        cb = mcb.ColorbarBase(cbax, 
+                                              cmap=mtcl.cmapdict[self.ellipse_cmap],
+                                               norm=Normalize(vmin=ckmin,
+                                                              vmax=ckmax),
+                                               orientation='horizontal')
+                        cb.ax.xaxis.set_label_position('top')
+                        cb.ax.xaxis.set_label_coords(.5, 1.75)
+                        cb.set_label(mtplottools.ckdict[self.ellipse_colorby])
+                        cb.set_ticks(np.arange(ckmin, ckmax+self.cb_tick_step, 
+                                    self.cb_tick_step))
+                        ax.text(self.ew_limits[0]*.95,
+                                self.ns_limits[1]*.95,
+                                'Model',
+                                horizontalalignment='left',
+                                verticalalignment='top',
+                                bbox={'facecolor':'white'},
+                                 fontdict={'size':self.font_size+1})
+                    else:
+                        cb = mcb.ColorbarBase(cbax, 
+                                              cmap='Oranges',
+                                               norm=Normalize(vmin=rcmin,
+                                                              vmax=rcmax),
+                                               orientation='horizontal')
+                        cb.ax.xaxis.set_label_position('top')
+                        cb.ax.xaxis.set_label_coords(.5, 1.75)
+                        cb.set_label(r"$\sqrt{\Phi_{min} \Phi_{max}}$")
+                        cb_ticks = np.arange(rcmin,
+                                             rcmax+self.cb_residual_tick_step,
+                                             self.cb_residual_tick_step)
+                        cb.set_ticks(cb_ticks)
+                        ax.text(self.ew_limits[0]*.95,
+                                self.ns_limits[1]*.95,
+                                'Residual',
+                                horizontalalignment='left',
+                                verticalalignment='top',
+                                bbox={'facecolor':'white'},
+                                fontdict={'size':self.font_size+1})
+            if self.model_fn is not None:
+                for ax in ax_list:
+                    ax.tick_params(direction='out')
+                    bb = ax.axes.get_position().bounds
+                    cb_position = (2.95*bb[2]/5+bb[0], 
+                                   bb[1]*1.85+self.cb_pad, .35*bb[2], .02)
+                    cbax = fig.add_axes(cb_position)
+                    cb = mcb.ColorbarBase(cbax, 
+                                          cmap=self.res_cmap,
+                                          norm=Normalize(vmin=self.res_limits[0],
+                                                         vmax=self.res_limits[1]),
+                                          orientation='horizontal')
+                    cb.ax.xaxis.set_label_position('top')
+                    cb.ax.xaxis.set_label_coords(.5, 1.5)
+                    cb.set_label('Resistivity ($\Omega \cdot$m)')
+                    cb_ticks = np.arange(np.floor(self.res_limits[0]), 
+                                         np.ceil(self.res_limits[1]+1), 1)
+                    cb.set_ticks(cb_ticks)
+                    cb.set_ticklabels([mtplottools.labeldict[ctk] for ctk in cb_ticks])
+                    
+                            
+                
+            plt.show()
+            
+def estimate_skin_depth(resmodel, grid_z, period_list):
+    """
+    estimate the skin depth from the resistivity model
+    
+    """
+    pass    
+            
+           
 #==============================================================================
 # plot slices 
 #==============================================================================
