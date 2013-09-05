@@ -5,7 +5,7 @@ Created on Mon Apr 02 11:54:33 2012
 @author: a1185872
 """
 
-import os
+import os,sys
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -97,7 +97,7 @@ def readWLOutFile(out_fn,ncol=5):
         out_fn = full path to .out file from winglink
         
     Outputs:
-        dx,dy,dz = cell nodes in x,y,z directions (note x is to the East here
+        dx,dy,dz = cell nodes in x,y,z directions (note x is to the West here
                     and y is to the north.)
     """
     
@@ -167,16 +167,40 @@ def getXY(sites_fn,out_fn,ncol=5):
         ncol = number of columns the data is in
         
     Outputs:
-        xarr = array of relative distance for each station from center of the
-                grid.  Note this is E-W direction
-        yarr = array of relative distance for each station from center of the
-                grid.  Note this is N-S direction
+        coord_dict = dictionary with xy coordinate-tuples for the stations
+        (keys are stationnames)
+        #xarr = array of relative distance for each station from center of the
+        #        grid.  Note this is W-E direction
+        #yarr = array of relative distance for each station from center of the
+        #        grid.  Note this is S-N direction
                 
     """
     
     slst,sitelst = readSitesFile(sites_fn)
     
     dx,dy,dz = readWLOutFile(out_fn,ncol=ncol)
+    x_totallength = np.sum(dx)
+    y_totallength = np.sum(dy)
+    z_totaldepth = np.sum(dz)
+
+    x_coords = []
+    position = 0.
+
+    position = 0.5*dx[0]
+    x_coords.append(position)
+    for i in range(len(dx)-1):
+        position += 0.5*(dx[i]+dx[i+1])
+        x_coords.append(position)
+    x_coords = [i-0.5*x_totallength for i in x_coords]
+    
+    y_coords = []
+    position = 0.5*dy[0]
+    y_coords.append(position)
+    for i in range(len(dy)-1):
+        position += 0.5*(dy[i]+dy[i+1])
+        y_coords.append(position)
+
+    y_coords = [i-0.5*y_totallength for i in y_coords]
     
     ns = len(slst)
     nxh = len(dx)/2
@@ -184,20 +208,17 @@ def getXY(sites_fn,out_fn,ncol=5):
     xarr = np.zeros(ns)
     yarr = np.zeros(ns)
     
-    
+    coord_dict = {}
     for ii,sdict in enumerate(slst):
         xx = sdict['dx']
         yy = sdict['dy']
-        if xx<nxh:
-            xarr[ii] = dx[xx:nxh].sum()-dx[xx]/2
-        else:
-            xarr[ii] = dx[nxh:xx].sum()+dx[xx]/2                    
-        if yy<nyh:
-            yarr[ii] = -1*(dy[yy:nyh].sum()-dy[yy]/2)
-        else:
-            yarr[ii] = -1*(dy[nyh:yy].sum()+dy[yy]/2)   
+        station = sdict['station']
+        coord_dict[station] = (x_coords[xx],y_coords[yy])
+        # xarr[ii] = x_coords[xx]
+        # yarr[ii] = y_coords[yy]
+        # print sdict, xarr[ii],yarr[ii]
 
-    return xarr,yarr  
+    return coord_dict#xarr,yarr  
 
 def getPeriods(edilst,errthresh=10):
     """
@@ -637,7 +658,7 @@ def make3DGrid(edilst, xspacing=500, yspacing=500, z1layer=10, xpad=5, ypad=5,
     
     
 def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
-                    sitelocations=None, zerr=.05,
+                    sitelocations=None, errorfloor=.05,
                     ptol=.15, zerrmap=[10,1,1,10], savepath=None, ncol=5,
                     units='mv'):
     """
@@ -669,12 +690,12 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
                     
         **savepath** : string
                        directory or full path to save data file to, default 
-                       path is dirname sites_fn.  
+                       path is dirname(sites_fn).  
                        saves as: savepath/WSDataFile.dat
                        *Need to input if you did not use Winglink*
                        
-        **zerr** : float
-                  percent error to give to impedance tensor components in 
+        **errorfloor** : float
+                  minimum percent error to give to impedance tensor components in 
                   decimal form --> 10% = 0.10
                   *default* is .05
                   
@@ -702,7 +723,8 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
     
     ns = len(edilst)
     
-    #get units correctly
+    #get units correctly????
+    #what the heck is mv ??????????????
     if units == 'mv':
         zconv = 1./796.
 
@@ -718,9 +740,12 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
     if sites_fn != None:    
         #read in stations from sites file
         sitelst, slst = readSitesFile(sites_fn)
+
         
         #get x and y locations on a relative grid
-        xlst, ylst = getXY(sites_fn,out_fn,ncol=ncol)
+        #CAREFUL: contains ALL coordinates for ALL stations in the file
+        #maybe not all of them are used!!!
+        coord_dict = getXY(sites_fn,out_fn,ncol=ncol)
     
     #if the user made a grid in python or some other fashion
     if sitelocations != None:
@@ -741,9 +766,13 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
     
     #make an array to put data into for easy writing
     zarr = np.zeros((ns, nperiod, 4), dtype='complex')
-    
-    #--------find frequencies---------------------------------------------------
+    zerror = np.zeros((ns, nperiod, 4), dtype='complex')
+
+    #--------find frequencies and subsection of station coordinates-------------
     linelst = []
+    counter = 0 
+    x_coords = []
+    y_coords = []
     for ss, edi in enumerate(edilst):
         if not os.path.isfile(edi):
             raise IOError('Could not find '+edi)
@@ -751,21 +780,31 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
         
         z1 = mtedi.Edi()
         z1.readfile(edi)
+        x_coords.append(coord_dict[z1.station][0])
+        y_coords.append(coord_dict[z1.station][1])
+
         sdict = {}
         fspot = {}
         for ff, f1 in enumerate(periodlst):
-            for kk,f2 in enumerate(z1.period):
+            for kk,f2 in enumerate(1./z1.freq):
                 if f2 >= (1-ptol)*f1 and f2 <= (1+ptol)*f1:
                     zderr = np.array([abs(z1.Z.zerr[kk, nn, mm])/
                                     abs(z1.Z.z[kk, nn, mm])*100 
                                     for nn in range(2) for mm in range(2)])
+
                     print '   Matched {0:.6g} to {1:.6g}'.format(f1, f2)
                     fspot['{0:.6g}'.format(f1)] = (kk, f2, zderr[0], zderr[1],
                                                   zderr[2], zderr[3])
                     zarr[ss, ff, :] = z1.Z.z[kk].reshape(4,)
+                    zerror[ss, ff, :] = z1.Z.zerr[kk].reshape(4,)
+                    for j in range(len(zerror[ss, ff, :])):
+                        if errorfloor<zderr[j]:
+                            continue
+                        else:
+                            zerror[ss, ff, j] = zarr[ss, ff, j] * errorfloor
                     break
-                    
-        print z1.station, len(fspot)
+        counter += 1        
+        #print z1.station,counter, z1.station, len(fspot)
         sdict['fspot'] = fspot
         sdict['station'] = z1.station
         linelst.append(sdict)
@@ -777,23 +816,22 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
     
     #write N-S locations
     ofid.write('Station_Location: N-S \n')
-    for ii in range(ns/8+1):
-        for ll in range(8):
-            try:
-                ofid.write('{0:+.4e} '.format(ylst[ii*8+ll]))
-            except IndexError:
-                pass
+    for ii in range(ns):
+        ofid.write('{0:+.4e} '.format(y_coords[ii]))
+        if (ii+1)%8==0:
+            ofid.write('\n')
+    if ns%8!=0:        
         ofid.write('\n')
     
     #write E-W locations
     ofid.write('Station_Location: E-W \n')
-    for ii in range(ns/8+1):
-        for ll in range(8):
-            try:
-                ofid.write('{0:+.4e} '.format(xlst[ii*8+ll]))
-            except IndexError:
-                pass
+    for ii in range(ns):
+        ofid.write('{0:+.4e} '.format(x_coords[ii]))
+        if (ii+1)%8==0:
+            ofid.write('\n')
+    if ns%8!=0:        
         ofid.write('\n')
+
         
     #write impedance tensor components
     for ii, p1 in enumerate(periodlst):
@@ -802,14 +840,18 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
             zline=zarr[ss,ii,:]
             for jj in range(4):
                 ofid.write('{0:+.4e} '.format(zline[jj].real*zconv))
+                #use minus sign here, if i omega t convention is different
+                #ofid.write('{0:+.4e} '.format(zline[jj].imag*zconv))
                 ofid.write('{0:+.4e} '.format(-zline[jj].imag*zconv))
+
             ofid.write('\n')
+
     
     #write error as a percentage of Z
     for ii, p1 in enumerate(periodlst):
         ofid.write('ERROR_Period: {0:3.6f}\n'.format(p1))
         for ss in range(ns):
-            zline=zarr[ss,ii,:]
+            zline=zerror[ss,ii,:]
             for jj in range(4):
                 ofid.write('{0:+.4e} '.format(zline[jj].real*zerr*zconv))
                 ofid.write('{0:+.4e} '.format(zline[jj].imag*zerr*zconv))
@@ -819,7 +861,6 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
     for ii, p1 in enumerate(periodlst):
         ofid.write('ERMAP_Period: {0:3.6f}\n'.format(p1))
         for ss in range(ns):
-            zline=zarr[ss,ii,:]
             for jj in range(4):
                 ofid.write('{0:.5e} '.format(zerrmap[jj]))
                 ofid.write('{0:.5e} '.format(zerrmap[jj]))
@@ -850,11 +891,11 @@ def writeWSDataFile(periodlst, edilst, sites_fn=None, out_fn=None,
                 errfid.write(pfdict['station']+'  T='+ff+\
                         ' Zyy err={0:.3f} \n'.format(pfdict['fspot'][ff][5])) 
     errfid.close()
-    print 'Wrote errors lager than tolerance to: '
+    print 'Wrote errors larger than tolerance to: '
     print os.path.join(os.path.dirname(ofile),'DataErrorLocations.txt')
                 
     
-    return ofile, linelst
+    return ofile#, linelst
 
 
 def writeInit3DFile_wl(out_fn, rhostart=100, ncol=5, savepath=None):
