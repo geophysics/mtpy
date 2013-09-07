@@ -1,10 +1,60 @@
 # -*- coding: utf-8 -*-
 """
 ===============
-ws3d
+ws3dinv
 ===============
 
-    * Deals with input and output files for ws3dinv
+    * Deals with input and output files for ws3dinv written by:
+        Siripunvaraporn, W.; Egbert, G.; Lenbury, Y. & Uyeshima, M. 
+        Three-dimensional magnetotelluric inversion: data-space method
+        Physics of The Earth and Planetary Interiors, 2005, 150, 3-14
+        
+The intended use or workflow is something like this for getting started:
+
+:Making input files: ::
+
+    >>> import mtpy.modeling.ws3dinv as ws
+    >>> import os
+    >>> #1) make a list of all .edi files that will be inverted for 
+    >>> edi_path = r"/home/EDI_Files"
+    >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
+    >>> ...         if edi.find('.edi') > 0]
+    >>> #2) make a grid from the stations themselves with 200m cell spacing
+    >>> wsmesh = ws.WSMesh(edi_list=edi_list, cell_size_east=200, 
+    >>> ...                cell_size_north=200)
+    >>> wsmesh.make_mesh()
+    >>> # check to see if the mesh is what you think it should be
+    >>> wsmesh.plot_mesh()
+    >>> # all is good write the mesh file
+    >>> wsmesh.write_initial_file(save_path=r"/home/ws3dinv/Inv1")
+    >>> # note this will write a file with relative station locations
+    >>> #change the starting model to be different than a halfspace
+    >>> mm = ws.WS3DModelManipulator(initial_fn=wsmesh.initial_fn)
+    >>> # an interactive gui will pop up to change the resistivity model
+    >>> #once finished write a new initial file
+    >>> mm.rewrite_initial_file()
+    >>> #3) write data file
+    >>> wsdata = ws.WSData(edi_list=edi_list, station_fn=wsmesh.station_fn)
+    >>> wsdata.write_data_file()
+    >>> #4) plot mt response to make sure everything looks ok
+    >>> rp = ws.PlotResponse(data_fn=wsdata.data_fn)
+    >>> #5) make startup file
+    
+:checking the model and response: ::
+    
+    >>> mfn = r"/home/ws3dinv/Inv1/test_model.01"
+    >>> dfn = r"/home/ws3dinv/Inv1/WSDataFile.dat"
+    >>> rfn = r"/home/ws3dinv/Inv1/test_resp.01" 
+    >>> sfn = r"/home/ws3dinv/Inv1/WS_Sation_Locations.txt"
+    >>> # plot the data vs. model response
+    >>> rp = ws.PlotResponse(data_fn=dfn, resp_fn=rfn, station_fn=sfn)
+    >>> # plot model slices where you can interactively step through
+    >>> ds = ws.PlotSlices(model_fn=mfn, station_fn=sfn)
+    >>> # plot phase tensor ellipses on top of depth slices
+    >>> ptm = ws.PlotPTMaps(data_fn=dfn, resp_fn=rfn, model_fn=mfn)
+    >>> #write files for 3D visualization in Paraview or Mayavi
+    >>> ws.write_vtk_files(model_fn=mfn, station_fn=sfn)
+    
     
     
 Created on Sun Aug 25 18:41:15 2013
@@ -35,15 +85,84 @@ import mtpy.analysis.pt as mtpt
 import mtpy.imaging.mtcolors as mtcl
 
 import mtpy.utils.latlongutmconversion as ll2utm
+from evtk.hl import gridToVTK, pointsToVTK
 
 #==============================================================================
+
 #==============================================================================
 # Data class
 #==============================================================================
 class WSData(object):
     """
-    includes tools for reading and writing data files.
+    Includes tools for reading and writing data files intended to be used with
+    ws3dinv.
     
+    ====================== ====================================================
+    Attributes              Description
+    ====================== ====================================================
+    data                   numpy structured array with keys:
+                               * *station* --> station name
+                               * *east*    --> relative eastern location in
+                                               grid
+                               * *north*   --> relative northern location in 
+                               grid
+                               * *z_data*  --> impedance tensor array with 
+                                               shape
+                                         (n_stations, n_freq, 4, dtype=complex)
+                               * *z_data_err--> impedance tensor error without
+                                                error map applied
+                               * *z_err_map --> error map from data file
+    data_fn                full path to data file
+    edi_list               list of edi files used to make data file
+    n_z                    [ 4 | 8 ] number of impedance tensor elements
+                           *default* is 8
+    ncol                   number of columns in out file from winglink
+                           *default* is 5
+    period_list            list of periods to invert for
+    ptol                   if periods in edi files don't match period_list
+                           then program looks for periods within ptol
+                           *defualt* is .15 or 15 percent
+    save_path              path to save the data file
+    station_fn             full path to station file written by WSStation
+    station_locations      numpy structured array for station locations keys:
+                               * *station* --> station name
+                               * *east*    --> relative eastern location in
+                                               grid
+                               * *north*   --> relative northern location in
+                                               grid
+                           if input a station file is written
+    units                  [ 'mv' | 'else' ] units of Z, needs to be mv for 
+                           ws3dinv. *default* is 'mv'
+    wl_out_fn              Winglink .out file which describes a 3D grid
+    wl_site_fn             Wingling .sites file which gives station locations
+    z_err                  percent error to give to impedance tensor elements
+                           *default* is .05 or 5%
+    z_err_map              [zxx, zxy, zyx, zyy] for n_z = 8
+                           [zxy, zyx] for n_z = 4
+                           Value in percent to multiply the error by, which 
+                           give the user power to down weight bad data, so 
+                           the resulting error will be z_err_map*z_err
+    ====================== ====================================================
+    
+    ====================== ====================================================
+    Methods                Description
+    ====================== ====================================================
+    write_data_file        writes a data file from a list of .edi files
+    read_data_file         reads in a ws3dinv data file
+    ====================== ====================================================
+    
+    :Example: ::
+        
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> import os
+        >>> edi_path = r"/home/EDI_Files"
+        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
+        >>> ...         if edi.find('.edi') > 0]
+        >>> # create an evenly space period list in log space
+        >>> p_list = np.logspace(np.log10(.001), np.log10(1000), 12)
+        >>> wsdata = ws.WSData(edi_list=edi_list, period_list=p_list, 
+        >>> ...                station_fn=r"/home/stations.txt")
+        >>> wsdata.write_data_file()
     """
     
     def __init__(self, **kwargs):
@@ -61,12 +180,11 @@ class WSData(object):
         
         self.wl_site_fn = kwargs.pop('wl_site_fn', None)
         self.wl_out_fn = kwargs.pop('wl_out_fn', None)
+        
         self.data_fn = kwargs.pop('data_fn', None)
         self.station_fn = kwargs.pop('station_fn', None)
         
         self.data = None
-        
-        self._data_keys = ['station', 'east', 'north', 'z_data', 'z_data_err']
 
         
     def write_data_file(self):
@@ -297,14 +415,16 @@ class WSData(object):
         -----------
             **data_fn** : string
                           full path to data file
-            **sites_fn** : string
-                           full path to sites file output by winglink.  This is
-                           to match the station name with station number.
+            **wl_sites_fn** : string
+                              full path to sites file output by winglink.
+                              This is to match the station name with station
+                              number.
             **station_fn** : string
-                             full path to station location file
+                             full path to station location file written by 
+                             WSStation
                              
-        Outputs:
-        --------
+        Fills Attributes:
+        ------------------
             **data** : structure np.ndarray
                       fills the attribute WSData.data with values
                       
@@ -436,7 +556,26 @@ class WSData(object):
 #==============================================================================
 class WSStation(object):
     """
-    read and write a station file 
+    read and write a station file where the locations are relative to the 
+    3D mesh.
+    
+    ==================== ======================================================
+    Attributes           Description
+    ==================== ======================================================
+    east                 array of relative locations in east direction    
+    elev                 array of elevations for each station
+    names                array of station names
+    north                array of relative locations in north direction  
+    station_fn           full path to station file
+    save_path            path to save file to
+    ==================== ======================================================
+    
+    ==================== ======================================================
+    Methods              Description 
+    ==================== ======================================================
+    read_station_file    reads in a station file
+    write_station_file   writes a station file     
+    ==================== ======================================================
     """
     
     def __init__(self, station_fn=None, **kwargs):
@@ -456,6 +595,28 @@ class WSStation(object):
         center of the grid.  Also, the stations are assumed to be in the center
         of the cell.
         
+        Arguments:
+        -----------
+            **east** : np.ndarray(n_stations)
+                       relative station locations in east direction
+                       
+            **north** : np.ndarray(n_stations)
+                       relative station locations in north direction
+                       
+            **station_list** : list or np.ndarray(n_stations)
+                               name of stations
+            
+            **save_path** : string
+                            directory or full path to save station file to
+                            if a directory  the file will be saved as
+                            save_path/WS_Station_Locations.txt
+                            if save_path is none the current working directory
+                            is used as save_path
+                            
+        Outputs:
+        ---------
+            **station_fn** : full path to station file
+        
         """
         if east is not None:
             self.east = east
@@ -467,13 +628,13 @@ class WSStation(object):
             self.save_path = save_path
             if os.path.isdir(save_path):
                 self.station_fn = os.path.join(save_path, 
-                                               'WS_Station_locations.txt')
+                                               'WS_Station_Locations.txt')
             else:
                 self.station_fn = save_path
         else:
             self.save_path = os.getcwd()
             self.station_fn = os.path.join(save_path, 
-                                           'WS_Station_locations.txt')
+                                           'WS_Station_Locations.txt')
         
         sfid = file(self.station_fn, 'w')
         sfid.write('{0:<14}{1:^14}{2:^14}\n'.format('station', 'east', 
@@ -497,10 +658,14 @@ class WSStation(object):
                              
         Outputs:
         ---------
-            **station_locations** : structured array with keys
-                                     * station station name
-                                     * east_c E-W location in center of cell
-                                     * north_c N-S location in center of cell
+            **east** : np.ndarray(n_stations)
+                       relative station locations in east direction
+                       
+            **north** : np.ndarray(n_stations)
+                       relative station locations in north direction
+                       
+            **station_list** : list or np.ndarray(n_stations)
+                               name of stations
         
         """
         if station_fn is not None:
@@ -522,6 +687,49 @@ class WSStation(object):
 class WSMesh(object):
     """
     make and read a FE mesh grid
+    
+    The mesh assumes the coordinate system where:
+        x == North
+        y == East
+        z == + down
+        
+    All dimensions are in meters.
+    
+    ==================== ======================================================
+    Attributes           Description    
+    ==================== ======================================================
+    cell_size_east       mesh block width in east direction
+                         *default* is 500
+    cell_size_north      mesh block width in north direction
+                         *default* is 500
+    edi_list             list of .edi files to invert for
+    grid_east            overall distance of grid nodes in east direction 
+    grid_north           overall distance of grid nodes in north direction 
+    grid_z               overall distance of grid nodes in z direction 
+    initial_fn           full path to initial file name
+    n_layers             total number of vertical layers in model
+    nodes_east           relative distance between nodes in east direction 
+    nodes_north          relative distance between nodes in north direction 
+    nodes_z              relative distance between nodes in east direction 
+    pad_east             number of cells for padding on E and W sides
+                         *default* is 5
+    pad_north            number of cells for padding on S and N sides
+                         *default* is 5
+    pad_root_east        padding cells E & W will be pad_root_east**(x)
+    pad_root_north       padding cells N & S will be pad_root_north**(x) 
+    pad_z                number of cells for padding at bottom
+                         *default* is 5
+    res_list             list of resistivity values for starting model
+    res_model            starting resistivity model
+    save_path            path to save file to  
+    station_fn           full path to station file
+    station_locations    location of stations
+    title                title in initial file
+    z1_layer             first layer thickness
+    z_bottom             absolute bottom of the model *default* is 300,000 
+    z_target_depth       Depth of deepest target, *default* is 50,000
+    ==================== ======================================================
+
     """
     
     def __init__(self, edi_list=None, **kwargs):
@@ -1344,6 +1552,8 @@ class WSModel(object):
         self.grid_z = np.array([self.nodes_z[:ii+1].sum() for ii in range(n_z)])
     
         #--> get resistivity values
+        #need to read in the north backwards so that the first index is 
+        #southern most point
         for kk in range(n_z):
             for jj in range(n_east):
                 for ii in range(n_north):
@@ -3546,15 +3756,19 @@ class PlotPTMaps(mtplottools.MTEllipse):
         
         if self.ew_limits == None:
             if self.station_east is not None:
-                self.ew_limits = (np.floor(self.station_east.min())-self.pad_east, 
-                                  np.ceil(self.station_east.max())+self.pad_east)
+                self.ew_limits = (np.floor(self.station_east.min())-
+                                                      self.pad_east, 
+                                  np.ceil(self.station_east.max())+
+                                                      self.pad_east)
             else:
                 self.ew_limits = (self.grid_east[5], self.grid_east[-5])
 
         if self.ns_limits == None:
             if self.station_north is not None:
-                self.ns_limits = (np.floor(self.station_north.min())-self.pad_north, 
-                                  np.ceil(self.station_north.max())+self.pad_north)
+                self.ns_limits = (np.floor(self.station_north.min())-
+                                                        self.pad_north, 
+                                  np.ceil(self.station_north.max())+
+                                                        self.pad_north)
             else:
                 self.ns_limits = (self.grid_north[5], self.grid_north[-5])
                                
@@ -3577,8 +3791,10 @@ class PlotPTMaps(mtplottools.MTEllipse):
             #plot model below the phase tensors
             if self.model_fn is not None:
                 approx_depth = 500*np.sqrt(per*50)/self.dscale
-                d_index = np.where(self.grid_z >= approx_depth)[0][0]
-                print approx_depth, self.grid_z[d_index]
+                approx_depth, d_index = estimate_skin_depth(self.res_model,
+                                                            self.grid_z, 
+                                                            per, 
+                                                            dscale=self.dscale)  
                 for ax in ax_list:
                     plot_res = np.log10(self.res_model[:, :, d_index].T)
                     ax.pcolormesh(self.mesh_east,
@@ -3594,9 +3810,11 @@ class PlotPTMaps(mtplottools.MTEllipse):
                     
                 
             #--> get phase tensors
-            pt = mtpt.PhaseTensor(z_array=self.data[:, ff, :].reshape(n_stations,2,2))
+            pt = mtpt.PhaseTensor(
+                           z_array=self.data[:, ff, :].reshape(n_stations,2,2))
             if self.resp is not None:
-                mpt = mtpt.PhaseTensor(z_array=self.resp[:, ff, :].reshape(n_stations,2,2))
+                mpt = mtpt.PhaseTensor(
+                           z_array=self.resp[:, ff, :].reshape(n_stations,2,2))
                 rpt = mtpt.ResidualPhaseTensor(pt_object1=pt, pt_object2=mpt)
                 rpt = rpt.residual_pt
                 rcarray = np.sqrt(abs(rpt.phimin[0]*rpt.phimax[0]))
@@ -3680,11 +3898,11 @@ class PlotPTMaps(mtplottools.MTEllipse):
                     #get ellipse color
                     if self.ellipse_cmap.find('seg')>0:
                         ellipsem.set_facecolor(mtcl.get_plot_color(mcarray[jj],
-                                                             self.ellipse_colorby,
-                                                             self.ellipse_cmap,
-                                                             ckmin,
-                                                             ckmax,
-                                                             bounds=bounds))
+                                                         self.ellipse_colorby,
+                                                         self.ellipse_cmap,
+                                                         ckmin,
+                                                         ckmax,
+                                                         bounds=bounds))
                     else:
                         ellipsem.set_facecolor(mtcl.get_plot_color(mcarray[jj],
                                                          self.ellipse_colorby,
@@ -3770,8 +3988,8 @@ class PlotPTMaps(mtplottools.MTEllipse):
                     if aa == 0:
                         cb = mcb.ColorbarBase(cbax, 
                                               cmap=mtcl.cmapdict[self.ellipse_cmap],
-                                               norm=Normalize(vmin=ckmin,
-                                                              vmax=ckmax),
+                                              norm=Normalize(vmin=ckmin,
+                                                             vmax=ckmax),
                                                orientation='horizontal')
                         cb.ax.xaxis.set_label_position('top')
                         cb.ax.xaxis.set_label_coords(.5, 1.75)
@@ -3828,13 +4046,163 @@ class PlotPTMaps(mtplottools.MTEllipse):
                             
                 
             plt.show()
+            self.fig_list.append(fig)
             
-def estimate_skin_depth(resmodel, grid_z, period_list):
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plotAllResponses()
+            >>> #change line width
+            >>> p1.lw = 2
+            >>> p1.redraw_plot()
+        """
+        for fig in self.fig_list:
+            plt.close(fig)
+        self.plot()
+            
+    def save_figure(self, save_path=None, fig_dpi=None, file_format='pdf', 
+                    orientation='landscape', close_fig='y'):
+        """
+        save_figure will save the figure to save_fn.
+        
+        Arguments:
+        -----------
+        
+            **save_fn** : string
+                          full path to save figure to, can be input as
+                          * directory path -> the directory path to save to
+                            in which the file will be saved as 
+                            save_fn/station_name_PhaseTensor.file_format
+                            
+                          * full path -> file will be save to the given 
+                            path.  If you use this option then the format
+                            will be assumed to be provided by the path
+                            
+            **file_format** : [ pdf | eps | jpg | png | svg ]
+                              file type of saved figure pdf,svg,eps... 
+                              
+            **orientation** : [ landscape | portrait ]
+                              orientation in which the file will be saved
+                              *default* is portrait
+                              
+            **fig_dpi** : int
+                          The resolution in dots-per-inch the file will be
+                          saved.  If None then the dpi will be that at 
+                          which the figure was made.  I don't think that 
+                          it can be larger than dpi of the figure.
+                          
+            **close_plot** : [ y | n ]
+                             * 'y' will close the plot after saving.
+                             * 'n' will leave plot open
+                          
+        :Example: ::
+            
+            >>> # to save plot as jpg
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotPseudoSection()
+            >>> ps1.save_plot(r'/home/MT/figures', file_format='jpg')
+            
+        """
+
+        if fig_dpi == None:
+            fig_dpi = self.fig_dpi
+            
+        if os.path.isdir(save_path) == False:
+            try:
+                os.mkdir(save_path)
+            except:
+                raise IOError('Need to input a correct directory path')
+        
+        for fig in self.fig_list:
+            per = fig.canvas.get_window_title()
+            save_fn = os.path.join(save_path, 'PT_DepthSlice_{0}s.{1}'.format(
+                                    per, file_format))
+            fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                        orientation=orientation, bbox_inches='tight')
+        
+            if close_fig == 'y':
+                plt.close(fig)
+            
+            else:
+                pass
+        
+            self.fig_fn = save_fn
+            print 'Saved figure to: '+self.fig_fn
+
+#==============================================================================
+# ESTIMATE SKIN DEPTH FOR MODEL            
+#==============================================================================
+def estimate_skin_depth(res_model, grid_z, period, dscale=1000):
     """
-    estimate the skin depth from the resistivity model
+    estimate the skin depth from the resistivity model assuming that
     
+        delta_skin ~ 500 * sqrt(rho_a*T)
+        
+    Arguments:
+    -----------
+        **resmodel** : np.ndarray (n_north, n_east, n_z)
+                       array of resistivity values for model grid
+                       
+        **grid_z** : np.ndarray (n_z)
+                     array of depth layers in m or km, be sure to change
+                     dscale accordingly
+        
+        **period** : float
+                     period in seconds to estimate a skin depth for
+                     
+        **dscale** : [1000 | 1]
+                     scaling value to scale depth estimation to meters (1) or
+                     kilometers (1000)
+                     
+    Outputs:
+    ---------
+        **depth** : float
+                    estimated skin depth in units according to dscale
+                    
+        **depth_index** : int
+                          index value of grid_z that corresponds to the 
+                          estimated skin depth.
     """
-    pass    
+    if dscale == 1000:
+        ms = 'km'
+    if dscale == 1:
+        ms = 'm'
+    #find the apparent resisitivity of each depth slice within the station area
+    apparent_res_xy = np.array([res_model[6:-6, 6:-6, ii].mean() 
+                                        for ii in range(grid_z.shape[0])])
+    
+    #calculate the period for each skin depth
+    skin_depth_period = np.array([(zz/(500./dscale))**2*(1/rho_a) 
+                                for zz, rho_a in zip(grid_z, apparent_res_xy)])
+                                      
+    #match the period
+    period_index = np.where(skin_depth_period >= period)[0][0]
+    
+    #get the depth slice
+    depth = grid_z[period_index]
+    
+    print '-'*60
+    print ' input period                   {0:.6g} (s)'.format(period)
+    print ' estimated skin depth period    {0:.6g} (s)'.format(
+                                               skin_depth_period[period_index])
+    print ' estimate apparent resisitivity {0:.0f} (Ohm-m)'.format(
+           apparent_res_xy[0:period_index].mean())
+    print ' estimated depth                {0:.6g} ({1})'.format(depth, ms)
+    print '-'*60
+
+    
+    return depth, period_index
+   
             
            
 #==============================================================================
@@ -4428,7 +4796,49 @@ class PlotSlices(object):
         self.fig_fn = save_fn
         print 'Saved figure to: '+self.fig_fn
         
+#==============================================================================
+# WRITE A VTK FILE TO IMAGE IN PARAVIEW OR MAYAVI
+#==============================================================================
+
+def write_vtk_res_model(res_model, grid_north, grid_east, grid_z, save_fn):
+    """
+    Write a vtk file for resistivity as a structured grid 
+    to be read into paraview or mayavi
+    
+    **Doesn't work properly under windows**
+    
+    adds extension automatically
+    
+    """
+
+    if os.path.isdir(save_fn) == True:
+        save_fn = os.path.join(save_fn, 'VTKResistivity_Model')
         
+    save_fn = gridToVTK(save_fn, grid_north, grid_east, grid_z, 
+                        cellData={'resistivity':res_model})
+              
+    return save_fn
+    
+def write_vtk_stations(station_north, station_east, save_fn, station_z=None):
+    """
+    Write a vtk file as points to be read into paraview or mayavi
+    
+    **Doesn't work properly under windows**
+    
+    adds extension automatically
+    
+    """
+
+    if os.path.isdir(save_fn) == True:
+        save_fn = os.path.join(save_fn, 'VTKStations')
+        
+    if station_z is None:
+        station_z = np.zeros_like(station_north)
+        
+    gridToVTK(save_fn, station_north, station_east, station_z, 
+              cellData={'value':np.ones_like(station_north)})     
+              
+    return save_fn
         
         
         
