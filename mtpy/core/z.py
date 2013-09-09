@@ -352,7 +352,7 @@ class Z(object):
             reserr = np.zeros(self.zerr.shape)
             phaseerr = np.zeros(self.zerr.shape)
 
-        res= np.zeros(self.z.shape)
+        res = np.zeros(self.z.shape)
         phase = np.zeros(self.z.shape)
 
 
@@ -367,16 +367,24 @@ class Z(object):
                 
                     if self.zerr is not None:
 
-                        r_err, phi_err = MTcc.propagate_error_rect2polar(
+                        # r_err, phi_err = MTcc.propagate_error_rect2polar(
+                        #                          np.real(self.z[idx_f,i,j]), 
+                        #                          self.zerr[idx_f,i,j], 
+                        #                          np.imag(self.z[idx_f,i,j]), 
+                        #                          self.zerr[idx_f,i,j])
+                        
+                        r_err, phi_err = MTcc.zerror2r_phi_error(
                                                  np.real(self.z[idx_f,i,j]), 
                                                  self.zerr[idx_f,i,j], 
                                                  np.imag(self.z[idx_f,i,j]), 
                                                  self.zerr[idx_f,i,j])
 
+                        
+
                         reserr[idx_f,i,j] = 0.4 * np.abs(self.z[idx_f,i,j])/\
                                                       self.freq[idx_f] * r_err
                         phaseerr[idx_f,i,j] = phi_err
-
+                        
         return res, phase, reserr, phaseerr
 
 
@@ -577,8 +585,8 @@ class Z(object):
                     print '"Angles" must be valid numbers (in degrees)'
                     return
             
-        self.rotation_angle = [(oldangle + lo_angles[i])%360 
-					  for i,oldangle in enumerate(self.rotation_angle)]
+        self.rotation_angle = np.array([(oldangle + lo_angles[i])%360 
+					  for i,oldangle in enumerate(self.rotation_angle)])
 
         if len(lo_angles) != len(self.z):
             print 'Wrong number Number of "angles" - I need %i '%(len(self.z))
@@ -1015,7 +1023,7 @@ class Tipper(object):
                            tipper array in the shape of [Tx, Ty]
                            *default* is None
                            
-        **tipper_err_array** : np.ndarray((nf, 1, 2))
+        **tippererr_array** : np.ndarray((nf, 1, 2))
                                array of estimated tipper errors
                                in the shape of [Tx, Ty].
                                Must be the same shape as tipper_array.
@@ -1032,7 +1040,7 @@ class Tipper(object):
         -rotation_angle  angle to rotate the data by.  
         
         -tipper          tipper array
-        -tipper_err      tipper error array
+        -tippererr      tipper error array
         
         
     Methods:
@@ -1046,7 +1054,7 @@ class Tipper(object):
 
     """
 
-    def __init__(self, tipper_array=None, tipper_err_array=None, 
+    def __init__(self, tipper_array=None, tippererr_array=None, 
                  freq=None):
         """
             Initialise an instance of the Tipper class.
@@ -1054,7 +1062,7 @@ class Tipper(object):
         """    
 
         self._tipper = tipper_array        
-        self._tipper_err = tipper_err_array
+        self._tippererr = tippererr_array
         self._freq = freq
 
         self.rotation_angle = 0.
@@ -1131,7 +1139,7 @@ class Tipper(object):
     tipper = property(_get_tipper, _set_tipper, doc="Tipper array")
     
     #----tipper error---------------------------------------------------------
-    def _set_tipper_err(self, tippererr_array):
+    def _set_tippererr(self, tippererr_array):
         """
             Set the attribute 'tippererr'.
 
@@ -1147,31 +1155,31 @@ class Tipper(object):
             if len(tippererr_array.shape)==3 and \
                                         tippererr_array.shape[1:3]==(1,2):
                 if tippererr_array.dtype in ['float','int']:
-                    self._tipper_err = tippererr_array
+                    self._tippererr = tippererr_array
         except:
             pass
         
         #make sure the error array is the same shape as tipper
         try:
-            if len(self.tipper) != len(self._tipper_err):
-                self._tipper_err = None
+            if len(self.tipper) != len(self._tippererr):
+                self._tippererr = None
         except:
             pass
 
         
-        if (self.tipper_err!=None) and \
-                            (self._tipper_err.shape!=tippererr_array.shape):
+        if (self.tippererr!=None) and \
+                            (self._tippererr.shape!=tippererr_array.shape):
             print 'Error - shape of "tippererr" array does not match shape '+\
                   'of tippererr array: %s ; %s'%(str(tippererr_array.shape),
-                                                 str(self._tipper_err.shape))
+                                                 str(self._tippererr.shape))
             return
 
-        self._tipper_err = tippererr_array
+        self._tippererr = tippererr_array
         
-    def _get_tipper_err(self):
-        return self._tipper_err
+    def _get_tippererr(self):
+        return self._tippererr
         
-    tipper_err = property(_get_tipper_err, _set_tipper_err,
+    tippererr = property(_get_tippererr, _set_tippererr,
                           doc="Estimated Tipper errors")
                           
     #----real part---------------------------------------------------------
@@ -1481,8 +1489,8 @@ class Tipper(object):
                     print '"Angles" must be valid numbers (in degrees)'
                     return
            
-        self.rotation_angle = [(oldangle + lo_angles[i])%360 
-                              for i,oldangle in enumerate(self.rotation_angle)] 
+        self.rotation_angle = np.array([(oldangle + lo_angles[i])%360 
+                              for i,oldangle in enumerate(self.rotation_angle)] )
 
         if len(lo_angles) != len(self.tipper):
             print 'Wrong number Number of "angles" - need %i '%(len(self.tipper))
@@ -1490,16 +1498,16 @@ class Tipper(object):
             return
 
         tipper_rot = copy.copy(self.tipper)
-        tippererr_rot = copy.copy(self.tipper_err)
+        tippererr_rot = copy.copy(self.tippererr)
 
         for idx_freq in range(len(tipper_rot)):
             angle = lo_angles[idx_freq]
 
-            if self.tipper_err is not None:
+            if self.tippererr is not None:
                 tipper_rot[idx_freq], tippererr_rot[idx_freq] =  \
                     MTcc.rotatevector_incl_errors(self.tipper[idx_freq,:,:], 
                                                   angle,
-                                                  self.tipper_err[idx_freq,:,:] )
+                                                  self.tippererr[idx_freq,:,:] )
             else:
                 tipper_rot[idx_freq], tippererr_rot = \
                     MTcc.rotatevector_incl_errors(self.tipper[idx_freq,:,:], 
@@ -1508,7 +1516,7 @@ class Tipper(object):
 
  
         self.tipper = tipper_rot
-        self.tipper_err = tippererr_rot
+        self.tippererr = tippererr_rot
 
 
 #------------------------
