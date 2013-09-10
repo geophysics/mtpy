@@ -729,7 +729,33 @@ class WSMesh(object):
     z_bottom             absolute bottom of the model *default* is 300,000 
     z_target_depth       Depth of deepest target, *default* is 50,000
     ==================== ======================================================
-
+    
+    ==================== ======================================================
+    Methods              Description
+    ==================== ======================================================
+    make_mesh            makes a mesh from the given specifications
+    plot_mesh            plots mesh to make sure everything is good
+    write_initial_file   writes an initial model file that includes the mesh
+    ==================== ======================================================
+    
+    :Example: ::
+    
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> import os
+        >>> #1) make a list of all .edi files that will be inverted for 
+        >>> edi_path = r"/home/EDI_Files"
+        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
+        >>> ...         if edi.find('.edi') > 0]
+        >>> #2) make a grid from the stations themselves with 200m cell spacing
+        >>> wsmesh = ws.WSMesh(edi_list=edi_list, cell_size_east=200, 
+        >>> ...                cell_size_north=200)
+        >>> wsmesh.make_mesh()
+        >>> # check to see if the mesh is what you think it should be
+        >>> wsmesh.plot_mesh()
+        >>> # all is good write the mesh file
+        >>> wsmesh.write_initial_file(save_path=r"/home/ws3dinv/Inv1")
+    
+    
     """
     
     def __init__(self, edi_list=None, **kwargs):
@@ -799,6 +825,9 @@ class WSMesh(object):
         about 1/10th the shortest skin depth.  The layers then increase
         exponentially accoring to pad_root_z for n_layers.  Then the model is
         padded with pad_z number of cells to extend the depth of the model.
+        
+        padding = np.round(cell_size_east*pad_root_east**np.arange(start=.5,
+                           stop=3, step=3./pad_east))+west 
         
         """
         if self.edi_list is None:
@@ -1453,8 +1482,38 @@ class WSMesh(object):
 #==============================================================================
 class WSModel(object):
     """
-    included tools for reading a model and plotting a model.
+    Reads in model file and fills necessary attributes.
     
+    ======================= ===================================================
+    Attributes              Description
+    ======================= ===================================================
+    grid_east               overall distance of grid nodes in east direction 
+    grid_north              overall distance of grid nodes in north direction 
+    grid_z                  overall distance of grid nodes in z direction
+    iteration_number        iteration number of the inversion
+    lagrange                lagrange multiplier
+    model_fn                full path to model file
+    nodes_east              relative distance between nodes in east direction 
+    nodes_north             relative distance between nodes in north direction 
+    nodes_z                 relative distance between nodes in east direction 
+    res_list                list of resistivity values for starting model
+    res_model               starting resistivity model
+    rms                     root mean squared error of data and model
+    ======================= ===================================================
+    
+    
+    ======================= ===================================================
+    Methods                 Description    
+    ======================= ===================================================
+    read_model_file         read model file and fill attributes
+    ======================= ===================================================
+    
+    
+    :Example: ::
+    
+        >>> mfn = r"/home/ws3dinv/test_model.00"
+        >>> wsmodel = ws.WSModel(mfn)
+        
     """
     
     def __init__(self, model_fn=None):
@@ -1473,7 +1532,7 @@ class WSModel(object):
         self.grid_east = None
         self.grid_z = None
         
-        if os.path.isfile(self.model_fn) == True:
+        if self.model_fn is not None and os.path.isfile(self.model_fn) == True:
             self.read_model_file()
         
     def read_model_file(self):
@@ -1565,12 +1624,68 @@ class WSModel(object):
 #==============================================================================
 # Manipulate the model
 #==============================================================================
-class WS3DModelManipulator(object):
+class WSModelManipulator(object):
     """
     will plot a model from wsinv3d or init file so the user can manipulate the 
     resistivity values relatively easily.  At the moment only plotted
     in map view.
     
+    =================== =======================================================
+    Attributes          Description
+    =================== =======================================================
+    ax1
+    ax2
+    cb
+    cb_dict
+    cblabeldict
+    cid_depth
+    cmap
+    cmax
+    cmin
+    data_fn
+    depth_index
+    dpi
+    dscale
+    east_line_xlist
+    east_line_ylist
+    fdict
+    fig
+    fignum
+    figsize
+    font_size
+    grid_east
+    grid_north
+    grid_z
+    initial_fn
+    m_height
+    m_width
+    mapscale
+    mesh_east
+    mesh_north
+    mesh_plot
+    model_fn
+    new_initial_fn
+    nodes_east
+    nodes_north
+    nodes_z
+    north_line_xlist
+    north_line_ylist
+    plot_yn
+    radio_res
+    rect_selector
+    res
+    res_copy
+    res_dict
+    res_list
+    res_model
+    res_model_int
+    res_value
+    save_path
+    station_east
+    station_north
+    xlimits
+    ylimits
+    =================== =======================================================
     
     """
 
@@ -1605,6 +1720,7 @@ class WS3DModelManipulator(object):
         #resistivity model
         self.res_model_int = None #model in ints
         self.res_model = None     #model in floats
+        self.res = None
         
         #station locations in relative coordinates read from data file
         self.station_east = None
@@ -1722,7 +1838,11 @@ class WS3DModelManipulator(object):
                 if hasattr(wsmodel, name):
                     value = getattr(wsmodel, name)
                     setattr(self, name, value)
-            
+                    
+            if self.res_list is None:
+                self.set_res_list(np.array([.3, 1, 10, 50, 100, 500, 1000, 5000],
+                                           dtype=np.float))
+            self.res = self.res_model.copy()
             self.convert_res_to_model()
          
         #--> read initial file
@@ -4840,6 +4960,40 @@ def write_vtk_stations(station_north, station_east, save_fn, station_z=None):
               
     return save_fn
         
+        
+def computeMemoryUsage(nx, ny, nz, n_stations, n_zelements, n_period):
+    """
+    compute the memory usage of a model
+    
+    Arguments:
+    ----------
+        **nx** : int
+                 number of cells in N-S direction
+                 
+        **ny** : int
+                 number of cells in E-W direction
+                 
+        **nz** : int
+                 number of cells in vertical direction including air layers (7)
+                 
+        **n_stations** : int
+                         number of stations
+                         
+        **n_zelements** : int
+                          number of impedence tensor elements either 4 or 8
+        
+        **n_period** : int
+                       number of periods to invert for
+                       
+    Returns:
+    --------
+        **mem_req** : float
+                      approximate memory useage in GB
+    """
+
+    mem_req = 1.2*(8*(n_stations*n_period*n_zelements)**2+
+                   8*(nx*ny*nz*n_stations*n_period*n_zelements))
+    return mem_req*1E-9
         
         
         
