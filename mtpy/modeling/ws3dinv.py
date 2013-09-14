@@ -39,6 +39,7 @@ The intended use or workflow is something like this for getting started:
     >>> #4) plot mt response to make sure everything looks ok
     >>> rp = ws.PlotResponse(data_fn=wsdata.data_fn)
     >>> #5) make startup file
+    >>> sws = ws.WSStartup(data_fn=wsdata.data_fn, initial_fn=mm.new_initial_fn)
     
 :checking the model and response: ::
     
@@ -53,7 +54,7 @@ The intended use or workflow is something like this for getting started:
     >>> # plot phase tensor ellipses on top of depth slices
     >>> ptm = ws.PlotPTMaps(data_fn=dfn, resp_fn=rfn, model_fn=mfn)
     >>> #write files for 3D visualization in Paraview or Mayavi
-    >>> ws.write_vtk_files(model_fn=mfn, station_fn=sfn)
+    >>> ws.write_vtk_files(mfn, sfn, r"/home/ParaviewFiles")
     
     
     
@@ -70,7 +71,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from matplotlib.patches import Ellipse
-from matplotlib.colors import LinearSegmentedColormap,Normalize
+from matplotlib.colors import Normalize
 import matplotlib.colorbar as mcb
 import matplotlib.gridspec as gridspec
 import mtpy.core.z as mtz
@@ -97,6 +98,20 @@ class WSData(object):
     Includes tools for reading and writing data files intended to be used with
     ws3dinv.
     
+    :Example: ::
+        
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> import os
+        >>> edi_path = r"/home/EDI_Files"
+        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
+        >>> ...         if edi.find('.edi') > 0]
+        >>> # create an evenly space period list in log space
+        >>> p_list = np.logspace(np.log10(.001), np.log10(1000), 12)
+        >>> wsdata = ws.WSData(edi_list=edi_list, period_list=p_list, 
+        >>> ...                station_fn=r"/home/stations.txt")
+        >>> wsdata.write_data_file()
+        
+        
     ====================== ====================================================
     Attributes              Description
     ====================== ====================================================
@@ -159,18 +174,6 @@ class WSData(object):
     read_data_file         reads in a ws3dinv data file
     ====================== ====================================================
     
-    :Example: ::
-        
-        >>> import mtpy.modeling.ws3dinv as ws
-        >>> import os
-        >>> edi_path = r"/home/EDI_Files"
-        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
-        >>> ...         if edi.find('.edi') > 0]
-        >>> # create an evenly space period list in log space
-        >>> p_list = np.logspace(np.log10(.001), np.log10(1000), 12)
-        >>> wsdata = ws.WSData(edi_list=edi_list, period_list=p_list, 
-        >>> ...                station_fn=r"/home/stations.txt")
-        >>> wsdata.write_data_file()
     """
     
     def __init__(self, **kwargs):
@@ -602,7 +605,8 @@ class WSStation(object):
     Methods              Description 
     ==================== ======================================================
     read_station_file    reads in a station file
-    write_station_file   writes a station file     
+    write_station_file   writes a station file  
+    write_vtk_file       writes a vtk points file for station locations
     ==================== ======================================================
     """
     
@@ -615,7 +619,7 @@ class WSStation(object):
         self.save_path = kwargs.pop('save_path', None)
         
     def write_station_file(self, east=None, north=None, station_list=None, 
-                           save_path=None):
+                           save_path=None, elev=None):
         """
         write a station file to go with the data file.
         
@@ -630,6 +634,9 @@ class WSStation(object):
                        
             **north** : np.ndarray(n_stations)
                        relative station locations in north direction
+                       
+            **elev** : np.ndarray(n_stations)
+                       relative station locations in vertical direction
                        
             **station_list** : list or np.ndarray(n_stations)
                                name of stations
@@ -652,6 +659,11 @@ class WSStation(object):
             self.north = north
         if station_list is not None:
             self.names = station_list
+        if elev is not None:
+            self.elev = elev
+        else:
+            if self.north is not None:
+                self.elev = np.zeros_like(self.north)
         if save_path is not None:
             self.save_path = save_path
             if os.path.isdir(save_path):
@@ -665,12 +677,13 @@ class WSStation(object):
                                            'WS_Station_Locations.txt')
         
         sfid = file(self.station_fn, 'w')
-        sfid.write('{0:<14}{1:^14}{2:^14}\n'.format('station', 'east', 
-                                                    'north'))
-        for ee, nn, ss in zip(self.east, self.north, self.names):
+        sfid.write('{0:<14}{1:^14}{2:^14}{3:^14}\n'.format('station', 'east', 
+                                                    'north', 'elev'))
+        for ee, nn, zz, ss in zip(self.east, self.north, self.elev, self.names):
             ee = '{0:+.4e}'.format(ee)
             nn = '{0:+.4e}'.format(nn)
-            sfid.write('{0:<14}{1:^14}{2:^14}\n'.format(ss, ee, nn))
+            zz = '{0:+.4e}'.format(nn)
+            sfid.write('{0:<14}{1:^14}{2:^14}{3:^14}\n'.format(ss, ee, nn, zz))
         sfid.close()
         
         print 'Wrote station locations to {0}'.format(self.station_fn)
@@ -691,6 +704,8 @@ class WSStation(object):
                        
             **north** : np.ndarray(n_stations)
                        relative station locations in north direction
+            **elev** : np.ndarray(n_stations)
+                       relative station locations in vertical direction
                        
             **station_list** : list or np.ndarray(n_stations)
                                name of stations
@@ -704,11 +719,25 @@ class WSStation(object):
         station_locations = np.loadtxt(self.station_fn, skiprows=1, 
                                        dtype=[('station', '|S10'),
                                               ('east_c', np.float),
-                                              ('north_c', np.float)])
+                                              ('north_c', np.float),
+                                              ('elev', np.float)])
                                               
         self.east = station_locations['east_c']
         self.north = station_locations['north_c']
         self.names = station_locations['station']
+        self.elev = station_locations['elev']
+        
+    def write_vtk_file(self, save_fn):
+        if os.path.isdir(save_fn) == True:
+            save_fn = os.path.join(save_fn, 'VTKStations')
+            
+        if self.elev is None:
+            self.elev = np.zeros_like(self.north)
+            
+        pointsToVTK(save_fn, self.north, self.east, self.elev, 
+                  cellData={'value':np.ones_like(self.north)})     
+                  
+        return save_fn
 #==============================================================================
 # mesh class
 #==============================================================================
@@ -722,6 +751,23 @@ class WSMesh(object):
         z == + down
         
     All dimensions are in meters.
+    
+    :Example: ::
+    
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> import os
+        >>> #1) make a list of all .edi files that will be inverted for 
+        >>> edi_path = r"/home/EDI_Files"
+        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
+        >>> ...         if edi.find('.edi') > 0]
+        >>> #2) make a grid from the stations themselves with 200m cell spacing
+        >>> wsmesh = ws.WSMesh(edi_list=edi_list, cell_size_east=200, 
+        >>> ...                cell_size_north=200)
+        >>> wsmesh.make_mesh()
+        >>> # check to see if the mesh is what you think it should be
+        >>> wsmesh.plot_mesh()
+        >>> # all is good write the mesh file
+        >>> wsmesh.write_initial_file(save_path=r"/home/ws3dinv/Inv1")
     
     ==================== ======================================================
     Attributes           Description    
@@ -765,23 +811,6 @@ class WSMesh(object):
     plot_mesh            plots mesh to make sure everything is good
     write_initial_file   writes an initial model file that includes the mesh
     ==================== ======================================================
-    
-    :Example: ::
-    
-        >>> import mtpy.modeling.ws3dinv as ws
-        >>> import os
-        >>> #1) make a list of all .edi files that will be inverted for 
-        >>> edi_path = r"/home/EDI_Files"
-        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
-        >>> ...         if edi.find('.edi') > 0]
-        >>> #2) make a grid from the stations themselves with 200m cell spacing
-        >>> wsmesh = ws.WSMesh(edi_list=edi_list, cell_size_east=200, 
-        >>> ...                cell_size_north=200)
-        >>> wsmesh.make_mesh()
-        >>> # check to see if the mesh is what you think it should be
-        >>> wsmesh.plot_mesh()
-        >>> # all is good write the mesh file
-        >>> wsmesh.write_initial_file(save_path=r"/home/ws3dinv/Inv1")
     
     
     """
@@ -1512,6 +1541,12 @@ class WSModel(object):
     """
     Reads in model file and fills necessary attributes.
     
+    :Example: ::
+    
+        >>> mfn = r"/home/ws3dinv/test_model.00"
+        >>> wsmodel = ws.WSModel(mfn)
+        >>> wsmodel.write_vtk_file(r"/home/ParaviewFiles")
+        
     ======================= ===================================================
     Attributes              Description
     ======================= ===================================================
@@ -1534,13 +1569,9 @@ class WSModel(object):
     Methods                 Description    
     ======================= ===================================================
     read_model_file         read model file and fill attributes
+    write_vtk_file          write a vtk structured grid file for resistivity
+                            model
     ======================= ===================================================
-    
-    
-    :Example: ::
-    
-        >>> mfn = r"/home/ws3dinv/test_model.00"
-        >>> wsmodel = ws.WSModel(mfn)
         
     """
     
@@ -1647,7 +1678,22 @@ class WSModel(object):
                     self.res_model[(n_north-1)-ii, jj, kk] = \
                                              float(mlines[line_index].strip())
                     line_index += 1
-
+                    
+    def write_vtk_file(self, save_fn):
+        """
+        
+        """
+        if os.path.isdir(save_fn) == True:
+            save_fn = os.path.join(save_fn, 'VTKResistivity_Model')
+        
+        save_fn = gridToVTK(save_fn, 
+                            self.grid_north, 
+                            self.grid_east, 
+                            self.grid_z, 
+                            cellData={'resistivity':self.res_model})
+                            
+        print 'Wrote vtk file to {0}'.format(save_fn)
+        
 
 #==============================================================================
 # Manipulate the model
@@ -1658,6 +1704,12 @@ class WSModelManipulator(object):
     resistivity values relatively easily.  At the moment only plotted
     in map view.
     
+    
+    :Example: ::
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> initial_fn = r"/home/MT/ws3dinv/Inv1/WSInitialFile"
+        >>> mm = ws.WSModelManipulator(initial_fn=initial_fn)
+        
     =================== =======================================================
     Buttons              Description    
     =================== =======================================================
@@ -1726,11 +1778,6 @@ class WSModelManipulator(object):
     xlimits             limits of plot in e-w direction
     ylimits             limits of plot in n-s direction
     =================== =======================================================
-    
-    :Example: ::
-        >>> import mtpy.modeling.ws3dinv as ws
-        >>> initial_fn = r"/home/MT/ws3dinv/Inv1/WSInitialFile"
-        >>> mm = ws.WSModelManipulator(initial_fn=initial_fn)
 
     """
 
@@ -2581,6 +2628,9 @@ class PlotResponse(object):
         >>> rfn = r"/home/MT/ws3dinv/Inv1/Test_resp.00"
         >>> sfn = r"/home/MT/ws3dinv/Inv1/WSStationLocations.txt"
         >>> wsrp = ws.PlotResponse(data_fn=dfn, resp_fn=rfn, station_fn=sfn)
+        >>> # plot only the TE and TM modes
+        >>> wsrp.plot_component = 2
+        >>> wsrp.redraw_plot()
     
     ======================== ==================================================
     Attributes               Description    
@@ -3455,7 +3505,99 @@ class PlotResponse(object):
 #==============================================================================
 class PlotDepthSlice(object):
     """
-    plot depth slices
+    Plots depth slices of resistivity model
+    
+    :Example: ::
+    
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> mfn = r"/home/MT/ws3dinv/Inv1/Test_model.00"
+        >>> sfn = r"/home/MT/ws3dinv/Inv1/WSStationLocations.txt"
+        >>> # plot just first layer to check the formating        
+        >>> pds = ws.PlotDepthSlice(model_fn=mfn, station_fn=sfn, 
+        >>> ...                     depth_index=0, save_plots='n')
+        >>> #move color bar up 
+        >>> pds.cb_location
+        >>> (0.64500000000000002, 0.14999999999999997, 0.3, 0.025)
+        >>> pds.cb_location = (.645, .175, .3, .025)
+        >>> pds.redraw_plot()
+        >>> #looks good now plot all depth slices and save them to a folder
+        >>> pds.save_path = r"/home/MT/ws3dinv/Inv1/DepthSlices"
+        >>> pds.depth_index = None
+        >>> pds.save_plots = 'y'
+        >>> pds.redraw_plot()
+    
+    ======================= ===================================================
+    Attributes              Description    
+    ======================= ===================================================
+    cb_location             location of color bar (x, y, width, height)
+                            *default* is None, automatically locates
+    cb_orientation          [ 'vertical' | 'horizontal' ] 
+                            *default* is horizontal 
+    cb_pad                  padding between axes and colorbar
+                            *default* is None
+    cb_shrink               percentage to shrink colorbar by
+                            *default* is None
+    climits                 (min, max) of resistivity color on log scale
+                            *default* is (0, 4)
+    cmap                    name of color map *default* is 'jet_r'
+    data_fn                 full path to data file
+    depth_index             integer value of depth slice index, shallowest
+                            layer is 0
+    dscale                  scaling parameter depending on map_scale 
+    ew_limits               (min, max) plot limits in e-w direction in 
+                            map_scale units. *default* is None, sets viewing
+                            area to the station area
+    fig_aspect              aspect ratio of plot. *default* is 1
+    fig_dpi                 resolution of figure in dots-per-inch. *default* is
+                            300
+    fig_list                list of matplotlib.figure instances for each 
+                            depth slice                 
+    fig_size                [width, height] in inches of figure size
+                            *default* is [6, 6]
+    font_size               size of ticklabel font in points, labels are 
+                            font_size+2. *default* is 7
+    grid_east               relative location of grid nodes in e-w direction
+                            in map_scale units
+    grid_north              relative location of grid nodes in n-s direction
+                            in map_scale units
+    grid_z                  relative location of grid nodes in z direction
+                            in map_scale units
+    initial_fn              full path to initial file
+    map_scale               [ 'km' | 'm' ] distance units of map. *default* is 
+                            km
+    mesh_east               np.meshgrid(grid_east, grid_north, indexing='ij')
+    mesh_north              np.meshgrid(grid_east, grid_north, indexing='ij')
+    model_fn                full path to model file
+    nodes_east              relative distance betwen nodes in e-w direction
+                            in map_scale units
+    nodes_north             relative distance betwen nodes in n-s direction
+                            in map_scale units
+    nodes_z                 relative distance betwen nodes in z direction
+                            in map_scale units
+    ns_limits               (min, max) plot limits in n-s direction in 
+                            map_scale units. *default* is None, sets viewing
+                            area to the station area
+    plot_grid               [ 'y' | 'n' ] 'y' to plot mesh grid lines. 
+                            *default* is 'n'
+    plot_yn                 [ 'y' | 'n' ] 'y' to plot on instantiation
+    res_model               np.ndarray(n_north, n_east, n_vertical) of 
+                            model resistivity values in linear scale
+    save_path               path to save figures to
+    save_plots              [ 'y' | 'n' ] 'y' to save depth slices to save_path
+    station_east            location of stations in east direction in 
+                            map_scale units  
+    station_fn              full path to station locations file
+    station_names           station names
+    station_north           location of station in north direction in 
+                            map_scale units
+    subplot_bottom          distance between axes and bottom of figure window
+    subplot_left            distance between axes and left of figure window  
+    subplot_right           distance between axes and right of figure window
+    subplot_top             distance between axes and top of figure window
+    title                   titiel of plot *default* is depth of slice
+    xminorticks             location of xminorticks
+    yminorticks             location of yminorticks
+    ======================= ===================================================
     """
     
     def __init__(self, model_fn=None, data_fn=None, station_fn=None, 
@@ -3489,7 +3631,6 @@ class PlotDepthSlice(object):
         
         self.plot_grid = kwargs.pop('plot_grid', 'n')
         
-        self.fig_num = kwargs.pop('fig_num', 1)
         self.fig_size = kwargs.pop('fig_size', [6, 6])
         self.fig_dpi = kwargs.pop('dpi', 300)
         self.fig_aspect = kwargs.pop('fig_aspect', 1)
@@ -3651,7 +3792,9 @@ class PlotDepthSlice(object):
         
         #--> plot depths into individual figures
         for ii in zrange: 
-            fig = plt.figure(ii, figsize=self.fig_size, dpi=self.fig_dpi)
+            depth = '{0:.3f} ({1})'.format(self.grid_z[ii], 
+                                     self.map_scale)
+            fig = plt.figure(depth, figsize=self.fig_size, dpi=self.fig_dpi)
             plt.clf()
             ax1 = fig.add_subplot(1, 1, 1, aspect=self.fig_aspect)
             plot_res = np.log10(self.res_model[:, :, ii].T)
@@ -3677,9 +3820,7 @@ class PlotDepthSlice(object):
             ax1.yaxis.set_minor_locator(MultipleLocator(self.yminorticks/self.dscale))
             ax1.set_ylabel('Northing ('+self.map_scale+')',fontdict=fdict)
             ax1.set_xlabel('Easting ('+self.map_scale+')',fontdict=fdict)
-            ax1.set_title('Depth = {0:.3f} ({1})'.format(self.grid_z[ii], 
-                                                        self.map_scale),
-                                                        fontdict=fdict)
+            ax1.set_title('Depth = {0}'.format(depth), fontdict=fdict)
                        
             #plot the grid if desired
             if self.plot_grid == 'y':
@@ -3813,7 +3954,116 @@ class PlotDepthSlice(object):
 #==============================================================================
 class PlotPTMaps(mtplottools.MTEllipse):
     """
-    plot phase tensor maps including residual pt
+    Plot phase tensor maps including residual pt if response file is input.
+    
+    :Plot only data for one period: ::
+    
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> dfn = r"/home/MT/ws3dinv/Inv1/WSDataFile.dat"
+        >>> ptm = ws.PlotPTMaps(data_fn=dfn, plot_period_list=[0])
+        
+    :Plot data and model response: ::
+    
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> dfn = r"/home/MT/ws3dinv/Inv1/WSDataFile.dat"
+        >>> rfn = r"/home/MT/ws3dinv/Inv1/Test_resp.00"
+        >>> mfn = r"/home/MT/ws3dinv/Inv1/Test_model.00"
+        >>> ptm = ws.PlotPTMaps(data_fn=dfn, resp_fn=rfn, model_fn=mfn,
+        >>> ...                 plot_period_list=[0])
+        >>> # adjust colorbar
+        >>> ptm.cb_res_pad = 1.25
+        >>> ptm.redraw_plot()
+    
+    
+    ========================== ================================================
+    Attributes                 Description    
+    ========================== ================================================
+    cb_pt_pad                  percentage from top of axes to place pt 
+                               color bar. *default* is .90
+    cb_res_pad                 percentage from bottom of axes to place
+                               resistivity color bar. *default* is 1.2
+    cb_residual_tick_step      tick step for residual pt. *default* is 3
+    cb_tick_step               tick step for phase tensor color bar, 
+                               *default* is 45
+    data                       np.ndarray(n_station, n_periods, 2, 2)
+                               impedance tensors for station data                     
+    data_fn                    full path to data fle               
+    dscale                     scaling parameter depending on map_scale
+    ellipse_cmap               color map for pt ellipses. *default* is
+                               mt_bl2gr2rd
+    ellipse_colorby            [ 'skew' | 'skew_seg' | 'phimin' | 'phimax'|
+                                 'phidet' | 'ellipticity' ] parameter to color
+                                 ellipses by. *default* is 'phimin'
+    ellipse_range              (min, max, step) min and max of colormap, need
+                               to input step if plotting skew_seg
+    ellipse_size               relative size of ellipses in map_scale
+    ew_limits                  limits of plot in e-w direction in map_scale
+                               units.  *default* is None, scales to station 
+                               area
+    fig_aspect                 aspect of figure. *default* is 1
+    fig_dpi                    resolution in dots-per-inch. *default* is 300
+    fig_list                   list of matplotlib.figure instances for each
+                               figure plotted.
+    fig_size                   [width, height] in inches of figure window
+                               *default* is [6, 6]
+    font_size                  font size of ticklabels, axes labels are 
+                               font_size+2. *default* is 7
+    grid_east                  relative location of grid nodes in e-w direction
+                               in map_scale units
+    grid_north                 relative location of grid nodes in n-s direction
+                               in map_scale units
+    grid_z                     relative location of grid nodes in z direction
+                               in map_scale units
+    initial_fn                 full path to initial file
+    map_scale                  [ 'km' | 'm' ] distance units of map. 
+                               *default* is km
+    mesh_east                  np.meshgrid(grid_east, grid_north, indexing='ij')
+    mesh_north                 np.meshgrid(grid_east, grid_north, indexing='ij')
+    model_fn                   full path to model file
+    nodes_east                 relative distance betwen nodes in e-w direction
+                               in map_scale units
+    nodes_north                relative distance betwen nodes in n-s direction
+                               in map_scale units
+    nodes_z                    relative distance betwen nodes in z direction
+                               in map_scale units
+    ns_limits                  (min, max) limits of plot in n-s direction
+                               *default* is None, viewing area is station area
+    pad_east                   padding from extreme stations in east direction
+    pad_north                  padding from extreme stations in north direction
+    period_list                list of periods from data
+    plot_grid                  [ 'y' | 'n' ] 'y' to plot grid lines
+                               *default* is 'n'
+    plot_period_list           list of period index values to plot
+                               *default* is None 
+    plot_yn                    ['y' | 'n' ] 'y' to plot on instantiation
+                               *default* is 'y'
+    res_cmap                   colormap for resisitivity values. 
+                               *default* is 'jet_r'
+    res_limits                 (min, max) resistivity limits in log scale
+                               *default* is (0, 4)
+    res_model                  np.ndarray(n_north, n_east, n_vertical) of 
+                               model resistivity values in linear scale
+    residual_cmap              color map for pt residuals. 
+                               *default* is 'mt_wh2or' 
+    resp                       np.ndarray(n_stations, n_periods, 2, 2)
+                               impedance tensors for model response  
+    resp_fn                    full path to response file
+    save_path                  directory to save figures to
+    save_plots                 [ 'y' | 'n' ] 'y' to save plots to save_path
+    station_east               location of stations in east direction in 
+                               map_scale units  
+    station_fn                 full path to station locations file
+    station_names              station names
+    station_north              location of station in north direction in 
+                               map_scale units
+    subplot_bottom             distance between axes and bottom of figure window
+    subplot_left               distance between axes and left of figure window  
+    subplot_right              distance between axes and right of figure window
+    subplot_top                distance between axes and top of figure window
+    title                      titiel of plot *default* is depth of slice
+    xminorticks                location of xminorticks
+    yminorticks                location of yminorticks
+    ========================== ================================================
     """
     
     def __init__(self, data_fn=None, resp_fn=None, station_fn=None, 
@@ -3838,7 +4088,6 @@ class PlotPTMaps(mtplottools.MTEllipse):
         self.save_plots = kwargs.pop('save_plots', 'y')
         self.plot_period_list = kwargs.pop('plot_period_list', None)
         
-        self.depth_index = kwargs.pop('depth_index', None)
         self.map_scale = kwargs.pop('map_scale', 'km')
         #make map scale
         if self.map_scale=='km':
@@ -3868,7 +4117,9 @@ class PlotPTMaps(mtplottools.MTEllipse):
         
         self.cb_tick_step = kwargs.pop('cb_tick_step', 45)
         self.cb_residual_tick_step = kwargs.pop('cb_residual_tick_step', 3)
-        self.cb_pad = kwargs.pop('cb_pad', .14)
+        self.cb_pt_pad = kwargs.pop('cb_pt_pad', .90)
+        self.cb_res_pad = kwargs.pop('cb_pt_pad', 1.22)
+        
         
         self.res_limits = kwargs.pop('res_limits', (0,4))
         self.res_cmap = kwargs.pop('res_cmap', 'jet_r')
@@ -4045,7 +4296,6 @@ class PlotPTMaps(mtplottools.MTEllipse):
             
             #plot model below the phase tensors
             if self.model_fn is not None:
-                approx_depth = 500*np.sqrt(per*50)/self.dscale
                 approx_depth, d_index = estimate_skin_depth(self.res_model,
                                                             self.grid_z, 
                                                             per, 
@@ -4059,10 +4309,6 @@ class PlotPTMaps(mtplottools.MTEllipse):
                                    vmin=self.res_limits[0],
                                    vmax=self.res_limits[1])
                     
-                    bb = ax.axes.get_position().bounds
-                    cb_position = (bb[2]/5+bb[0], 
-                                   bb[0]-self.cb_pad, .6*bb[2], .02)
-                    
                 
             #--> get phase tensors
             pt = mtpt.PhaseTensor(z_array=self.data[:, ff],
@@ -4070,8 +4316,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
             if self.resp is not None:
                 mpt = mtpt.PhaseTensor(z_array=self.resp[:, ff],
                                        freq=np.repeat(per, n_stations))
-                rpt = mtpt.ResidualPhaseTensor(pt_object1=pt, pt_object2=mpt,
-                                               freq=np.repeat(per, n_stations))
+                rpt = mtpt.ResidualPhaseTensor(pt_object1=pt, pt_object2=mpt)
                 rpt = rpt.residual_pt
                 rcarray = np.sqrt(abs(rpt.phimin[0]*rpt.phimax[0]))
                 rcmin = np.floor(rcarray.min())
@@ -4204,10 +4449,13 @@ class PlotPTMaps(mtplottools.MTEllipse):
                            fontdict=font_dict)
             axd.set_ylabel('Northing ({0})'.format(self.map_scale),
                            fontdict=font_dict)
-            #make a colorbar ontop of axis
-            bb = axd.axes.get_position().bounds
-            cb_location = (3.25*bb[2]/5+bb[0], 
-                            bb[3]-self.cb_pad, .295*bb[2], .02)
+            #make a colorbar for phase tensors
+            #bb = axd.axes.get_position().bounds
+            bb = axd.get_position().bounds
+            y1 = .25*(2+(self.ns_limits[1]-self.ns_limits[0])/
+                     (self.ew_limits[1]-self.ew_limits[0]))
+            cb_location = (3.35*bb[2]/5+bb[0], 
+                            y1*self.cb_pt_pad, .295*bb[2], .02)
             cbaxd = fig.add_axes(cb_location)
             cbd = mcb.ColorbarBase(cbaxd, 
                                    cmap=mtcl.cmapdict[self.ellipse_cmap],
@@ -4238,8 +4486,10 @@ class PlotPTMaps(mtplottools.MTEllipse):
                     plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                     #make a colorbar ontop of axis
                     bb = ax.axes.get_position().bounds
-                    cb_location = (3.25*bb[2]/5+bb[0], 
-                                    bb[3]-self.cb_pad, .295*bb[2], .02)
+                    y1 = .25*(2+(self.ns_limits[1]-self.ns_limits[0])/
+                     (self.ew_limits[1]-self.ew_limits[0]))
+                    cb_location = (3.35*bb[2]/5+bb[0], 
+                                   y1*self.cb_pt_pad, .295*bb[2], .02)
                     cbax = fig.add_axes(cb_location)
                     if aa == 0:
                         cb = mcb.ColorbarBase(cbax, 
@@ -4261,7 +4511,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
                                  fontdict={'size':self.font_size+1})
                     else:
                         cb = mcb.ColorbarBase(cbax, 
-                                              cmap='Oranges',
+                                              cmap=mtcl.cmapdict[self.residual_cmap],
                                                norm=Normalize(vmin=rcmin,
                                                               vmax=rcmax),
                                                orientation='horizontal')
@@ -4279,12 +4529,15 @@ class PlotPTMaps(mtplottools.MTEllipse):
                                 verticalalignment='top',
                                 bbox={'facecolor':'white'},
                                 fontdict={'size':self.font_size+1})
+            
             if self.model_fn is not None:
                 for ax in ax_list:
                     ax.tick_params(direction='out')
                     bb = ax.axes.get_position().bounds
-                    cb_position = (2.95*bb[2]/5+bb[0], 
-                                   bb[1]*1.85+self.cb_pad, .35*bb[2], .02)
+                    y1 = .25*(2-(self.ns_limits[1]-self.ns_limits[0])/
+                             (self.ew_limits[1]-self.ew_limits[0]))
+                    cb_position = (3.0*bb[2]/5+bb[0], 
+                                   y1*self.cb_res_pad, .35*bb[2], .02)
                     cbax = fig.add_axes(cb_position)
                     cb = mcb.ColorbarBase(cbax, 
                                           cmap=self.res_cmap,
@@ -4467,6 +4720,113 @@ def estimate_skin_depth(res_model, grid_z, period, dscale=1000):
 class PlotSlices(object):
     """
     plot all slices and be able to scroll through the model
+    
+    :Example: ::
+    
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> mfn = r"/home/MT/ws3dinv/Inv1/Test_model.00"
+        >>> sfn = r"/home/MT/ws3dinv/Inv1/WSStationLocations.txt"
+        >>> # plot just first layer to check the formating        
+        >>> pds = ws.PlotSlices(model_fn=mfn, station_fn=sfn)
+        
+    ======================= ===================================================
+    Buttons                  Description    
+    ======================= ===================================================
+    'e'                     moves n-s slice east by one model block
+    'w'                     moves n-s slice west by one model block
+    'n'                     moves e-w slice north by one model block
+    'm'                     moves e-w slice south by one model block
+    'd'                     moves depth slice down by one model block
+    'u'                     moves depth slice up by one model block
+    ======================= ===================================================
+
+    
+    ======================= ===================================================
+    Attributes              Description    
+    ======================= ===================================================
+    ax_en                   matplotlib.axes instance for depth slice  map view 
+    ax_ez                   matplotlib.axes instance for e-w slice
+    ax_map                  matplotlib.axes instance for location map
+    ax_nz                   matplotlib.axes instance for n-s slice
+    climits                 (min , max) color limits on resistivity in log 
+                            scale. *default* is (0, 4)
+    cmap                    name of color map for resisitiviy.
+                            *default* is 'jet_r'
+    data_fn                 full path to data file name
+    dscale                  scaling parameter depending on map_scale
+    east_line_xlist         list of line nodes of east grid for faster plotting
+    east_line_ylist         list of line nodes of east grid for faster plotting
+    ew_limits               (min, max) limits of e-w in map_scale units
+                            *default* is None and scales to station area
+    fig                     matplotlib.figure instance for figure
+    fig_aspect              aspect ratio of plots. *default* is 1
+    fig_dpi                 resolution of figure in dots-per-inch
+                            *default* is 300
+    fig_num                 figure instance number
+    fig_size                [width, height] of figure window. 
+                            *default* is [6,6]
+    font_dict               dictionary of font keywords, internally created
+    font_size               size of ticklables in points, axes labes are 
+                            font_size+2. *default* is 7
+    grid_east               relative location of grid nodes in e-w direction
+                            in map_scale units
+    grid_north              relative location of grid nodes in n-s direction
+                            in map_scale units
+    grid_z                  relative location of grid nodes in z direction
+                            in map_scale units
+    index_east              index value of grid_east being plotted
+    index_north             index value of grid_north being plotted
+    index_vertical          index value of grid_z being plotted
+    initial_fn              full path to initial file
+    key_press               matplotlib.canvas.connect instance
+    map_scale               [ 'm' | 'km' ] scale of map. *default* is km
+    mesh_east               np.meshgrid(grid_east, grid_north)[0]
+    mesh_en_east            np.meshgrid(grid_east, grid_north)[0]
+    mesh_en_north           np.meshgrid(grid_east, grid_north)[1]
+    mesh_ez_east            np.meshgrid(grid_east, grid_z)[0]
+    mesh_ez_vertical        np.meshgrid(grid_east, grid_z)[1]
+    mesh_north              np.meshgrid(grid_east, grid_north)[1]
+    mesh_nz_north           np.meshgrid(grid_north, grid_z)[0]
+    mesh_nz_vertical        np.meshgrid(grid_north, grid_z)[1]
+    model_fn                full path to model file
+    ms                      size of station markers in points. *default* is 2
+    nodes_east              relative distance betwen nodes in e-w direction
+                            in map_scale units
+    nodes_north             relative distance betwen nodes in n-s direction
+                            in map_scale units
+    nodes_z                 relative distance betwen nodes in z direction
+                            in map_scale units
+    north_line_xlist        list of line nodes north grid for faster plotting  
+    north_line_ylist        list of line nodes north grid for faster plotting
+    ns_limits               (min, max) limits of plots in n-s direction
+                            *default* is None, set veiwing area to station area 
+    plot_yn                 [ 'y' | 'n' ] 'y' to plot on instantiation
+                            *default* is 'y'
+    res_model               np.ndarray(n_north, n_east, n_vertical) of 
+                            model resistivity values in linear scale           
+    station_color           color of station marker. *default* is black
+    station_dict_east       location of stations for each east grid row
+    station_dict_north      location of stations for each north grid row
+    station_east            location of stations in east direction
+    station_fn              full path to station file 
+    station_font_color      color of station label 
+    station_font_pad        padding between station marker and label
+    station_font_rotation   angle of station label
+    station_font_size       font size of station label
+    station_font_weight     weight of font for station label
+    station_id              [min, max] index values for station labels
+    station_marker          station marker
+    station_names           name of stations
+    station_north           location of stations in north direction
+    subplot_bottom          distance between axes and bottom of figure window
+    subplot_hspace          distance between subplots in vertical direction
+    subplot_left            distance between axes and left of figure window  
+    subplot_right           distance between axes and right of figure window
+    subplot_top             distance between axes and top of figure window
+    subplot_wspace          distance between subplots in horizontal direction
+    title                   title of plot 
+    z_limits                (min, max) limits in vertical direction,
+    ======================= ===================================================
     
     """
     
@@ -5053,6 +5413,193 @@ class PlotSlices(object):
         print 'Saved figure to: '+self.fig_fn
         
 #==============================================================================
+# STARTUP FILES
+#==============================================================================
+class WSStartup(object):
+    """
+    read and write startup files
+    
+    :Example: ::
+        
+        >>> import mtpy.modeling.ws3dinv as ws
+        >>> dfn = r"/home/MT/ws3dinv/Inv1/WSDataFile.dat"
+        >>> ifn = r"/home/MT/ws3dinv/Inv1/init3d"
+        >>> sws = ws.WSStartup(data_fn=dfn, initial_fn=ifn)
+        
+    
+    =================== =======================================================
+    Attributes          Description    
+    =================== =======================================================
+    apriori_fn          full path to *a priori* model file
+                        *default* is 'default'
+    control_fn          full path to model index control file
+                        *default* is 'default'
+    data_fn             full path to data file
+    error_tol           error tolerance level
+                        *default* is 'default'
+    initial_fn          full path to initial model file
+    lagrange            starting lagrange multiplier
+                        *default* is 'default'
+    max_iter            max number of iterations
+                        *default* is 10
+    model_ls            model length scale
+                        *default* is 5 0.3 0.3 0.3
+    output_stem         output file name stem
+                        *default* is 'ws3dinv'
+    save_path           directory to save file to
+    startup_fn          full path to startup file
+    static_fn           full path to statics file
+                        *default* is 'default'
+    target_rms          target rms
+                        *default* is 1.0
+    =================== =======================================================
+    
+    """
+    
+    def __init__(self, data_fn=None, initial_fn=None, **kwargs): 
+        self.data_fn = data_fn
+        self.initial_fn = initial_fn
+        
+        self.output_stem = kwargs.pop('output_stem', 'ws3dinv')
+        self.apriori_fn = kwargs.pop('apriori_fn', 'default')
+        self.model_ls = kwargs.pop('model_ls', [5, 0.3, 0.3, 0.3])
+        self.target_rms = kwargs.pop('target_rms', 1.0)
+        self.control_fn = kwargs.pop('control_fn', 'default')
+        self.max_iter = kwargs.pop('max_iter', 10)
+        self.error_tol = kwargs.pop('error_tol', 'default')
+        self.static_fn = kwargs.pop('static_fn', 'default')
+        self.lagrange = kwargs.pop('lagrange', 'default')
+        self.save_path = kwargs.pop('save_path', None)
+        
+        self.startup_fn = kwargs.pop('startup_fn', None)
+        
+        self._startup_keys = ['data_file',
+                               'output_file',
+                               'initial_model_file',
+                               'prior_model_file',
+                               'control_model_index',
+                               'target_rms',
+                               'max_no_iteration',
+                               'model_length_scale',
+                               'lagrange_info',
+                               'error_tol_level',
+                               'static_file']
+        
+        
+                 
+    def write_startup_file(self):
+        """
+        makes a startup file for WSINV3D.  
+            
+        """
+        if self.data_fn is None:
+            raise IOError('Need to input data file name')
+            
+        if self.initial_fn is None:
+            raise IOError('Need to input initial model file name')
+            
+        #create the output filename
+        if self.save_path == None and self.data_fn != None:
+            self.startup_fn = os.path.join(os.path.dirname(self.data_fn), 
+                                           'startup')
+        elif os.path.isdir(self.save_path) == True:
+            self.startup_fn = os.path.join(self.save_path, 'startup')
+        else:
+            self.startup_fn = self.save_path
+        
+        slines = []
+        
+        if os.path.dirname(self.startup_fn) == os.path.dirname(self.data_fn):
+            slines.append('{0:<20}{1}\n'.format('DATA_FILE', 
+                                                os.path.basename(self.data_fn)))
+            if len(os.path.basename(self.data_fn)) > 70:
+                print 'Data file is too long, going to get an error at runtime'
+        else:
+            slines.append('{0:<20}{1}\n'.format('DATA_FILE',self.data_fn))
+            if len(self.data_fn) > 70:
+                print 'Data file is too long, going to get an error at runtime'
+                
+        slines.append('{0:<20}{1}\n'.format('OUTPUT_FILE', self.output_stem))
+        
+        if os.path.dirname(self.startup_fn) == os.path.dirname(self.initial_fn):
+            slines.append('{0:<20}{1}\n'.format('INITIAL_MODEL_FILE', 
+                                             os.path.basename(self.initial_fn)))
+        else:
+            slines.append('{0:<20}{1}\n'.format('INITIAL_MODEL_FILE', 
+                                                self.initial_fn))
+        slines.append('{0:<20}{1}\n'.format('PRIOR_MODEL_FILE', 
+                                            self.apriori_fn)) 
+        slines.append('{0:<20}{1}\n'.format('CONTROL_MODEL_INDEX ',
+                                            self.control_fn))  
+        slines.append('{0:<20}{1}\n'.format('TARGET_RMS', self.target_rms))
+        slines.append('{0:<20}{1}\n'.format('MAX_NO_ITERATION', 
+                                            self.max_iter))
+        slines.append('{0:<20}{1:.0f} {2:.1f} {3:.1f} {4:.1f}\n'.format(
+                                                        'MODEL_LENGTH_SCALE',  
+                                                        self.model_ls[0],
+                                                        self.model_ls[1],
+                                                        self.model_ls[2],
+                                                        self.model_ls[3]))
+            
+        slines.append('{0:<20}{1} \n'.format('LAGRANGE_INFO', self.lagrange))
+        slines.append('{0:<20}{1} \n'.format('ERROR_TOL_LEVEL', 
+                                             self.error_tol))
+        slines.append('{0:<20}{1} \n'.format('STATIC_FILE', self.static_fn))
+    
+        sfid = file(self.startup_fn, 'w')
+        sfid.write(''.join(slines))
+        sfid.close()
+        
+        print 'Wrote startup file to: {0}'.format(self.startup_fn)
+        
+    def read_startup_file(self, startup_fn=None):
+        """
+        read startup file fills attributes
+        
+        """
+        if startup_fn is not None:
+            self.startup_fn = startup_fn
+        if self.startup_fn is None:
+            raise IOError('Need to input startup file name')
+            
+        self.save_path = os.path.dirname(self.startup_fn)
+        
+        sfid = file(self.startup_fn, 'r')
+        slines = sfid.readlines()
+        sfid.close()
+        
+        slines = [ss.strip().split()[1:] for ss in slines]
+        
+        self.data_fn = slines[0][0].strip()
+        if self.data_fn.find(os.path.sep) == -1:
+            self.data_fn = os.path.join(self.save_path, self.data_fn)
+        self.output_stem = slines[1][0].strip()
+        self.initial_fn = slines[2][0].strip()
+        if self.initial_fn.find(os.path.sep) == -1:
+            self.initial_fn = os.path.join(self.save_path, self.initial_fn)
+        self.apriori_fn = slines[3][0].strip()
+        self.control_fn = slines[4][0].strip()
+        self.target_rms = float(slines[5][0].strip())
+        self.max_iter = int(slines[6][0].strip())
+        try:
+            self.model_ls = [int(slines[7][0]), float(slines[7][1]),
+                             float(slines[7][2]), float(slines[7][3])]
+        except ValueError:
+            self.model_ls = slines[7][0]
+            
+        self.lagrange = slines[8][0].strip()
+        self.error_tol = slines[9][0].strip()
+        try:
+            self.static_fn = slines[10][0].strip()
+        except IndexError:
+            print 'Did not find static_fn'
+        
+        
+        
+        
+        
+
+#==============================================================================
 # WRITE A VTK FILE TO IMAGE IN PARAVIEW OR MAYAVI
 #==============================================================================
 
@@ -5091,10 +5638,22 @@ def write_vtk_stations(station_north, station_east, save_fn, station_z=None):
     if station_z is None:
         station_z = np.zeros_like(station_north)
         
-    gridToVTK(save_fn, station_north, station_east, station_z, 
+    pointsToVTK(save_fn, station_north, station_east, station_z, 
               cellData={'value':np.ones_like(station_north)})     
               
     return save_fn
+    
+def write_vtk_files(model_fn, station_fn, save_path):
+    """
+    writes vtk files
+    """
+    
+    wsstation = WSStation(station_fn=station_fn)
+    wsstation.read_station_file()
+    wsstation.write_vtk_file(save_path)
+    
+    wsmodel = WSModel(model_fn)
+    wsmodel.write_vtk_file(save_path)
         
         
 def computeMemoryUsage(nx, ny, nz, n_stations, n_zelements, n_period):
