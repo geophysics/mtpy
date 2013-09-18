@@ -87,7 +87,6 @@ import mtpy.analysis.pt as mtpt
 import mtpy.imaging.mtcolors as mtcl
 
 import mtpy.utils.latlongutmconversion as ll2utm
-from evtk.hl import gridToVTK, pointsToVTK
 
 #==============================================================================
 
@@ -1711,16 +1710,22 @@ class WSModel(object):
         """
         
         """
-        if os.path.isdir(save_fn) == True:
-            save_fn = os.path.join(save_fn, 'VTKResistivity_Model')
-        
-        save_fn = gridToVTK(save_fn, 
-                            self.grid_north, 
-                            self.grid_east, 
-                            self.grid_z, 
-                            cellData={'resistivity':self.res_model})
-                            
-        print 'Wrote vtk file to {0}'.format(save_fn)
+        try:
+            from evtk.hl import gridToVTK, pointsToVTK
+
+            if os.path.isdir(save_fn) == True:
+                save_fn = os.path.join(save_fn, 'VTKResistivity_Model')
+            
+            save_fn = gridToVTK(save_fn, 
+                                self.grid_north, 
+                                self.grid_east, 
+                                self.grid_z, 
+                                cellData={'resistivity':self.res_model})
+                                
+            print 'Wrote vtk file to {0}'.format(save_fn)
+        except:
+            print 'Error - could not write vtk file - check, if "evtk" module is'\
+                    ' installed'
         
 
 #==============================================================================
@@ -5641,14 +5646,19 @@ def write_vtk_res_model(res_model, grid_north, grid_east, grid_z, save_fn):
     adds extension automatically
     
     """
+    try:
+        from evtk.hl import gridToVTK, pointsToVTK
 
-    if os.path.isdir(save_fn) == True:
-        save_fn = os.path.join(save_fn, 'VTKResistivity_Model')
+        if os.path.isdir(save_fn) == True:
+            save_fn = os.path.join(save_fn, 'VTKResistivity_Model')
         
-    save_fn = gridToVTK(save_fn, grid_north, grid_east, grid_z, 
+        save_fn = gridToVTK(save_fn, grid_north, grid_east, grid_z, 
                         cellData={'resistivity':res_model})
               
-    return save_fn
+        return save_fn
+    except:
+        print 'Error - cannot write vtk file - check, if "evtk" module is installed'
+        return
     
 def write_vtk_stations(station_north, station_east, save_fn, station_z=None):
     """
@@ -5659,17 +5669,22 @@ def write_vtk_stations(station_north, station_east, save_fn, station_z=None):
     adds extension automatically
     
     """
-
-    if os.path.isdir(save_fn) == True:
-        save_fn = os.path.join(save_fn, 'VTKStations')
+    try:
+        from evtk.hl import gridToVTK, pointsToVTK
         
-    if station_z is None:
-        station_z = np.zeros_like(station_north)
-        
-    pointsToVTK(save_fn, station_north, station_east, station_z, 
-              cellData={'value':np.ones_like(station_north)})     
-              
-    return save_fn
+        if os.path.isdir(save_fn) == True:
+            save_fn = os.path.join(save_fn, 'VTKStations')
+            
+        if station_z is None:
+            station_z = np.zeros_like(station_north)
+            
+        pointsToVTK(save_fn, station_north, station_east, station_z, 
+                  cellData={'value':np.ones_like(station_north)})     
+                  
+        return save_fn
+    except:
+        print 'Error - cannot write vtk file - check, if "evtk" module is installed'
+        return
     
 def write_vtk_files(model_fn, station_fn, save_path):
     """
