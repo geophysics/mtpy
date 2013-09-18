@@ -15,6 +15,7 @@ Created on Sun Aug 25 18:41:15 2013
 #==============================================================================
 
 import os
+import os.path as op
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -520,15 +521,39 @@ class WSStation(object):
             self.station_fn = station_fn
             
         self.save_path = os.path.dirname(self.station_fn)
+        stations = []
+        easts = []
+        norths =[]
+
+        F_in = open(self.station_fn,'r')
+        rawdata = F_in.readlines()
+        F_in.close()
+        for line in rawdata:
+            linelist = line.strip().split()
+            try:
+                if '.edi' in linelist[0].lower():
+                    station = op.splitext(linelist[0])[0].lower()
+                    if len(linelist) < 3:
+                        raise
+                    easts.append(int(float(linelist[1])))
+                    norths.append(int(float(linelist[2])))
+                    stations.append(station)                  
+            except:
+                continue
+                
         
-        station_locations = np.loadtxt(self.station_fn, skiprows=1, 
-                                       dtype=[('station', '|S10'),
-                                              ('east_c', np.float),
-                                              ('north_c', np.float)])
-                                              
-        self.east = station_locations['east_c']
-        self.north = station_locations['north_c']
-        self.names = station_locations['station']
+        # station_locations = np.loadtxt(self.station_fn, skiprows=1, 
+        #                                dtype=[('station', '|S10'),
+        #                                       ('east_c', np.float),
+        #                                       ('north_c', np.float)])      
+        # self.east = station_locations['east_c']
+        # self.north = station_locations['north_c']
+        # self.names = station_locations['station']
+        
+        self.east = easts
+        self.north = norths
+        self.names = stations
+
 #==============================================================================
 # mesh class
 #==============================================================================
