@@ -469,6 +469,8 @@ class Edi(object):
             k = j.split('=')
             key = str(k[0]).lower().strip()
             value = k[1].replace('"','')
+            if key == 'dataid':
+                value = value.replace(' ','_')
             if key in ['lat','long','lon','latitude','longitude','ele','elev',
                        'elevation']:
                 value = MTft._assert_position_format(key,value)
@@ -484,9 +486,9 @@ class Edi(object):
 
         if not head_dict.has_key('elev'):
             head_dict['elev'] = 0.
-
+        
         try:
-            self.station = head_dict['dataid']
+            self.station = head_dict['dataid'].replace(' ','_')
         except KeyError:
             print 'Did not find station name under dataid in HEAD'
 
@@ -1166,12 +1168,12 @@ class Edi(object):
 
         self.info_dict['edifile_generated_with'] = 'MTpy'
 
-        try:
+        if 1:
             outstring, stationname = _generate_edifile_string(self.edi_dict())
-        except:
-            print 'ERROR - could not generate valid EDI file \n-> check, if'\
-                   ' method "edi_dict" returns sufficient information '
-            return
+        # except:
+        #     print 'ERROR - could not generate valid EDI file \n-> check, if'\
+        #            ' method "edi_dict" returns sufficient information '
+        #     return
 
         if not _validate_edifile_string(outstring):
             #return outstring
@@ -2196,6 +2198,7 @@ def _generate_edifile_string(edidict):
             checkdate = 0
             for k in  sorted(head_dict.iterkeys()):
                 v = str(head_dict[k])
+
                 if len(v) == 0:
                     edistring += '\t%s=""\n'%(k.upper())
                 elif len(v.split()) > 1:
@@ -2209,7 +2212,8 @@ def _generate_edifile_string(edidict):
                 if k.lower == 'filedate':
                     checkdate = 1
             if checkdate == 0:
-                todaystring = datetime.datetime.now().strftime('%Y-%m-%d,%H:%M:%S')
+                todaystring = datetime.datetime.utcnow().strftime(
+                                                        '%Y/%m/%d %H:%M:%S UTC')
                 edistring += '\tfiledate=%s\n'%(todaystring)
 
 
@@ -2650,7 +2654,7 @@ def _validate_edifile_string(edistring):
         lo_valuelines = firstspectrum.split('\n')[1:]
         dummy6 = ''
         for i in lo_valuelines:
-            dummy6 += i
+            dummy6 += (' '+i)
 
         if not len(dummy6.split()) == no_values:
             found *= 0
@@ -2662,7 +2666,7 @@ def _validate_edifile_string(edistring):
             spectra_found = 1
  
     if z_found == 0 and rhophi_found == 0 and spectra_found == 0 :
-        print 'ERROR - no data found in terms of "Z" or "RHO/PHS" or'+\
+        print 'ERROR - no data found in terms of "Z" or "RHO/PHS" or '+\
               '"SPECTRA" - reading of multiple stations is not supported (yet)!'
         found *= 0
 
@@ -2857,7 +2861,7 @@ def _make_tipper_dict(Tipper_object):
                 else:
                     data = np.imag(data)
             else: 
-                data = Tipper_object.tipper_err[:,idx_comp/2, idx_comp%2]
+                data = Tipper_object.tippererr[:,idx_comp/2, idx_comp%2]
  
             tipper_dict[section] = data
 
