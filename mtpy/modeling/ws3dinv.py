@@ -2815,8 +2815,8 @@ class PlotResponse(object):
                                       picker=2,
                                       lw=self.lw,
                                       elinewidth=self.lw,
-                                      capsize=self.e_capsize,
-                                      capthick=self.e_capthick)
+                                      capsize=self.e_capsize)
+                                      #capthick=self.e_capthick)
         return errorbar_object
     
     def plot(self):
@@ -5671,7 +5671,7 @@ def write_vtk_stations(station_north, station_east, save_fn, station_z=None):
     """
     try:
         from evtk.hl import gridToVTK, pointsToVTK
-        
+
         if os.path.isdir(save_fn) == True:
             save_fn = os.path.join(save_fn, 'VTKStations')
             
