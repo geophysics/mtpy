@@ -77,11 +77,318 @@ class Mesh():
     
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, station_locations=None, **kwargs):
         
-        self.station_locations = kwargs.pop('station_locations', None)
-        self.edi_path = kwargs.pop('edi_path', None)
+        self.station_locations = station_locations
+        self.n_layers = kwargs.pop('n_layers', 90)
+        self.cell_width = kwargs.pop('cell_width', 200)
+        self.num_x_pad_cells = kwargs.pop('num_x_pad_cells', 7)
+        self.num_z_pad_cells = kwargs.pop('num_z_pad_cells', 5)
+        self.x_pad_multiplier = kwargs.pop('x_pad_multiplier', 3)
+        self.z1_layer = kwargs.pop('z1_layer', 10.0)
+        self.z_bottom = kwargs.pop('z_bottom', 200000.0)
+        self.z_target_depth = kwargs.pop('z_target_depth', 50000.0)
+        self.num_x_pad_small_cells = kwargs.pop('num_x_pad_small_cells', 2)
+        self.save_path = kwargs.pop('save_path', None)
+        self.mesh_fn = kwargs.pop('mesh_fn', None)
+
+        self.x_nodes = None
+        self.z_nodes = None
+        self.x_grid = None
+        self.z_grid = None
         
+    def build_mesh(self):
+        """
+        build the finite element mesh given the parameters
+        
+        """
+        
+        if self.station_locations is None:
+            raise OccamInputError('Need to input station locations to define '
+                                  'a finite element mesh')
+                                  
+        #be sure the station locations are sorted from left to right
+        self.station_locations.sort()
+        
+        #center the stations around 0 like the mesh will be
+        self.station_locations -= self.station_locations.mean()
+        
+        #1) make horizontal nodes at station locations and fill in the cells 
+        #   around that area with cell width. This will put the station 
+        #   in the center of the regularization block as prescribed for occam
+        self.x_nodes = np.array([])
+        
+        for ii, offset in enumerate(self.station_locations[:-1]):
+            dx = self.station_locations[ii+1]-offset
+            num_cells = np.floor(dx/self.cell_width)
+            cell_width = dx/num_cells
+            #cells between stations will be equally spaced
+            # and replace the station location with a relative node
+            self.x_nodes = np.append(self.x_nodes, 
+                                     np.array((num_cells+1)*[cell_width]))
+                                     
+        #--> pad on left side adding 2 small cells
+        xs = self.num_x_pad_small_cells
+        nxpad = self.num_x_pad_cells
+        padding_cells = np.zeros(xs+nxpad)
+        padding_cells[0:xs] = np.mean([self.x_nodes[0], self.x_nodes[-1]])
+        for ii in range(nxpad):
+            padding_cells[ii+xs] = padding_cells[ii+1]*self.x_pad_multiplier
+            
+        #pad cells on right
+        self.x_nodes = np.append(self.x_nodes, padding_cells)
+        
+        #pad cells on left
+        self.x_nodes = np.append(padding_cells[::-1], self.x_nodes)
+        
+        x_coord = self.x_nodes.copy()
+        x_coord[0:x_coord.shape[0]/2] = -self.x_nodes[0:x_coord.shape[0]/2]
+        nx = x_coord.shape[0]
+        self.x_grid = x_coord.copy()                        
+        self.x_grid[:int(nx/2)] = -np.array([self.x_nodes[ii:int(nx/2)].sum() 
+                                             for ii in range(int(nx/2))])
+        self.x_grid[int(nx/2):] = np.array([self.x_nodes[int(nx/2):ii+1].sum() 
+                                            for ii in range(int(nx/2), nx)])-\
+                                            self.x_nodes[int(nx/2)]
+                                            
+        #--> check to make sure the station locations are on nodes
+#        for offset in self.station_locations:
+#            try:
+#                offset_find = np.where((self.x_grid <= offset-self.cell_width/2) & 
+#                                       (self.x_grid >= offset+self.cell_width/2))[0][0]
+#            except IndexError:
+#                offset_find = np.where((self.x_grid <= offset+self.cell_width/2) & 
+#                                       (self.x_grid >= offset-self.cell_width/2))[0][0]
+#            print offset_find, offset, self.x_grid[offset_find]
+#            self.x_grid[offset_find] = offset
+        #2) make vertical nodes so that they increase with depth
+        #--> make depth grid
+        log_z = np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.z_target_depth-np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.z_target_depth), 
+                            num=self.n_layers)[-2]), 
+                            num=self.n_layers-self.num_z_pad_cells)
+        
+        #round the layers to be whole numbers
+        ztarget = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+                           log_z])
+        
+        #--> create padding cells past target depth
+        log_zpad = np.logspace(np.log10(self.z_target_depth), 
+                            np.log10(self.z_bottom-np.logspace(np.log10(self.z_target_depth), 
+                            np.log10(self.z_bottom), 
+                            num=self.num_z_pad_cells)[-2]), 
+                            num=self.num_z_pad_cells)
+        #round the layers to be whole numbers
+        zpadding = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+                               log_zpad])
+                               
+        #create the vertical nodes
+        self.z_nodes = np.append(ztarget, zpadding)
+        
+        #calculate actual distances of depth layers
+        self.z_grid = np.array([self.z_nodes[:ii+1].sum() 
+                                for ii in range(self.z_nodes.shape[0])])
+                                    
+    def plot_mesh(self, **kwargs):
+        """
+        plot mesh with station locations
+        
+        """
+        fig_num = kwargs.pop('fig_num', 'Projected Profile')
+        fig_size = kwargs.pop('fig_size', [5, 5])
+        fig_dpi = kwargs.pop('fig_dpi', 300)
+        marker = kwargs.pop('marker', r"$\blacktriangledown$")
+        ms = kwargs.pop('ms', 5)
+        mc = kwargs.pop('mc', 'k')
+        lw = kwargs.pop('ls', .35)
+        fs = kwargs.pop('fs', 6)
+        station_id = kwargs.pop('station_id', None)
+        plot_triangles = kwargs.pop('plot_triangles', 'n')
+        font_pad = kwargs.pop('font_pad', 1)
+        
+        depth_scale = kwargs.pop('depth_scale', 'km')
+        
+        #set the scale of the plot
+        if depth_scale == 'km':
+            dfactor = 1000.
+        elif depth_scale == 'm':
+            dfactor = 1.
+        else:
+            dfactor = 1000.
+        
+        plt.rcParams['figure.subplot.left'] = .12
+        plt.rcParams['figure.subplot.right'] = .98
+        plt.rcParams['font.size'] = fs
+        
+        if self.x_grid is None:
+            self.build_mesh()
+            
+        fig = plt.figure(fig_num, figsize=fig_size, dpi=fig_dpi)
+        ax = fig.add_subplot(1, 1, 1, aspect='equal')
+        
+        #plot the station marker
+        #plots a V for the station cause when you use scatter the spacing
+        #is variable if you change the limits of the y axis, this way it
+        #always plots at the surface.
+        for offset in self.station_locations:
+            ax.text((offset)/dfactor,
+                    0,
+                    marker,
+                    horizontalalignment='center',
+                    verticalalignment='baseline',
+                    fontdict={'size':ms,'color':'k'})
+                    
+            #put station id onto station marker
+            #if there is a station id index
+#            if self.station_id != None:
+#                ax.text(offset/dfactor,
+#                        -self.station_font_pad*pfactor,
+#                        rpdict['station'][self.station_id[0]:self.station_id[1]],
+#                        horizontalalignment='center',
+#                        verticalalignment='baseline',
+#                        fontdict=fdict)
+#            #otherwise put on the full station name found form data file
+#            else:
+#                ax.text(rpdict['offset']/dfactor,
+#                        -self.station_font_pad*pfactor,
+#                        rpdict['station'],
+#                        horizontalalignment='center',
+#                        verticalalignment='baseline',
+#                        fontdict=fdict)
+        
+        row_line_xlist = []
+        row_line_ylist = []
+        for xx in self.x_grid/dfactor:
+            row_line_xlist.extend([xx,xx])
+            row_line_xlist.append(None)
+            row_line_ylist.extend([0, self.z_grid[-1]/dfactor])
+            row_line_ylist.append(None)
+        
+        #plot column lines (variables are a little bit of a misnomer)
+        ax.plot(row_line_xlist, 
+                row_line_ylist, 
+                color='k', 
+                lw=lw)
+
+        col_line_xlist = [self.x_grid[0]/dfactor, self.x_grid[-1]/dfactor]
+        col_line_ylist = [0, 0]            
+        for yy in self.z_grid/dfactor:
+            col_line_xlist.extend([self.x_grid[0]/dfactor, 
+                                  self.x_grid[-1]/dfactor])
+            col_line_xlist.append(None)
+            col_line_ylist.extend([yy, yy])
+            col_line_ylist.append(None)
+        
+        #plot row lines (variables are a little bit of a misnomer)
+        ax.plot(col_line_xlist, 
+                col_line_ylist,
+                color='k',
+                lw=lw)
+                    
+        if plot_triangles == 'y':
+            row_line_xlist = []
+            row_line_ylist = []
+            for xx in self.x_grid/dfactor:
+                row_line_xlist.extend([xx,xx])
+                row_line_xlist.append(None)
+                row_line_ylist.extend([0, self.z_grid[-1]/dfactor])
+                row_line_ylist.append(None)
+                
+            #plot columns
+            ax.plot(row_line_xlist, 
+                    row_line_ylist, 
+                    color='k', 
+                    lw=lw)
+    
+            col_line_xlist = []
+            col_line_ylist = []            
+            for yy in self.z_grid/dfactor:
+                col_line_xlist.extend([self.x_grid[0]/dfactor, 
+                                      self.x_grid[-1]/dfactor])
+                col_line_xlist.append(None)
+                col_line_ylist.extend([yy, yy])
+                col_line_ylist.append(None)
+            
+            #plot rows
+            ax.plot(col_line_xlist, 
+                    col_line_ylist,
+                    color='k',
+                    lw=lw)
+    
+            diag_line_xlist = []
+            diag_line_ylist = []
+            for xi, xx in enumerate(self.x_grid[:-1]/dfactor):
+                for yi, yy in enumerate(self.z_grid[:-1]/dfactor):
+                    diag_line_xlist.extend([xx, self.x_grid[xi+1]/dfactor])
+                    diag_line_xlist.append(None)
+                    diag_line_xlist.extend([xx, self.x_grid[xi+1]/dfactor])
+                    diag_line_xlist.append(None)
+                    
+                    diag_line_ylist.extend([yy, self.z_grid[yi+1]/dfactor])
+                    diag_line_ylist.append(None)
+                    diag_line_ylist.extend([self.z_grid[yi+1]/dfactor, yy])
+                    diag_line_ylist.append(None)
+            
+            #plot diagonal lines.
+            ax.plot(diag_line_xlist, 
+                    diag_line_ylist,
+                    color='k',
+                    lw=lw)
+                    
+        #--> set axes properties
+        ax.set_ylim(self.z_target_depth/dfactor, -2000/dfactor)
+        xpad = self.num_x_pad_cells+self.num_x_pad_small_cells
+        ax.set_xlim(self.x_grid[xpad]/dfactor, -self.x_grid[xpad]/dfactor)
+        ax.set_xlabel('Easting ({0})'.format(depth_scale), 
+                      fontdict={'size':fs+2, 'weight':'bold'})           
+        ax.set_ylabel('Depth ({0})'.format(depth_scale), 
+                  fontdict={'size':fs+2, 'weight':'bold'})           
+        plt.show()
+                                     
+         
+    def write_mesh_file(self, save_path=None, basename='Occam2DMesh'):
+        """
+        write a finite element mesh file.
+        
+        Arguments:
+        -----------
+            **save_path** : string
+                            directory path or full path to save file
+        Returns:
+        ----------
+            **mesh_fn** : string
+                          full path to mesh file
+                          
+        :example: ::
+        
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> edi_path = r"/home/mt/edi_files"
+            >>> profile = occam2d.Profile(edi_path)
+            >>> profile.plot_profile()
+            >>> mesh = occam2d.Mesh(profile.station_locations)
+            >>> mesh.build_mesh()
+            >>> mesh.write_mesh_file(save_path=r"/home/occam2d/Inv1")
+        """
+        
+        if save_path is not None:
+            self.save_path = save_path
+        
+        if self.save_path is None:
+            self.save_path = os.getcwd()
+            
+         
+        self.mesh_fn = os.path.join(self.save_path, basename)
+
+        mesh_lines = []
+        nx = self.x_nodes.shape[0]
+        nz = self.z_nodes.shape[0]
+        mesh_lines.append("{0} {1} {2} {0} {0} {3}\n".format(0, nx ,nz, 2))
+        
+        for ii, xnode in enumerate(self.x_nodes):
+            pass            
+        
+         
 class Profile():
     """
     Takes data from .edi files to create a profile line for 2D modeling.
@@ -170,6 +477,7 @@ class Profile():
         self.num_edi = 0
         self._profile_generated = False
         self.profile_line = None
+        self.station_locations = None
         
         
     def _get_edi_list(self):
@@ -311,7 +619,7 @@ class Profile():
         
         #--> project stations onto profile line
         projected_stations = np.zeros((self.num_edi,2))
-        offsets = np.zeros(self.num_edi)
+        self.station_locations = np.zeros(self.num_edi)
         
         #create profile vector
         profile_vector = np.array([1, self.profile_line[0]])
@@ -321,17 +629,20 @@ class Profile():
         for ii, edi in enumerate(self.edi_list):
             station_vector = np.array([easts[ii], norths[ii]-self.profile_line[1]])
             position = np.dot(profile_vector, station_vector)*profile_vector 
-            offsets[ii] = np.linalg.norm(position)
+            self.station_locations[ii] = np.linalg.norm(position)
             edi.offset = np.linalg.norm(position)
             edi.projected_east = position[0]
             edi.projected_north = position[1]+self.profile_line[1]
             projected_stations[ii] = [position[0], position[1]+self.profile_line[1]]
 
         #set the first station to 0
-        offsets -= offsets.min()
+        for edi in self.edi_list:
+            edi.offset -= self.station_locations.min()
+        self.station_locations -= self.station_locations.min()
+        
 
         #Sort from West to East:
-        index_sort = np.argsort(offsets)
+        index_sort = np.argsort(self.station_locations)
         if self.profile_angle == 0:
             #Exception: sort from North to South
             index_sort = np.argsort(norths)
@@ -339,6 +650,8 @@ class Profile():
 
         #sorting along the profile
         self.edi_list = [self.edi_list[ii] for ii in index_sort]
+        self.station_locations = np.array([self.station_locations[ii] 
+                                           for ii in index_sort])
         
         self._profile_generated = True
             
@@ -2439,5 +2752,6 @@ class Mask(Data):
     so the process is reversable). Inheriting from Data class.
     """
 
-
+class OccamInputError(Exception):
+    pass
 
