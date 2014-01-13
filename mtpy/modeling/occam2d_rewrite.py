@@ -81,17 +81,17 @@ class Mesh():
         
         self.station_locations = station_locations
         self.n_layers = kwargs.pop('n_layers', 90)
-        self.cell_width = kwargs.pop('cell_width', 200)
+        self.cell_width = kwargs.pop('cell_width', 100)
         self.num_x_pad_cells = kwargs.pop('num_x_pad_cells', 7)
         self.num_z_pad_cells = kwargs.pop('num_z_pad_cells', 5)
-        self.x_pad_multiplier = kwargs.pop('x_pad_multiplier', 3)
+        self.x_pad_multiplier = kwargs.pop('x_pad_multiplier', 1.5)
         self.z1_layer = kwargs.pop('z1_layer', 10.0)
         self.z_bottom = kwargs.pop('z_bottom', 200000.0)
         self.z_target_depth = kwargs.pop('z_target_depth', 50000.0)
         self.num_x_pad_small_cells = kwargs.pop('num_x_pad_small_cells', 2)
         self.save_path = kwargs.pop('save_path', None)
         self.mesh_fn = kwargs.pop('mesh_fn', None)
-
+            
         self.x_nodes = None
         self.z_nodes = None
         self.x_grid = None
@@ -116,55 +116,69 @@ class Mesh():
         #1) make horizontal nodes at station locations and fill in the cells 
         #   around that area with cell width. This will put the station 
         #   in the center of the regularization block as prescribed for occam
-        self.x_nodes = np.array([])
-        
+        # the first cell of the station area will be outside of the furthest
+        # right hand station to reduce the effect of a large neighboring cell.
+        self.x_grid = np.array([self.station_locations[0]-self.cell_width])
+                
         for ii, offset in enumerate(self.station_locations[:-1]):
             dx = self.station_locations[ii+1]-offset
-            num_cells = np.floor(dx/self.cell_width)
-            cell_width = dx/num_cells
-            #cells between stations will be equally spaced
-            # and replace the station location with a relative node
-            self.x_nodes = np.append(self.x_nodes, 
-                                     np.array((num_cells+1)*[cell_width]))
-                                     
-        #--> pad on left side adding 2 small cells
-        xs = self.num_x_pad_small_cells
+            num_cells = int(np.floor(dx/self.cell_width))
+            #if the spacing between stations is smaller than mesh set cell
+            #size to mid point between stations
+            if num_cells == 0:
+                cell_width = dx/2.
+                num_cells = 1
+            #calculate cell spacing so that they are equal between neighboring
+            #stations
+            else:
+                cell_width = dx/num_cells
+            if self.x_grid[-1] != offset:
+                self.x_grid = np.append(self.x_grid, offset)
+            for dd in range(num_cells):
+                new_cell = offset+(dd+1)*cell_width
+                #make sure cells aren't too close together
+                try:
+                    if abs(self.station_locations[ii+1]-new_cell) >= cell_width*.9:
+                        self.x_grid = np.append(self.x_grid, new_cell)
+                    else:
+                        pass
+                except IndexError:
+                    pass
+        
+        self.x_grid = np.append(self.x_grid, self.station_locations[-1])        
+        # add a cell on the right hand side of the station area to reduce 
+        # effect of a large cell next to it       
+        self.x_grid = np.append(self.x_grid, 
+                                self.station_locations[-1]+self.cell_width)
+                            
+        #--> pad the mesh with exponentially increasing horizontal cells
+        #    such that the edge of the mesh can be estimated with a 1D model
         nxpad = self.num_x_pad_cells
-        padding_cells = np.zeros(xs+nxpad)
-        padding_cells[0:xs] = np.mean([self.x_nodes[0], self.x_nodes[-1]])
-        for ii in range(nxpad):
-            padding_cells[ii+xs] = padding_cells[ii+1]*self.x_pad_multiplier
+        padding_left = np.zeros(nxpad)
+        padding_left[0] = self.x_grid[0]*self.x_pad_multiplier
+        
+        padding_right = np.zeros(nxpad)
+        padding_right[0] = self.x_grid[-1]*self.x_pad_multiplier
+        for ii in range(1,nxpad):
+            padding_left[ii] = padding_left[ii-1]*self.x_pad_multiplier
+            padding_right[ii] = padding_right[ii-1]*self.x_pad_multiplier
             
         #pad cells on right
-        self.x_nodes = np.append(self.x_nodes, padding_cells)
+        self.x_grid = np.append(self.x_grid, padding_right)
         
         #pad cells on left
-        self.x_nodes = np.append(padding_cells[::-1], self.x_nodes)
+        self.x_grid = np.append(padding_left[::-1], self.x_grid)
         
-        x_coord = self.x_nodes.copy()
-        x_coord[0:x_coord.shape[0]/2] = -self.x_nodes[0:x_coord.shape[0]/2]
-        nx = x_coord.shape[0]
-        self.x_grid = x_coord.copy()                        
-        self.x_grid[:int(nx/2)] = -np.array([self.x_nodes[ii:int(nx/2)].sum() 
-                                             for ii in range(int(nx/2))])
-        self.x_grid[int(nx/2):] = np.array([self.x_nodes[int(nx/2):ii+1].sum() 
-                                            for ii in range(int(nx/2), nx)])-\
-                                            self.x_nodes[int(nx/2)]
-                                            
-        #--> check to make sure the station locations are on nodes
-#        for offset in self.station_locations:
-#            try:
-#                offset_find = np.where((self.x_grid <= offset-self.cell_width/2) & 
-#                                       (self.x_grid >= offset+self.cell_width/2))[0][0]
-#            except IndexError:
-#                offset_find = np.where((self.x_grid <= offset+self.cell_width/2) & 
-#                                       (self.x_grid >= offset-self.cell_width/2))[0][0]
-#            print offset_find, offset, self.x_grid[offset_find]
-#            self.x_grid[offset_find] = offset
+        #--> compute relative positions for the grid
+        self.x_nodes = self.x_grid.copy()
+        for ii, xx in enumerate(self.x_grid[:-1]):
+            self.x_nodes[ii] = abs(abs(self.x_grid[ii+1])-abs(xx))
+
         #2) make vertical nodes so that they increase with depth
         #--> make depth grid
         log_z = np.logspace(np.log10(self.z1_layer), 
-                            np.log10(self.z_target_depth-np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.z_target_depth-\
+                                     np.logspace(np.log10(self.z1_layer), 
                             np.log10(self.z_target_depth), 
                             num=self.n_layers)[-2]), 
                             num=self.n_layers-self.num_z_pad_cells)
@@ -175,7 +189,8 @@ class Mesh():
         
         #--> create padding cells past target depth
         log_zpad = np.logspace(np.log10(self.z_target_depth), 
-                            np.log10(self.z_bottom-np.logspace(np.log10(self.z_target_depth), 
+                            np.log10(self.z_bottom-\
+                                    np.logspace(np.log10(self.z_target_depth), 
                             np.log10(self.z_bottom), 
                             num=self.num_z_pad_cells)[-2]), 
                             num=self.num_z_pad_cells)
@@ -190,6 +205,13 @@ class Mesh():
         self.z_grid = np.array([self.z_nodes[:ii+1].sum() 
                                 for ii in range(self.z_nodes.shape[0])])
                                     
+        print '='*55
+        print '  number of horizontal nodes = {0}'.format(self.x_grid.shape[0])  
+        print '  number of vertical nodes   = {0}'.format(self.z_grid.shape[0])  
+        print '  Total Horizontal Distance  = {0:2f}'.format(2*self.x_grid[-1])
+        print '  Total Vertical Distance    = {0:2f}'.format(self.z_grid[-1])
+        print '='*55
+                                    
     def plot_mesh(self, **kwargs):
         """
         plot mesh with station locations
@@ -203,9 +225,7 @@ class Mesh():
         mc = kwargs.pop('mc', 'k')
         lw = kwargs.pop('ls', .35)
         fs = kwargs.pop('fs', 6)
-        station_id = kwargs.pop('station_id', None)
         plot_triangles = kwargs.pop('plot_triangles', 'n')
-        font_pad = kwargs.pop('font_pad', 1)
         
         depth_scale = kwargs.pop('depth_scale', 'km')
         
@@ -237,26 +257,10 @@ class Mesh():
                     marker,
                     horizontalalignment='center',
                     verticalalignment='baseline',
-                    fontdict={'size':ms,'color':'k'})
+                    fontdict={'size':ms,'color':mc})
                     
-            #put station id onto station marker
-            #if there is a station id index
-#            if self.station_id != None:
-#                ax.text(offset/dfactor,
-#                        -self.station_font_pad*pfactor,
-#                        rpdict['station'][self.station_id[0]:self.station_id[1]],
-#                        horizontalalignment='center',
-#                        verticalalignment='baseline',
-#                        fontdict=fdict)
-#            #otherwise put on the full station name found form data file
-#            else:
-#                ax.text(rpdict['offset']/dfactor,
-#                        -self.station_font_pad*pfactor,
-#                        rpdict['station'],
-#                        horizontalalignment='center',
-#                        verticalalignment='baseline',
-#                        fontdict=fdict)
-        
+
+        #--> make list of column lines        
         row_line_xlist = []
         row_line_ylist = []
         for xx in self.x_grid/dfactor:
@@ -271,6 +275,7 @@ class Mesh():
                 color='k', 
                 lw=lw)
 
+        #--> make list of row lines
         col_line_xlist = [self.x_grid[0]/dfactor, self.x_grid[-1]/dfactor]
         col_line_ylist = [0, 0]            
         for yy in self.z_grid/dfactor:
@@ -338,7 +343,7 @@ class Mesh():
                     
         #--> set axes properties
         ax.set_ylim(self.z_target_depth/dfactor, -2000/dfactor)
-        xpad = self.num_x_pad_cells+self.num_x_pad_small_cells
+        xpad = self.num_x_pad_cells-1
         ax.set_xlim(self.x_grid[xpad]/dfactor, -self.x_grid[xpad]/dfactor)
         ax.set_xlabel('Easting ({0})'.format(depth_scale), 
                       fontdict={'size':fs+2, 'weight':'bold'})           
@@ -386,6 +391,7 @@ class Mesh():
         mesh_lines.append("{0} {1} {2} {0} {0} {3}\n".format(0, nx ,nz, 2))
         
         for ii, xnode in enumerate(self.x_nodes):
+            
             pass            
         
          
