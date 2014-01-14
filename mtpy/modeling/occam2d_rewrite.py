@@ -47,6 +47,7 @@ from matplotlib.colors import Normalize
 from matplotlib.ticker import MultipleLocator
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
+import scipy.interpolate as spi
 
 import mtpy.core.edi as MTedi
 import mtpy.core.mt as mt
@@ -73,7 +74,9 @@ occamdict = {'1':'resxy','2':'phasexy','3':'realtip','4':'imagtip','5':'resyx',
 
 class Mesh():
     """
-    deals only with the finite element mesh
+    deals only with the finite element mesh.  Builds a finite element mesh 
+    based on given parameters
+    
     
     """
 
@@ -96,6 +99,7 @@ class Mesh():
         self.z_nodes = None
         self.x_grid = None
         self.z_grid = None
+        self.mesh_values = None
         
     def build_mesh(self):
         """
@@ -173,6 +177,7 @@ class Mesh():
         self.x_nodes = self.x_grid.copy()
         for ii, xx in enumerate(self.x_grid[:-1]):
             self.x_nodes[ii] = abs(abs(self.x_grid[ii+1])-abs(xx))
+        self.x_nodes = self.x_nodes[:-1] 
 
         #2) make vertical nodes so that they increase with depth
         #--> make depth grid
@@ -205,12 +210,62 @@ class Mesh():
         self.z_grid = np.array([self.z_nodes[:ii+1].sum() 
                                 for ii in range(self.z_nodes.shape[0])])
                                     
+        self.mesh_values = np.zeros((self.x_grid.shape[0],
+                                     self.z_grid.shape[0], 4), dtype=str)
+        self.mesh_values[:,:,:] = '?'
+                                    
         print '='*55
         print '  number of horizontal nodes = {0}'.format(self.x_grid.shape[0])  
         print '  number of vertical nodes   = {0}'.format(self.z_grid.shape[0])  
         print '  Total Horizontal Distance  = {0:2f}'.format(2*self.x_grid[-1])
         print '  Total Vertical Distance    = {0:2f}'.format(self.z_grid[-1])
         print '='*55
+        
+    def add_elevation(self, elevation_profile):
+        """
+        the elevation model needs to be in relative coordinates and be a 
+        numpy.ndarray(2, num_elevation_points) where the first column is
+        the horizontal location and the second column is the elevation at 
+        that location.
+        
+        If you have a elevation model use Profile to project the elevation
+        information onto the profile line
+    
+        To build the elevation I'm going to add the elevation to the top 
+        of the model which will add cells to the mesh. there might be a better
+        way to do this, but this is the first attempt. So I'm going to assume
+        that the first layer of the mesh without elevation is the minimum
+        elevation and blocks will be added to max elevation at an increment
+        according to z1_layer
+        
+        .. note:: the elevation model should be symmetrical ie, starting 
+                  at the first station and ending on the last station
+        
+        """
+        
+        elev_diff = abs(elevation_profile[1].max()-elevation_profile[1].min())
+        num_elev_layers = int(elev_diff/self.z1_layer)
+        
+        #add vertical nodes and values to mesh_values
+        self.z_nodes = np.append([self.z1_layer]*num_elev_layers, self.z_nodes)
+        #this assumes that mesh_values have not been changed yet and are all ?        
+        self.mesh_values = np.zeros((self.x_grid.shape[0],
+                                     self.z_grid.shape[0], 4), dtype=str)
+        self.mesh_values[:,:,:] = '?'
+        
+        #--> need to interpolate the elevation values onto the mesh nodes
+        # first center the locations about 0, this needs to be the same
+        # center as the station locations.
+        offset = elevation_profile[0]-elevation_profile[0].mean()
+        elev = elevation_profile[1]-elevation_profile[1].min()
+        
+        print offset, elev
+        
+        elev_interp_func = spi.interp1d(offset, elev, kind='linear')
+        elev_interp = elev_interp_func(self.x_grid[self.num_x_pad_cells+1:
+                                                   -self.num_x_pad_cells-1])
+        
+        return elev_interp_func, elev_interp
                                     
     def plot_mesh(self, **kwargs):
         """
@@ -388,12 +443,121 @@ class Mesh():
         mesh_lines = []
         nx = self.x_nodes.shape[0]
         nz = self.z_nodes.shape[0]
-        mesh_lines.append("{0} {1} {2} {0} {0} {3}\n".format(0, nx ,nz, 2))
+        mesh_lines.append('MESH FILE Created by mtpy.modeling.occam2d\n')
+        mesh_lines.append("   {0}  {1}  {2}  {0}  {0}  {3}\n".format(0, nx ,
+                          nz, 2))
         
+        #--> write horizontal nodes
+        node_str = ''
         for ii, xnode in enumerate(self.x_nodes):
+            node_str += '{0:>9} '.format('{0:.1f}'.format(xnode))
+            if np.remainder(ii+1, 8) == 0:
+                node_str += '\n'
+                mesh_lines.append(node_str)
+                node_str = ''
+                
+        node_str += '\n'
+        mesh_lines.append(node_str)
+                
+        #--> write vertical nodes
+        node_str = ''
+        for ii, znode in enumerate(self.z_nodes):
+            node_str += '{0:>9} '.format('{0:.1f}'.format(znode))
+            if np.remainder(ii+1, 8) == 0:
+                node_str += '\n'
+                mesh_lines.append(node_str)
+                node_str = ''
+        node_str += '\n'
+        mesh_lines.append(node_str)
+
+        #--> need a 0 after the nodes
+        mesh_lines.append('    0\n')                
+        #--> write triangular mesh block values as ?
+        for zz in range(self.z_nodes.shape[0]):
+            for tt in range(4):
+                mesh_lines.append(''.join(self.mesh_values[:, zz, tt])+'\n')
             
-            pass            
+        mfid = file(self.mesh_fn, 'w')
+        mfid.writelines(mesh_lines)
+        mfid.close()
         
+        print 'Wrote Mesh file to {0}'.format(self.mesh_fn)
+        
+    def read_mesh_file(self, mesh_fn):
+        """
+        reads an occam2d 2D mesh file
+        
+        Arguments:
+        ----------
+            **mesh_fn** : string 
+                          full path to mesh file
+    
+        Returns:
+        --------
+            **x_nodes**: array of horizontal nodes 
+                                    (column locations (m))
+                                    
+            **z_nodes** : array of vertical nodes 
+                                      (row locations(m))
+                                      
+            **mesh_values** : np.array of free parameters
+            
+        To do:
+        ------
+            incorporate fixed values
+            
+        :Example: ::
+            
+            >>> import mtpy.modeling.occam2d as occam2d 
+            >>> mg = occam2d.Mesh()
+            >>> mg.mesh_fn = r"/home/mt/occam/line1/Occam2Dmesh"
+            >>> mg.read_mesh_file()
+        """
+        self.mesh_fn = mesh_fn
+        
+        mfid = file(self.mesh_fn,'r')
+        
+        mlines = mfid.readlines()
+        
+        nh = int(mlines[1].strip().split()[1])
+        nv = int(mlines[1].strip().split()[2])
+        
+        self.x_nodes = np.zeros(nh)
+        self.z_nodes=np.zeros(nv)
+        self.mesh_values = np.zeros((nh, nv, 4), dtype=str)    
+        
+        #get horizontal nodes
+        jj = 2
+        ii = 0
+        while ii < nh:
+            hline = mlines[jj].strip().split()
+            for mm in hline:
+                self.x_nodes[ii] = float(mm)
+                ii += 1
+            jj += 1
+        
+        #get vertical nodes
+        ii = 0
+        while ii < nv:
+            vline = mlines[jj].strip().split()
+            for mm in vline:
+                self.z_nodes[ii] = float(mm)
+                ii += 1
+            jj += 1    
+        
+        #get free parameters        
+        for ii ,mm in enumerate(mlines[jj+1:]):
+            kk = 0
+            while kk < 4:        
+                mline = mm.rstrip()
+                if mline.lower().find('exception')>0:
+                    break
+                for jj in range(nh):
+                    try:
+                        self.mesh_values[jj,ii,kk] = mline[jj]
+                    except IndexError:
+                        pass
+                kk += 1
          
 class Profile():
     """
@@ -432,6 +596,8 @@ class Profile():
     ======================= ===================================================
     edi_list                list of mtpy.core.mt.MT instances for each .edi
                             file found in edi_path 
+    elevation_model         numpy.ndarray(3, num_elevation_points) elevation
+                            values for the profile line (east, north, elev)
     geoelectric_strike      geoelectric strike direction assuming N == 0
     profile_angle           angle of profile line assuming N == 0
     profile_line            (slope, N-intercept) of profile line
@@ -484,6 +650,9 @@ class Profile():
         self._profile_generated = False
         self.profile_line = None
         self.station_locations = None
+        self.elevation_model = kwargs.pop('elevation_model', None)
+        self.elevation_profile = None
+        self.estimate_elevation = True
         
         
     def _get_edi_list(self):
@@ -658,9 +827,54 @@ class Profile():
         self.edi_list = [self.edi_list[ii] for ii in index_sort]
         self.station_locations = np.array([self.station_locations[ii] 
                                            for ii in index_sort])
-        
+        if self.estimate_elevation == True:
+            self.project_elevation()
+         
         self._profile_generated = True
-            
+        
+    def project_elevation(self, elevation_model=None):
+        """
+        projects elevation data into the profile
+        
+        Arguments:
+        -------------
+            **elevation_model** : np.ndarray(3, num_elevation_points)
+                                  (east, north, elevation)
+                                  for now needs to be in utm coordinates
+                                  if None then elevation is taken from edi_list
+                                  
+        Returns:
+        ----------
+            **elevation_profile** : 
+        """
+        self.elevation_model = elevation_model
+        
+        
+        #--> get an elevation model for the mesh                                       
+        if self.elevation_model == None:
+            self.elevation_profile = np.zeros((2, len(self.edi_list)))
+            self.elevation_profile[0,:] = np.array([ss 
+                                            for ss in self.station_locations])
+            self.elevation_profile[1,:] = np.array([edi.elev 
+                                                  for edi in self.edi_list])
+        
+        #--> project known elevations onto the profile line
+        else:
+            self.elevation_profile = np.zeros((2, self.elevation_model.shape[1]))
+            #create profile vector
+            profile_vector = np.array([1, self.profile_line[0]])
+            #be sure the amplitude is 1 for a unit vector
+            profile_vector /= np.linalg.norm(profile_vector)
+            for ii in range(self.elevation_model.shape[1]):
+                east = self.elevation_model[0, ii]
+                north = self.elevation_model[1, ii]
+                elev = self.elevation_model[2, ii]
+                elev_vector = np.array([east, north-self.profile_line[1]])
+                position = np.dot(profile_vector, elev_vector)*profile_vector 
+                self.elevation_profile[0, ii] = np.linalg.norm(position)
+                self.elevation_profile[1, ii] = elev
+                
+
     def plot_profile(self, **kwargs):
         """
         plot the projected profile line
