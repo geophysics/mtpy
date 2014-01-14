@@ -94,12 +94,15 @@ class Mesh():
         self.num_x_pad_small_cells = kwargs.pop('num_x_pad_small_cells', 2)
         self.save_path = kwargs.pop('save_path', None)
         self.mesh_fn = kwargs.pop('mesh_fn', None)
+        self.elevation_profile = kwargs.pop('elevation_profile', None)
             
         self.x_nodes = None
         self.z_nodes = None
         self.x_grid = None
         self.z_grid = None
         self.mesh_values = None
+        self.air_value = 1e13
+        self.air_key = '0'
         
     def build_mesh(self):
         """
@@ -213,7 +216,13 @@ class Mesh():
         self.mesh_values = np.zeros((self.x_grid.shape[0],
                                      self.z_grid.shape[0], 4), dtype=str)
         self.mesh_values[:,:,:] = '?'
-                                    
+        
+        #get elevation if elevation_profile is given
+        if self.elevation_profile is not None:
+            self.add_elevation(self.elevation_profile)
+        
+        print '='*55
+        print '{0:^55}'.format('mesh parameters'.upper())                            
         print '='*55
         print '  number of horizontal nodes = {0}'.format(self.x_grid.shape[0])  
         print '  number of vertical nodes   = {0}'.format(self.z_grid.shape[0])  
@@ -221,7 +230,7 @@ class Mesh():
         print '  Total Vertical Distance    = {0:2f}'.format(self.z_grid[-1])
         print '='*55
         
-    def add_elevation(self, elevation_profile):
+    def add_elevation(self, elevation_profile=None):
         """
         the elevation model needs to be in relative coordinates and be a 
         numpy.ndarray(2, num_elevation_points) where the first column is
@@ -239,15 +248,36 @@ class Mesh():
         according to z1_layer
         
         .. note:: the elevation model should be symmetrical ie, starting 
-                  at the first station and ending on the last station
-        
+                  at the first station and ending on the last station, so for
+                  now any elevation outside the station area will be ignored 
+                  and set to the elevation of the station at the extremities.
+                  This is not ideal but works for now.
+                  
+        Arguments:
+        -----------
+            **elevation_profile** : np.ndarray(2, num_elev_points)
+                                    - 1st row is for profile location
+                                    - 2nd row is for elevation values
+                                    
+        Computes:
+        ---------
+            **mesh_values** : mesh values, setting anything above topography
+                              to the key for air, which for Occam is '0'
         """
+        if elevation_profile is not None:
+            self.elevation_profile = elevation_profile
         
+        if self.elevation_profile is None:
+            raise OccamInputError('Need to input an elevation profile to '
+                                  'add elevation into the mesh.')
+                                  
         elev_diff = abs(elevation_profile[1].max()-elevation_profile[1].min())
         num_elev_layers = int(elev_diff/self.z1_layer)
         
         #add vertical nodes and values to mesh_values
         self.z_nodes = np.append([self.z1_layer]*num_elev_layers, self.z_nodes)
+        self.z_grid = np.array([self.z_nodes[:ii+1].sum() 
+                                for ii in range(self.z_nodes.shape[0])]) 
         #this assumes that mesh_values have not been changed yet and are all ?        
         self.mesh_values = np.zeros((self.x_grid.shape[0],
                                      self.z_grid.shape[0], 4), dtype=str)
@@ -259,14 +289,74 @@ class Mesh():
         offset = elevation_profile[0]-elevation_profile[0].mean()
         elev = elevation_profile[1]-elevation_profile[1].min()
         
-        print offset, elev
-        
-        elev_interp_func = spi.interp1d(offset, elev, kind='linear')
-        elev_interp = elev_interp_func(self.x_grid[self.num_x_pad_cells+1:
-                                                   -self.num_x_pad_cells-1])
-        
-        return elev_interp_func, elev_interp
-                                    
+        func_elev = spi.interp1d(offset, elev, kind='linear')
+
+        # need to figure out which cells and triangular cells need to be air
+        xpad = self.num_x_pad_cells+1
+        for ii, xg in enumerate(self.x_grid[xpad:-xpad], xpad):
+            #get the index value for z_grid by calculating the elevation
+            #difference relative to the top of the model
+            dz = elev.max()-func_elev(xg)
+            zz = int(np.ceil(dz/self.z1_layer))
+            if zz == 0:
+                pass
+            else:
+                #--> need to figure out the triangular elements 
+                #top triangle
+                zlayer = elev.max()-self.z_grid[zz]
+                try:
+                    xtop = xg+(self.x_grid[ii+1]-xg)/2
+                    ytop = zlayer+3*(self.z_grid[zz]-self.z_grid[zz-1])/4
+                    elev_top = func_elev(xtop)
+                    #print xg, xtop, ytop, elev_top, zz
+                    if elev_top > ytop:
+                        self.mesh_values[ii, 0:zz, 0] = self.air_key
+                    else:
+                        self.mesh_values[ii, 0:zz-1, 0] = self.air_key
+                except ValueError:
+                    pass
+                
+                #left triangle
+                try:
+                    xleft = xg+(self.x_grid[ii+1]-xg)/4.
+                    yleft = zlayer+(self.z_grid[zz]-self.z_grid[zz-1])/2.
+                    elev_left = func_elev(xleft)
+                    #print xg, xleft, yleft, elev_left, zz
+                    if elev_left > yleft:
+                        self.mesh_values[ii, 0:zz, 1] = self.air_key
+                except ValueError:
+                    pass
+                
+                #bottom triangle
+                try:
+                    xbottom = xg+(self.x_grid[ii+1]-xg)/2
+                    ybottom = zlayer+(self.z_grid[zz]-self.z_grid[zz-1])/4
+                    elev_bottom = func_elev(xbottom)
+                    #print xg, xbottom, ybottom, elev_bottom, zz
+                    if elev_bottom > ybottom:
+                        self.mesh_values[ii, 0:zz, 2] = self.air_key
+                except ValueError:
+                    pass
+                
+                #right triangle
+                try:
+                    xright = xg+3*(self.x_grid[ii+1]-xg)/4
+                    yright = zlayer+(self.z_grid[zz]-self.z_grid[zz-1])/2
+                    elev_right = func_elev(xright)
+                    #print xg, xright, yright, elev_right, zz
+                    if elev_right > yright:
+                        self.mesh_values[ii, 0:zz, 3] = self.air_key
+                except ValueError:
+                    pass
+        #--> need to fill out the padding cells so they have the same elevation
+        #    as the extremity stations.
+        for ii in range(xpad):
+            self.mesh_values[ii, :, :] = self.mesh_values[xpad+1, :, :]
+        for ii in range(xpad+1):
+            self.mesh_values[-(ii+1), :, :] = self.mesh_values[-xpad-2, :, :]
+                       
+                       
+        print '{0:^55}'.format('--- Added Elevation to Mesh --')
     def plot_mesh(self, **kwargs):
         """
         plot mesh with station locations
@@ -942,6 +1032,38 @@ class Profile():
                   prop={'size':fs})
                   
         plt.show()
+        
+class Regularization(Mesh):
+    """
+    Creates a regularization grid based on Mesh.  Note that Mesh is inherited
+    by Regularization, therefore the intended use is to build a mesh with 
+    the Regularization class.
+    
+    """
+    
+    def __init__(self, station_locations=None, **kwargs):
+        # Be sure to initialize Mesh        
+        Mesh.__init__(self, **kwargs)
+        
+        self.min_block_width = kwargs.pop('min_block_width', 
+                                          2*np.median(self.cell_width))
+        self.trigger = kwargs.pop('trigger', .75)
+        
+        #--> build mesh         
+        if self.station_locations is not None:
+            self.build_mesh()
+            
+    def build_regularization(self):
+        """
+        builds larger boxes around existing mesh blocks for the regularization
+    
+        """
+        model_blocks = []
+        column_numbers = []
+        ncol = None
+        
+        
+        
 
 class Setup():
     """
