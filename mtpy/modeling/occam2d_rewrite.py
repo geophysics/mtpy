@@ -1043,28 +1043,210 @@ class Regularization(Mesh):
     
     def __init__(self, station_locations=None, **kwargs):
         # Be sure to initialize Mesh        
-        Mesh.__init__(self, **kwargs)
+        Mesh.__init__(self, station_locations, **kwargs)
         
         self.min_block_width = kwargs.pop('min_block_width', 
                                           2*np.median(self.cell_width))
         self.trigger = kwargs.pop('trigger', .75)
+        self.model_columns = None
+        self.model_rows = None
+        self.binding_offset = None
+        self.reg_fn = None
+        self.reg_basename = 'Occam2DModel'
+        self.description = 'model made by mtpy.modeling.occam2d'
+        self.num_param = None
+        
         
         #--> build mesh         
         if self.station_locations is not None:
             self.build_mesh()
+            self.build_regularization()
             
     def build_regularization(self):
         """
         builds larger boxes around existing mesh blocks for the regularization
     
         """
-        model_blocks = []
-        column_numbers = []
-        ncol = None
+        # list of the mesh columns to combine
+        self.model_columns = []
+        # list of mesh rows to combine
+        self.model_rows = []
         
+        #At the top of the mesh model blocks will be 2 combined mesh blocks
+        #Note that the padding cells are combined into one model block
+        station_col = [2]*((self.x_nodes.shape[0]-2*self.num_x_pad_cells)/2)
+        model_cols = [self.num_x_pad_cells]+station_col+[self.num_x_pad_cells]
+        station_widths = [self.x_nodes[ii]+self.x_nodes[ii+1] for ii in 
+                       range(self.num_x_pad_cells, 
+                             self.x_nodes.shape[0]-self.num_x_pad_cells, 2)]
+                             
+        pad_width = self.x_nodes[0:self.num_x_pad_cells].sum()
+        model_widths = [pad_width]+station_widths+[pad_width]
+        num_cols = len(model_cols)
         
+        model_thickness = np.append(self.z_nodes[0:self.z_nodes.shape[0]-self.num_z_pad_cells], 
+                                    self.z_nodes[-self.num_z_pad_cells:].sum())
         
+        self.num_param = 0
+        #--> now need to calulate model blocks to the bottom of the model
+        columns = list(model_cols)
+        widths = list(model_widths)
+        for zz, thickness in enumerate(model_thickness):
+            #index for model column blocks from first_row, start at 1 because
+            # 0 is for padding cells            
+            block_index = 1
+            num_rows = 1
+            if zz == 0:
+                num_rows += 1
+            if zz == len(model_thickness)-1:
+                num_rows = self.num_z_pad_cells
+            while block_index+1 < num_cols-1:
+                #check to see if horizontally merged mesh cells are not larger
+                #than the thickness times trigger
+                if thickness < self.trigger*(widths[block_index]+\
+                                             widths[block_index+1]):
+                    block_index += 1
+                    continue
+                #merge 2 neighboring cells to avoid vertical exaggerations                    
+                else:
+                    widths[block_index] += widths[block_index+1]
+                    columns[block_index] += columns[block_index+1]
+                    #remove one of the merged cells                        
+                    widths.pop(block_index+1)
+                    columns.pop(block_index+1)
+                    
+                    num_cols -= 1
+            self.num_param += num_cols
 
+            self.model_columns.append(list(columns))
+            self.model_rows.append([num_rows, num_cols])
+                
+        #calculate the distance from the right side of the furthest left 
+        #model block to the furthest left station.
+        self.binding_offset = self.x_grid[self.num_x_pad_cells]
+        
+        print '='*55
+        print '{0:^55}'.format('regularization parameters'.upper())
+        print '='*55
+        print '   binding offset       = {0:.1f}'.format(self.binding_offset)
+        print '   number layers        = {0}'.format(len(self.model_columns))
+        print '   number of parameters = {0}'.format(self.num_param)
+        print '='*55
+
+        
+    def write_regularization_file(self, reg_fn=None, reg_basename=None, 
+                                  statics_fn='None', prejudice_fn='None',
+                                  save_path=None):
+        """
+        write a regularization file for input into occam.
+        
+        if reg_fn is None, then file is written to save_path/reg_basename
+        
+        Arguments:
+        ----------
+            **reg_fn** : string
+                         full path to regularization file. *default* is None
+                         and file will be written to save_path/reg_basename
+                         
+            **reg_basename** : string
+                               basename of regularization file
+                               
+                                
+        """
+        if save_path is not None:
+            self.save_path = save_path
+        if reg_basename is not None:
+            self.reg_basename = reg_basename
+        if reg_fn is None:
+            if self.save_path is None:
+                self.save_path = os.getcwd()
+            self.reg_fn = os.path.join(self.save_path, self.reg_basename)
+        
+        reg_lines = []
+        
+        #--> write out header information
+        reg_lines.append('{0:<18}{1}\n'.format('format:'.upper(), 
+                                               'occam2dmtmod_1.0'.upper()))
+        reg_lines.append('{0:<18}{1}\n'.format('model name:'.upper(), 
+                                               self.description.upper()))
+        reg_lines.append('{0:<18}{1}\n'.format('mesh file:'.upper(), 
+                                               self.mesh_fn))
+        reg_lines.append('{0:<18}{1}\n'.format('mesh type:'.upper(), 
+                                               'pw2d'.upper()))
+        reg_lines.append('{0:<18}{1}\n'.format('statics file:'.upper(), 
+                                               statics_fn))
+        reg_lines.append('{0:<18}{1}\n'.format('prejudice file:'.upper(), 
+                                               prejudice_fn))
+        reg_lines.append('{0:<18}{1:.1f}\n'.format('binding offset:'.upper(), 
+                                                   self.binding_offset))
+        reg_lines.append('{0:<18}{1}\n'.format('num layers:'.upper(), 
+                                               len(self.model_columns)))
+        
+        #--> write rows and columns of regularization grid                                        
+        for row, col in zip(self.model_rows, self.model_columns):
+            reg_lines.append(''.join(['{0:>5}'.format(rr) for rr in row])+'\n')
+            reg_lines.append(''.join(['{0:>5}'.format(cc) for cc in col])+'\n')
+                                    
+        rfid = file(self.reg_fn, 'w')
+        rfid.writelines(reg_lines)
+        rfid.close()
+        
+        print 'Wrote Regularization file to {0}'.format(self.reg_fn)
+        
+    def read_regularization_file(self, reg_fn):
+        """
+        read in a regularization file
+        
+        """
+        self.reg_fn = reg_fn
+        self.save_path = os.path.dirname(reg_fn)
+
+        rfid = open(self.reg_fn, 'r')
+        
+        headerdict = {}
+        self.model_rows = []
+        self.model_columns = []    
+        ncols = []
+        
+        rlines = rfid.readlines()
+        
+        for ii, iline in enumerate(rlines):
+            #read header information
+            if iline.find(':') > 0:
+                iline = iline.strip().split(':')
+                headerdict[iline[0].lower()] = iline[1].strip()
+                #append the last line
+                if iline[0].lower().find('exception') > 0:
+                    self.model_columns.append(ncols)
+            
+            #get mesh values
+            else:
+                iline = iline.strip().split()
+                iline = [int(jj) for jj in iline]
+                if len(iline) == 2:
+                    if len(ncols) > 0:
+                        self.model_columns.append(ncols)
+                    self.model_rows.append(iline)
+                    ncols = []
+                elif len(iline) > 2:
+                    ncols = ncols+iline
+                    
+        #set mesh file name
+        self.mesh_fn = headerdict['mesh file']
+        if not os.path.isfile(self.mesh_fn):
+            self.mesh_fn = os.path.join(self.save_path, self.mesh_fn)
+        
+        #set statics file name
+        self.statics_fn = headerdict['statics file']
+        if not os.path.isfile(self.mesh_fn):
+            self.statics_fn = os.path.join(self.save_path, self.statics_fn)
+            
+        #set prejudice file name
+        self.prejudice_fn = headerdict['prejudice file']
+        if not os.path.isfile(self.mesh_fn):
+            self.prejudice_fn = os.path.join(self.save_path, self.prejudice_fn)
+            
+        
 class Setup():
     """
     Dealing with the setup  for an Occam2D run. Generate 'startup', 'inmodel', 
