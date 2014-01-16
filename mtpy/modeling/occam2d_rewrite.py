@@ -1245,1327 +1245,121 @@ class Regularization(Mesh):
         self.prejudice_fn = headerdict['prejudice file']
         if not os.path.isfile(self.mesh_fn):
             self.prejudice_fn = os.path.join(self.save_path, self.prejudice_fn)
-            
-        
-class Setup():
+   
+
+class Startup(object):
     """
-    Dealing with the setup  for an Occam2D run. Generate 'startup', 'inmodel', 
-    'mesh' files. Calling Data() for generating a suitable input data file.
-
-    Setting up those files within one (pre-determined) folder, so Occam can be 
-    run there straight away.
-
+    deals with startup file for occam2d
+    
     """
-
-
-    def __init__(self, configfile = None, **input_parameters):
-
-
-        self.parameters_startup = {}
-        self.parameters_inmodel = {}
-        self.parameters_data = {}
-        self.parameters_mesh = {}
-        self.parameters_prejudice = {}
-
-        self.parameters_startup['description'] = 'generic MTpy setup'
-
-        self.parameters_startup['iter_format'] = 'OCCAM_ITER'
-        self.parameters_startup['datetime_string'] = datetime.datetime.now().strftime(
-                                                             '%Y/%m/%d %H:%M:%S')
-
-        self.parameters_startup['no_iteration'] = 0
-        self.parameters_startup['roughness_start'] = 1.0E+07
-        self.parameters_startup['reached_misfit'] = 0        
-        self.parameters_startup['roughness_type'] = 1
-        self.parameters_startup['debug_level'] = 1
-        self.parameters_startup['mu_start'] = 5.0
-        self.parameters_startup['max_no_iterations'] = 30
-        self.parameters_startup['target_rms'] = 1.5
-        self.parameters_startup['rms_start'] = 1000
-        self.parameters_startup['halfspace_resistivity'] = 100.
-
-
-        self.parameters_inmodel['no_sideblockelements'] = 5
-        self.parameters_inmodel['no_bottomlayerelements'] = 4
-        self.parameters_inmodel['firstlayer_thickness'] = 100
-        
-        #model depth is in km!
-        self.parameters_inmodel['model_depth'] = 100
-        self.parameters_inmodel['no_layers'] = 25
-        self.parameters_inmodel['max_blockwidth'] = 1000
-
-        self.parameters_inmodel['model_name'] = 'Modelfile generated with MTpy'
-        self.parameters_inmodel['block_merge_threshold'] = 0.75
-        self.parameters_inmodel['roughness_exceptions'] = None
-        self.parameters_inmodel['interfaces'] = False
-        self.parameters_inmodel['interface_dir'] = None
-        self.parameters_inmodel['interface_filelist'] = None
-        self.parameters_inmodel['elevation_filename'] = None
-
-       
-        self.parameters_data['strike'] = None
-
-        self.parameters_data['rho_errorfloor'] = 0.
-        self.parameters_data['phase_errorfloor'] = 0.
-        self.parameters_data['tipper_errorfloor'] = 0.
-        self.parameters_data['azimuth'] = 0
-
-        self.parameters_data['mode'] = 'tetm'
-        self.parameters_data['edi_type'] = 'z'
-
-        self.parameters_data['min_frequency'] = None
-        self.parameters_data['max_frequency'] = None
-        self.parameters_data['max_no_frequencies'] = None
-
-        self.parameters_mesh['mesh_title'] = 'Mesh file generated with MTpy'
-        self.prejudice_weight = 1.
- 
-        self.mesh = None
-        self.meshlocations_x = None
-        self.meshlocations_z = None
-        self.meshblockwidths_x = None
-        self.meshblockthicknesses_z = None
-        self.profile_easts = None
-        self.profile_norths = None
-        self.modelblocklocations_x = None
-        self.modelblocklocations_z = None
-
-        self.inmodel = None
- 
-        self.no_parameters = None
-
-        self.welldata = None
-        self.well_xy = None
-
-        self.edifiles = []
-
-        self.Data = None
-        self.datafile = 'occaminputdata.dat'
-        self.meshfile = 'mesh'
-        self.inmodelfile = 'inmodel'
-        self.startupfile = 'startup'
-        self.staticsfile = None
-        self.prejudicefile = None
-
-        self.edi_directory = None
-        #working directory
-        self.wd = '.'
-
-        update_dict = {}
-        if configfile is not None:
-            try:
-                configfile = op.join(os.curdir,configfile)
-                if not op.isfile(configfile):
-                    raise
-            except:
-                raise MTex.MTpyError_inputarguments('Error - Configuration '\
-                    'file {0} does not exist!'.format(configfile))
-            try:
-                update_dict = {}
-                raw_configfile_content = MTcf.read_configfile(configfile)
-                for k in raw_configfile_content.keys():
-
-                    temp_dict = raw_configfile_content[k]
-                    update_dict.update(temp_dict)
-            except:
-                raise MTex.MTpyError_inputarguments('Error - Configuration '\
-                    'file {0} cannot be read!'.format(configfile))
-
-        #correcting dictionary for upper case keys
-        input_parameters_nocase = {}
-        for key in input_parameters.keys():
-            input_parameters_nocase[key.lower()] = input_parameters[key]
-
-        update_dict.update(input_parameters_nocase)
-
-        for dictionary in [self.parameters_startup, self.parameters_inmodel, 
-                                    self.parameters_mesh, self.parameters_data]:
-            for key in dictionary.keys():
-                if key in update_dict:
-                    #check if entry exists:
-                    try:
-                        value = float(update_dict[key])
-                        dictionary[key] = value
-                    except:
-                        value = update_dict[key]
-                        dictionary[key] = value
-                        if type(value) in [str]:
-                            if value.strip().lower()=='none':
-                                 dictionary[key] = None
-
-
-        for key in update_dict:
-            try:
-                value = getattr(self,key)
-                if len(update_dict[key]) > 0:
-                    try:
-                        value = float(update_dict[key])
-                        setattr(self,key,value)
-                    except:
-                        value = update_dict[key]
-                        setattr(self,key,value)
-                        if type(value) in [str]:
-                            if value.strip().lower()=='none':
-                                setattr(self,key,None)
-            except:
-                continue 
-
-
-
-    def read_configfile(self, configfile):
-
-        cf = op.abspath(configfile)
-        if not op.isfile(cf):
-            print 'Warning - config file not found {0}'.format(cf)
-            return
-
-        config_dictionary = MTcf.read_configfile(cf)
-
-        no_p = self.update_parameters(config_dictionary)
-        no_a = self.update_attributes(config_dictionary)
-        print '{0} parameters and attributes updated'.format(no_a + no_p)
-
-
-    def update_parameters(self, **parameters_dictionary):
-
-        input_parameters_nocase = {}
-        for key in parameters_dictionary.keys():
-            input_parameters_nocase[key.lower()] = parameters_dictionary[key]
-
-        if self.validate_parameters(input_parameters_nocase) is False:
-            print 'Error - parameters invalid \n'
-            return
-
-        counter = 0
-        for dictionary in [self.parameters_startup, self.parameters_inmodel, 
-                                    self.parameters_mesh, self.parameters_data]:
-            for key in dictionary.keys():
-                if key in input_parameters_nocase:
-                    dictionary[key] = input_parameters_nocase[key]
-                    counter += 1
-
-        return counter
-
-
-
-    def validate_parameters(self, **parameters_dictionary):
-        
-        valid = True
-
-        return valid
-
-
-    def update_attributes(self, **attributes_dictionary):
-        input_attributes_nocase = {}
-        for key in attributes_dictionary.keys():
-            input_attributes_nocase[key.lower()] = attributes_dictionary[key]
-
-        if self.validate_attributes(input_attributes_nocase) is False:
-            print 'Error - attributes invalid \n'
-            return
-        counter = 0
-        for attr in dir(self):
-            if attr in input_attributes_nocase:
-                self.setattr(attr,input_attributes_nocase[attr])
-                counter += 1
-
-        return counter 
-
-
-    def validate_attributes(self, **attributes_dictionary):
-        
-        valid = True
-
-        return valid
-
-
-    def add_edifiles_directory(self, directory = None):
-
-        if directory is None:
-            print 'Error - provide directory name'
-            return
-
-        if op.isdir(directory) is False:
-            print 'Warning - not a valid directory - cannot browse for EDI files: {0}'.format(directory)
-            return
-
-        edilist_raw = fnmatch.filter(os.listdir(directory),'*.[Ee][Dd][Ii]')
-        edilist_full = [op.abspath(op.join(edi_dir,i)) for i in edilist_raw]
-        
-        counter = 0
-        for edi in edilist_full:
-            try:
-                if op.isfile(edi):
-                    self.edifiles.append(edi)
-                    counter += 1
-            except:
-                continue
-        
-        print 'Added {0} Edi files'.format(counter)
-
-
-    def add_edifiles(self, edilist):
-        
-        if not np.iterable(edilist):
-            print 'Error - provide valid file list'
-            return
-
-        counter = 0
-        for edi in edilist:
-            try:
-                fn = op.abspath(op.join(os.curdir,edi))
-                if op.isfile(fn):
-                    self.edifiles.append(fn)
-                    counter += 1                
-            except:
-                continue
-
-        print 'Added {0} Edi files'.format(counter)
-
-
-    def remove_edifiles(self, edilist):
-        if not np.iterable(edilist):
-            print 'Error - provide valid file list'
-            return
-
-        counter = 0
-        for edi in edilist:
-            try:
-                fn = op.abspath(op.join(os.curdir,edi))
-                if fn in self.edifiles:
-                    self.edifiles.remove(fn)
-                counter += 1                
-            except:
-                continue
-
-        print 'Removed {0} Edi files'.format(counter)
-
-
-    def read_edifiles(self, edi_dir = None):
-        
-        if self.edi_directory is None:
-            self.edi_directory = op.abspath(os.curdir)
-
-        if (edi_dir is not None):
-            edi_dir = op.abspath(op.join(os.curdir,edi_dir))
-            if (edi_dir):
-                self.edi_directory = edi_dir
-            else:
-                print 'Warning - given directory not found: {0} \n\t-'\
-                    ' using current directory instead:{1}'.format(edi_dir,os.curdir)
-
-
-        edilist_raw = fnmatch.filter(os.listdir(self.edi_directory),'*.[Ee][Dd][Ii]')
-        edilist_full = [op.abspath(op.join(self.edi_directory,i)) for i in edilist_raw]
-        edilist = []
-        for edi in edilist_full:
-            if op.isfile(edi):
-                edilist.append(edi)
-            else: 
-                continue
-
-        self.edifiles = edilist
-       
-
-    def write_datafile(self):
-
-        try:
-            data_object = Data(edilist = self.edifiles, wd = self.wd, **self.parameters_data)
-        except:
-            print 'cannot write data file'
-            raise
-        self.stationlocations = data_object.stationlocations
-        data_object.writefile(self.datafile)
-
-
-        #self.datafile = data_object.datafile
-        self.Data = data_object
-        
-
-    def setup_mesh_and_model(self):
-        """
-        Build the mesh and inmodel blocks from given data and parameters.
-
-        Attributes required: 
-
-        - self.stationlocations
-        - self.parameters_inmodel
-
-        """
-        #given as offset on the profile line
-        lo_sites = self.Data.stationlocations
-        n_sites  = len(lo_sites)
-
-        #maximum width of MODEL block - implicitely defines finiteness of the mesh
-        maxblockwidth = float(self.parameters_inmodel['max_blockwidth'])
-
-        #define vertical setup
-        #old version:
-        #number of layers per depth meters decade
-        #layers_per_decade     = float(self.parameters_inmodel['no_layersperdecade'])
-        #new:
-        model_depth_m         = float(self.parameters_inmodel['model_depth'])*1000.
-        #depth of first layer
-        first_layer_thickness = float(self.parameters_inmodel['firstlayer_thickness'])
-        #so "layers_per_decade" layers between "first_layer_thickness" and 10* "first_layer_thickness"
-        #then the same number between 10* "first_layer_thickness" and 100* "first_layer_thickness"
-
-        #padding layer does NOT count in here
-        n_layers = int(float(self.parameters_inmodel['no_layers']))
-
-        #number of padding mesh layers at the bottom 
-        n_bottompadding = int(float(self.parameters_inmodel['no_bottomlayerelements']))
-
-        #number of padding mesh columns to the sides
-        n_sidepadding    = int(float(self.parameters_inmodel['no_sideblockelements']))
-
-        #1. check, if inter-station spacing is smaller than the allowed max block size
-        #if not, add dummy station locations
-
-        lo_allsites = []
-        lo_distances = []
-        lo_real_station_distances = []
-        no_dummys = 0
-
-
-        print '\nlength of station profile: {0:.1f} km '.format((lo_sites[-1]-lo_sites[0])/1000.)
-        print 'Azimuth of profile: {0:.1f} degrees'.format(self.Data.azimuth)
-        if self.Data.strike is not None:
-            print 'Assumed strike: {0:.1f} degrees'.format(self.Data.strike)
-        else:
-            print 'Strike orientation unknown'
-
-        for idx_site,location in enumerate(lo_sites):
-            lo_allsites.append(location)
-            if idx_site == len(lo_sites)-1:
-                break
-
-            distance = np.abs(lo_sites[idx_site+1] - location)
-            lo_real_station_distances.append(distance)
-            if distance >= maxblockwidth:
-                dummys = int(distance/maxblockwidth) 
-                smallblockwidth = distance/float(dummys+1)
-                no_dummys += dummys
-                for d in range(dummys):
-                    lo_allsites.append(location + (d+1)* smallblockwidth)
-                
-                    lo_distances.append(smallblockwidth)
-            
-            else:
-                lo_distances.append(distance)
-
-        print '\nadded {0} dummy stations'.format(no_dummys)
-        totalstations = no_dummys+len(lo_sites)
-        totalmeshblocknumber = 2*n_sidepadding+4+2*(totalstations)
-        totalmodelblocknumber = 4+totalstations
-        print '{0} stations in total => \n\t{1} meshblocks and {2} modelblocks expected in top layer'.format(
-                                    totalstations,totalmeshblocknumber, totalmodelblocknumber)
-
-        #2. determine padding column widths:
-        paddingwidth = 0.5 * np.max(lo_real_station_distances)
-        meshnodelocations = []
-        #add left half of block under first station 
-        leftedge = lo_allsites[0] - lo_distances[0]/2.
-        meshnodelocations.insert(0,leftedge)
-
-        #add extra block column on the left of first station
-        #consists of two mesh cells
-        leftedge -= paddingwidth
-        meshnodelocations.insert(0,leftedge)
-        leftedge -= paddingwidth
-        meshnodelocations.insert(0,leftedge)
-
-
-            
-        #3. split the inner station gaps into 2 mesh blocks each 
-        for idx,station in enumerate(lo_allsites):
-            meshnodelocations.append(station)
-            if idx == len(lo_allsites)-1:
-                break
-            #include point in the middle between here and next station
-            meshnodelocations.append(station+(lo_allsites[idx+1]-station)/2.)
-
-        #add right half of block under last station 
-        rightedge = lo_allsites[-1] + lo_distances[-1]/2.
-        meshnodelocations.append(rightedge)
-
-        #add extra block column on the right of last station
-        #consists of two mesh cells
-        rightedge += paddingwidth
-        meshnodelocations.append(rightedge)
-        rightedge += paddingwidth
-        meshnodelocations.append(rightedge)
-
-
-        #add 2 side padding blocks with expon. increasing width of N mesh cells
-        padding_absolute = 0 
-        for p in range(n_sidepadding):
-            current_padding = 2**(p+1)*paddingwidth
-            if current_padding > 1000000:
-                current_padding = 1000000
-
-            padding_absolute+=current_padding
-            
-            rightedge += current_padding
-            meshnodelocations.append(rightedge)
-
-            leftedge -= current_padding
-            meshnodelocations.insert(0,leftedge) 
-        
-        print '\nlength of model profile: {0:.1f} km (from {1:.1f} to {2:.1f})'.format(
-                                        (meshnodelocations[-1]-meshnodelocations[0])/1000.,
-                                        meshnodelocations[0]/1000., meshnodelocations[-1]/1000.)
-        if len(meshnodelocations) > 1000:
-            raise MTex.MTpyError_occam('Error - Occam cannot handle more than 1000'\
-                    ' lateral mesh blocks - increase size of "max_blockwidth" !')        
-
-        #4.determine the overall width of mesh blocks
-        lo_meshblockwidths = []
-        for loc in range(len(meshnodelocations)-1):            
-            lo_meshblockwidths.append( meshnodelocations[loc+1] - meshnodelocations[loc] )
-
-        #5. build top layer modelblocks by merging paddings and then 2 blocks each:
-        lo_columns_to_merge = []
-        lo_modelblockwidths = [] 
-        current_meshblock_index = 0
-
-        lo_columns_to_merge.append(n_sidepadding)
-        lo_modelblockwidths.append(padding_absolute)
-        current_meshblock_index += n_sidepadding
-
-        #merge the extra column at the left:
-        lo_columns_to_merge.append(2)
-        lo_modelblockwidths.append( lo_meshblockwidths[current_meshblock_index] 
-                                + lo_meshblockwidths[current_meshblock_index+1] )
-        current_meshblock_index += 2
-
-        for idx,location in enumerate(lo_allsites):
-            #each site is on top of a block, consisting of 2 mesh cells each
-            lo_columns_to_merge.append(2)
-            lo_modelblockwidths.append(lo_meshblockwidths[current_meshblock_index] 
-                                + lo_meshblockwidths[current_meshblock_index+1] )
-            current_meshblock_index += 2
-        
-        #merge right extra column
-        lo_columns_to_merge.append(2)
-        lo_modelblockwidths.append( lo_meshblockwidths[current_meshblock_index] 
-                                + lo_meshblockwidths[current_meshblock_index+1] )
-        current_meshblock_index += 2
-
-        #merge the side padding columns on the right
-        lo_columns_to_merge.append(n_sidepadding)
-        lo_modelblockwidths.append(np.sum(padding_absolute))
-        current_meshblock_index += n_sidepadding
-
-
-        #6.right side of left most model block - effectively the edge of the padding
-        #given with resspect to location of the first station
-        #idx of station 1 is n_sidepadding + 2(extra column) + 1 (half the block under the station)
-        #binding_offset =  meshnodelocations[n_sidepadding+3] - meshnodelocations[n_sidepadding]
-        binding_offset =  meshnodelocations[n_sidepadding]
-
-        #should be identical!
-        no_x_nodes = current_meshblock_index + 1
-        nodey = len(lo_meshblockwidths) + 1 #vertical nodes
-
-        ncol0 = len(lo_columns_to_merge) # number of blocks in the first layer
-        
-        #------
-        #7. now turn to depths - set up the z axis for the mesh:
-        # the model layers increas in thickness with depth
-        # the increase is in decadic logarithm, starting with the given depth 
-        # of the first layer
-
-        #part to be scaled logarithmically:
-        log_part_thickness = model_depth_m - (n_layers-1) * first_layer_thickness
-        depths = np.logspace(np.log10(first_layer_thickness),
-                                np.log10(log_part_thickness), 
-                                n_layers) + np.arange(n_layers) * first_layer_thickness
-       
-        #no_decades = int(n_layers/layers_per_decade)+1
-        #no_depthpoints_max = layers_per_decade * no_decades
-        #depthscale = 10**np.linspace(0,no_decades,no_depthpoints_max + 1) 
-
-        #lo_model_depths = list((depthscale[:n_layers-1] * first_layer_thickness))
-        lo_model_depths = list(depths)
-        
-        lo_mesh_depths = []
-        lo_rows_to_merge = []
-
-        #2 mesh-blocks for a model layer only in the topmost layer
-        for idx, depth in enumerate(lo_model_depths):
-            if idx == 0:
-                newdepth = depth/2.
-            #else:
-            #    newdepth = depth - (depth -  lo_model_depths[idx-1])/2.
-                lo_mesh_depths.append(newdepth)
-                lo_rows_to_merge.append(2)
-                lo_mesh_depths.append(depth)
-                continue
-            lo_mesh_depths.append(depth)
-            lo_rows_to_merge.append(1)
-      
-
-        lo_mesh_thicknesses = []
-
-        for idx,depth in enumerate(lo_mesh_depths):
-            if idx == 0:
-                thickness = depth
-            else:
-                thickness = depth - lo_mesh_depths[idx-1]
-            lo_mesh_thicknesses.append(thickness)
-
-
-        max_thickness = np.max(lo_mesh_thicknesses)
-        maxdepth = lo_mesh_depths[-1]
-
-
-        for i in range(n_bottompadding):
-            lo_mesh_thicknesses.append(max_thickness)
-            lo_mesh_depths.append(maxdepth+max_thickness)
-            maxdepth += max_thickness
-        
-        lo_model_depths.append(lo_model_depths[-1]+n_bottompadding*max_thickness)
-
-        #just to be safe!
-        #self.parameters_inmodel['no_layers'] = len(lo_model_depths)
-
-        lo_model_thicknesses = []
-        for idx,depth in enumerate(lo_model_depths):
-            if idx == 0:
-                thickness = depth
-            else:
-                thickness = depth - lo_model_depths[idx-1] 
-            lo_model_thicknesses.append(thickness)
-
-
-        lo_rows_to_merge.append(n_bottompadding)
-
-
-        no_z_nodes = len(lo_mesh_depths) +1
-
-        
-        self.parameters_inmodel['bindingoffset']      = binding_offset
-        self.parameters_inmodel['max_number_columns'] = ncol0
-        self.parameters_inmodel['lo_merged_lines']    = lo_rows_to_merge
-        self.meshblockwidths_x                        = lo_meshblockwidths
-        self.meshblockthicknesses_z                   = lo_mesh_thicknesses
-         
-        self.meshlocations_z                          = lo_mesh_depths
-        self.meshlocations_x                          = meshnodelocations
-        self.parameters_mesh['no_nodes_x']            = no_x_nodes
-        self.parameters_mesh['no_nodes_z']            = no_z_nodes
-
-        #mesh DONE
-        #-----------------------------------------------------
-        #defining the actual blocks:
-
-        trigger    = self.parameters_inmodel['block_merge_threshold']
-
-        modelblockstrings = []
-        lo_column_numbers = []
-        num_params = 0
-        
-
-        ncol = ncol0
-        #loop over all model layers
-        #lo_modelblockwidths include the generaic merging of side padding mesh cells
-        #as well as the merging of each 2 neighbouring cells
-        #
-        for layer_idx, thickness in enumerate(lo_model_thicknesses):
-            #start with second column, because side paddings are never merged
-            block_idx = 1
-            #sweep columns
-            while block_idx+1 < ncol-1 :
-                #if two neighbouring blocks are wider than the thickness of the 
-                #layer (times a factor), nothing happens
-                if thickness < (trigger*(lo_modelblockwidths[block_idx]+
-                                        lo_modelblockwidths[block_idx+1])):
-                    block_idx += 1
-                    continue
-                #otherwise: avoid the vertical over-exaggeration by merging 2 
-                #neighboring blocks:
-                else:
-                    #concatenate/merge blocks
-
-                    lo_modelblockwidths[block_idx] += lo_modelblockwidths[block_idx+1]
-                    lo_columns_to_merge[block_idx]   += lo_columns_to_merge[block_idx+1]
-                    lo_modelblockwidths.pop(block_idx+1)
-                    lo_columns_to_merge.pop(block_idx+1)
-
-                    ncol -=1
-
-            lo_column_numbers.append(ncol)
-
-            tempstring = ""
-            for j in range(ncol):
-                tempstring += "%i "%(lo_columns_to_merge[j])
-            tempstring += "\n"
-            modelblockstrings.append(tempstring)
-
-            num_params += ncol
-        print 'depth of model (incl.padding): {0:.1f} km'.format(lo_model_depths[-1]/1000.)
-        print '\nnumber of mesh layers: {0} ({1} model layers + 1 split top layer'\
-                        ' + {2} bottom-padding)'.format(len(lo_mesh_thicknesses),
-                                                    n_layers,n_bottompadding)
-        print 'number of model blocks: {0}\n'.format(num_params)
-        self.no_parameters = num_params
-        self.parameters_inmodel['lo_modelblockstrings'] = modelblockstrings
-        self.parameters_inmodel['lo_column_numbers']    = lo_column_numbers
-        self.parameters_inmodel['lo_merged_columns']    = lo_columns_to_merge
-        self.parameters_inmodel['lo_model_thicknesses'] = lo_model_thicknesses
-
-
-
-    def write_meshfile(self):
-
-        """
-        Create the mesh file
-
-        Attributes required:
-
-        - self.meshlocations_x
-        - self.meshlocations_z
-        - self.meshnodes_x
-        - self.meshnodes_z
-        - self.meshfile
-        - self.wd
-
-        """
-        mesh_positions_vert = self.meshlocations_z
-        mesh_positions_hor  = self.meshlocations_x
-        mesh_widths         = self.meshblockwidths_x
-        mesh_depths         = self.meshblockthicknesses_z
-
-        n_nodes_x           = self.parameters_mesh['no_nodes_x'] 
-        n_nodes_z           = self.parameters_mesh['no_nodes_z']
-
-        mesh_outstring =''
-
-        temptext = '{0}\n'.format(self.parameters_mesh['mesh_title'])
-        mesh_outstring += temptext
-
-        temptext = "{0} {1} {2} {0} {0} {3}\n".format(0,n_nodes_x,n_nodes_z,2)
-        mesh_outstring += temptext
-
-        temptext = ""
-        counter = 0 
-        for i in range(n_nodes_x-1):
-            temptext += "%.1f "%(mesh_widths[i])
-            counter +=1 
-            if counter == 10:
-                temptext += '\n'
-                counter = 0
-        temptext +="\n"
-        mesh_outstring += temptext
-
-        temptext = ""
-        counter = 0 
-        for i in range(n_nodes_z-1):
-            temptext += "%.1f "%(mesh_depths[i])
-            counter +=1 
-            if counter == 10:
-                temptext += '\n'
-                counter = 0
-        temptext +="\n"
-        mesh_outstring += temptext
-
-        mesh_outstring +="%i\n"%(0)
-
-        #occam source code has hard coded limit for reading not more than 1000
-        #characters per line:
-        if n_nodes_x < 1000:
-            # -1 since the surface is counted as uppermost node
-            for j in range(4*(n_nodes_z-1)):
-                tempstring=''
-                tempstring += (n_nodes_x-1)*"?"
-                tempstring += '\n'
-                mesh_outstring += tempstring
-        else:
-            #hope that occam fortran code can handle line breaks:
-            #most likely not....!!!
-            for j in range(4*(n_nodes_z-1)):
-                tempstring=''
-                counter = 0
-                for k in range(n_nodes_x-1):
-                    tempstring += "?"
-                    counter += 1
-                    if counter == 1000:
-                        #tempstring += '\n'
-                        counter = 0
-                if counter != 0 :
-                    tempstring += '\n'
-                mesh_outstring += tempstring
-
-
-        self.mesh = mesh_outstring
-
-        fn = op.join(self.wd,self.meshfile)       
-        F_mesh = open(fn,'w')
-        F_mesh.write(mesh_outstring)
-        F_mesh.close()
-
-
-    def write_inmodelfile(self):
-        """
-        Generate inmodel file.
-
-        Require attributes:
-        - self.parameters_inmodel['lo_modelblockstrings']
-        - self.parameters_inmodel['lo_columnnumbers']
-        - self.parameters_inmodel['lo_merged_columns']
-        - self.parameters_inmodel['bindingoffset']
-        - self.no_layers
-        """
-
-        modelblockstrings = self.parameters_inmodel['lo_modelblockstrings']
-        lo_merged_columns = self.parameters_inmodel['lo_merged_columns']
-        lo_merged_lines   = self.parameters_inmodel['lo_merged_lines']
-        lo_column_numbers = self.parameters_inmodel['lo_column_numbers']
-        boffset           = self.parameters_inmodel['bindingoffset']
-        n_layers          = int(self.parameters_inmodel['no_layers'])
-
-        model_outstring =''
-
-        temptext = "Format:           {0}\n".format("OCCAM2MTMOD_1.0")
-        model_outstring += temptext
-        temptext = "Model Name:       {0}\n".format(self.parameters_inmodel['model_name'])
-        model_outstring += temptext
-        temptext = "Description:      {0}\n".format("Random Text")
-        model_outstring += temptext
-        temptext = "Mesh File:        {0}\n".format(self.meshfile)
-        model_outstring += temptext
-        temptext = "Mesh Type:        {0}\n".format("PW2D")
-        model_outstring += temptext
-        if self.staticsfile is not None:
-            temptext = "Statics File:     {0}\n".format(self.staticsfile)
-        else:
-            temptext = "Statics File:     none\n"
-        model_outstring += temptext
-        if self.prejudicefile is not None:
-            temptext = "Prejudice File:   {0}\n".format(self.prejudicefile)
-        else:
-            temptext = "Prejudice File:   none\n"
-        model_outstring += temptext
-        temptext = "Binding Offset:   {0:.1f}\n".format(boffset)
-        model_outstring += temptext
-        temptext = "Num Layers:       {0}\n".format(n_layers + 1 )
-        model_outstring += temptext
-
-        for k in range(n_layers+1):
-            n_meshlayers  = lo_merged_lines[k]
-            n_meshcolumns = lo_column_numbers[k]
-            temptext="{0} {1}\n".format(n_meshlayers, n_meshcolumns)
-            model_outstring += temptext
-            temptext = modelblockstrings[k]
-            model_outstring += temptext
-            #model_outstring += "\n"
-            
-
-        if self.parameters_inmodel['interfaces'] == True:
-            idir = self.parameters_inmodel['interface_dir']
-            for interface in self.parameters_inmodel['interface_filelist']:
-                self.project_interface(idir,interface)
-            if self.parameters_inmodel['elevation_filename'] is not None:
-                self.subtract_elevation(idir,self.parameters_inmodel['elevation_filename'])
-            self.build_roughness_exceptions()
-            re = self.parameters_inmodel['roughness_exceptions']
-            temptext = "Number Exceptions:{0}\n".format(-len(re))
-            temptext += '\n'.join([' '.join([str(rr) for rr in r]+['0']) for r in re])
-        else:
-            temptext = "Number Exceptions:{0}\n".format(0)
-
-        model_outstring += temptext
-        
-        self.inmodel = model_outstring
-        fn = op.join(self.wd,self.inmodelfile)        
-        F_model = open(fn,'w')
-        F_model.write(model_outstring)
-        F_model.close()
-
-
-
-    def write_startupfile(self):
-        """
-        Generate startup file
-
-        Require attributes:
-
-        -
-
-
-        """
-
-        startup_outstring =''
-
-        temptext = "Format:           {0}\n".format(self.parameters_startup['iter_format'])
-        startup_outstring += temptext
-
-        temptext = "Description:      {0}\n".format(self.parameters_startup['description'])
-        startup_outstring += temptext
-
-        temptext = "Model File:       {0}\n".format(self.inmodelfile)
-        startup_outstring += temptext
-
-        temptext = "Data File:        {0}\n".format(self.datafile)
-        startup_outstring += temptext
-
-        temptext = "Date/Time:        {0}\n".format(self.parameters_startup['datetime_string'])
-        startup_outstring += temptext
-
-        temptext = "Max Iter:         {0}\n".format(int(float(self.parameters_startup['max_no_iterations'])))
-        startup_outstring += temptext
-
-        temptext = "Target Misfit:    {0:.2f}\n".format(float(self.parameters_startup['target_rms']))
-        startup_outstring += temptext
-
-        temptext = "Roughness Type:   {0}\n".format(int(self.parameters_startup['roughness_type']))
-        startup_outstring += temptext
     
-        temptext = "Debug Level:      {0}\n".format(int(self.parameters_startup['debug_level']))
-        startup_outstring += temptext
+    def __init__(self, **kwargs):
+        self.save_path = kwargs.pop('save_path', None)
+        self.startup_basename = kwargs.pop('startup_basename', 'Occam2DStartup')
+        self.startup_fn = kwargs.pop('startup_fn', None)
+        self.model_fn = kwargs.pop('model_fn', None)
+        self.data_fn = kwargs.pop('data_fn', None)
+        self.description = kwargs.pop('description', 'startup created by mtpy')
+        self.max_iteration = kwargs.pop('max_iteration', 20)
+        self.roughness_type = kwargs.pop('roughness_type', 1)
+        self.target_misfit = kwargs.pop('target_misfit', 1.0)
+        self.diagonal_penalties = kwargs.pop('diagonal_penalties', 0)
+        self.stepsize_count = kwargs.pop('stepsize_count', 8)
+        self.model_limits = kwargs.pop('model_limits', None)
+        self.model_value_steps = kwargs.pop('model_value_steps', None)
+        self.debug_level = kwargs.pop('debug_level', 1)
+        self.iteration_num = kwargs.pop('iteration_num', 0)
+        self.lagrange_value = kwargs.pop('lagrange_value', 5.0)
+        self.roughness_value = kwargs.pop('roughness_value', 1e10)
+        self.misfit_value = kwargs.pop('misfit_value', 1000)
+        self.misfit_reached = kwargs.pop('misfit_reached', 0)
+        self.param_count = kwargs.pop('param_count', None)
+        self.resistivity_start = kwargs.pop('resistivity_start', 2)
+        
+    def write_startup_file(self, startup_fn=None, save_path=None, 
+                           startup_basename=None):
+        """
+        write a startup file based on the parameters of startup class
+        
+        """
+        if save_path is not None:
+            self.save_path = save_path
+            
+        if self.save_path is None:
+            self.save_path = os.getcwd()
+        if startup_basename is not None:
+            self.startup_basename = startup_basename
+            
+        if startup_fn is None:
+            self.startup_fn = os.path.join(self.save_path, 
+                                           self.startup_basename)
 
-        temptext = "Iteration:        {0}\n".format(int(self.parameters_startup['no_iteration']))
-        startup_outstring += temptext
-    
-        temptext = "Lagrange Value:   {0}\n".format(self.parameters_startup['mu_start'])
-        startup_outstring += temptext
+        #--> check to make sure all the important input are given                                           
+        if self.data_fn is None:
+            raise OccamInputError('Need to input data file name')
         
-        temptext = "Roughness Value:  {0}\n".format(self.parameters_startup['roughness_start'])
-        startup_outstring += temptext
+        if self.model_fn is None:
+            raise OccamInputError('Need to input model/regularization file name')
         
-        temptext = "Misfit Value:     {0}\n".format(float(self.parameters_startup['rms_start']))
-        startup_outstring += temptext
-        
-        temptext = "Misfit Reached:   {0}\n".format(int(self.parameters_startup['reached_misfit']))
-        startup_outstring += temptext
-        
-        temptext = "Param Count:      {0}\n".format(int(self.no_parameters))
-        startup_outstring += temptext
-        
-        temptext = ""
-        counter = 0 
+        if self.param_count is None:
+            raise OccamInputError('Need to input number of model parameters')
 
-        if type(self.parameters_startup['halfspace_resistivity']) != list:
-            for l in range(self.no_parameters):
-                temptext += "{0:.1g}  ".format(np.log10(float(self.parameters_startup['halfspace_resistivity'])))
-                counter += 1
-                if counter == 20:
-                    temptext += '\n'
-                    counter = 0
+        slines = []
+        slines.append('{0:<20}{1}\n'.format('Format:','OCCAMITER_FLEX'))
+        slines.append('{0:<20}{1}\n'.format('Description:', self.description))
+        slines.append('{0:<20}{1}\n'.format('Model File:', self.model_fn))
+        slines.append('{0:<20}{1}\n'.format('Data File:', self.data_fn))
+        slines.append('{0:<20}{1}\n'.format('Date/Time:', time.ctime()))
+        slines.append('{0:<20}{1}\n'.format('Iterations to run:',
+                                            self.max_iteration))
+        slines.append('{0:<20}{1}\n'.format('Target Misfit:', 
+                                            self.target_misfit))
+        slines.append('{0:<20}{1}\n'.format('Roughness Type:', 
+                                            self.roughness_type))
+        slines.append('{0:<20}{1}\n'.format('Diagonal Penalties:', 
+                                            self.diagonal_penalties))
+        slines.append('{0:<20}{1}\n'.format('Stepsize Cut Count:', 
+                                            self.stepsize_count))
+        if self.model_limits is None:
+            slines.append('{0:<20}{1}\n'.format('!Model Limits:', 'none'))
         else:
-            temptext +='  '.join([str(res) for res in self.parameters_startup['halfspace_resistivity']])
-
-        temptext += "\n"
-        startup_outstring += temptext
-        
-        
-     
-
-        fn =  op.join(self.wd,self.startupfile)
-        F_startup = open(fn,'w')
-        F_startup.write(startup_outstring)
-        F_startup.close()
-
-
-
-    def generate_inputfiles(self, edi_dir=None):
-
-        edi_directory = self.edi_directory
-        if edi_dir is not None:
-            if op.isdir(edi_dir):
-                edi_directory = edi_dir 
-
-        if not op.isdir(self.wd):
-            os.makedirs(self.wd)
-
-        self.read_edifiles(edi_directory)
-        try:
-            self.write_datafile()
-        except:
-            raise
-
-
-        self.setup_mesh_and_model()
-        self.write_meshfile()
-        self.write_inmodelfile()
-        self.write_startupfile()
-        self.write_configfile()
-        if self.prejudicefile is not None:
-            self.write_prejudicefile()
-
-        print '\nInput files in working directory {0}: \n'.format(op.abspath(self.wd))
-        print '{0}'.format(op.basename(self.datafile))
-        print '{0}'.format(op.basename(self.meshfile))
-        print '{0}'.format(op.basename(self.inmodelfile))
-        print '{0}'.format((self.startupfile))
-        print '{0}'.format(op.basename(self.configfile))
-
-
-        print '\n\t\t DONE !\n\n'
-
-
-
-    def write_configfile(self):
-        wd = op.abspath(self.wd)
-        fn = 'occam2d_configuration.cfg'
-
-        self.configfile = op.join(wd,fn)
-
-        all_configs_dict = {}
-        for dictionary in [self.parameters_startup, self.parameters_inmodel, 
-                                    self.parameters_mesh, self.parameters_data]:
-
-            for key,value in dictionary.items():
-                if type(value) in [str,float,int]:
-                    all_configs_dict[key] = value 
-
-        for key,value in vars(self).items():
-            if value is None:
-                all_configs_dict[key] = value
-                continue
-            if type(value) in [float,int]:
-                all_configs_dict[key] = value
-                continue
-            if type(value) in [str]:
-                if len(value.split())>3:
-                    continue
-                all_configs_dict[key] = value
-
-        for key, value in  vars(vars(self)['Data']).items():
-            if value is None:
-                all_configs_dict[key] = value
-                continue
-            if type(value) in [str,float,int]:
-                all_configs_dict[key] = value
-                continue
-
-        occam_run_dict = {}
-        occam_run_dict['OCCAM_run'] = all_configs_dict
-        # print all_configs_dict
-        # sys.exit()
-        MTcf.write_dict_to_configfile(occam_run_dict,self.configfile)
-
-        return 
-
-    def make_savepath(self,basename='inv',start=0,suffix=''):
-        """
-        make a directory name in which to save results
-        ensures that each new inversion is saved in a separate directory
-        
-        Author: Alison Kirkby
-        """
-        
-        
-        while os.path.exists(os.path.join(self.wd,basename + '%03i'%start + suffix)):
-            start += 1
-        
-        svpath = basename + '%03i'%start +suffix
-        
-        return svpath
-        
-
-    def get_modelblock_info(self):
-        """
-        get model block locations and model block numbers and store them in the
-        setup object.        
-        
-        Author: Alison Kirkby (2013)
-        """
-        blockmerges_x = [[int(val) for val in line.strip('\n').split()] for line in self.parameters_inmodel['lo_modelblockstrings']]
-        blockmerges_z = self.parameters_inmodel['lo_merged_lines']
-        meshlocations_z = np.array([0]+self.meshlocations_z)
-#        meshlocations_z.insert(0,0)
-        num=1
-        block_nums,block_x,block_z = [],[],[]
-        iz = 0
-        for j,z in enumerate(blockmerges_z):
-            ix = 0
-            block_z.append(np.median(meshlocations_z[iz:iz+z+1]))
-            iz += z
-            tmp_lst = []
-            tmp_lst_pos = []
-            for i,x in enumerate(blockmerges_x[j]):
-                xpos = np.median(np.array(self.meshlocations_x[ix:ix+x+1]))
-                tmp_lst.append(num)
-                tmp_lst_pos.append(xpos)
-                ix += x
-                num += 1
-            block_nums.append(np.array(tmp_lst))
-            block_x.append(np.array(tmp_lst_pos))
-        self.modelblocklocations_x = np.array(block_x)
-        self.modelblocklocations_z = np.array(block_z)
-        self.block_nums = np.array(block_nums)
-
-
-    def project_interface(self,intdir,fn,skiprows=1):
-        """
-        project an interface (from an xyz text file) onto the profile.
-        adds a numpy array of z locations (corresponding to x model block locations)
-        to the variable interfaces
-
-        intdir = directory where interface text files are held
-        fn = filename of interface text file
-        skiprows = number of header rows to skip when reading file             
-        
-        Author: Alison Kirkby (2013)
-        """
-        
-        self.Data.get_profile_origin()
-        self.get_modelblock_info()
-            
-        az = np.deg2rad(90-self.Data.azimuth)
-                
-        xp = self.Data.profile_origin[0]+self.modelblocklocations_x[0]*np.cos(az)
-        yp = self.Data.profile_origin[1]+self.modelblocklocations_x[0]*np.sin(az)
-        
-        data = np.loadtxt(os.path.join(intdir,fn),skiprows=skiprows)
-        f = si.CloughTocher2DInterpolator(data[:,0:2],data[:,2])   
-
-        zp = np.array([f(xp[i],yp[i]) for i in range(len(xp))])
-        
-        # check for any null values
-        for i,z in enumerate(zp):
-            if np.isnan(z):
-                ii = 0
-                while np.isnan(zp[i+ii]):
-                    if i < len(zp)/2:
-                        ii += 1
-                    else:
-                        ii -= 1
-                zp[i] = zp[i+ii]
-
-        if not hasattr(self,'interfaces'):
-            self.interfaces = []
-        self.interfaces.append(zp)
-            
-        
-    def subtract_elevation(self,intdir,elevfn):
-        """
-        subtract elevation from all projected interfaces in interface variable
-        
-        Author: Alison Kirkby (2013)
-        """
-        if hasattr(self,'interfaces'):    
-            self.project_interface(intdir,elevfn) 
-            
-            for i in self.interfaces[:-1]:
-                i -= self.interfaces[-1]
-                
-            self.interfaces = self.interfaces[:-1]
+            slines.append('{0:<20}{1},{2}\n'.format('Model Limits:', 
+                                                self.model_limits[0], 
+                                                self.model_limits[1]))
+        if self.model_value_steps is None:
+            slines.append('{0:<20}{1}\n'.format('!Model Value Steps:', 'none'))
         else:
-            print "nothing to subtract; please use project_interface to define interfaces first"
-            return
-    
-    def build_roughness_exceptions(self):
-        """
-        generate a list of model block pairs between which to build a roughness
-        exception and add these to the inmodel file
+            slines.append('{0:<20}{1}\n'.format('Model Value Steps:',
+                                                self.model_value_steps))
+        slines.append('{0:<20}{1}\n'.format('Debug Level:', self.debug_level))
+        slines.append('{0:<20}{1}\n'.format('Iteration:', self.iteration_num))
+        slines.append('{0:<20}{1}\n'.format('Lagrange Value:', 
+                                            self.lagrange_value))
+        slines.append('{0:<20}{1}\n'.format('Roughness Value:', 
+                                            self.roughness_value))
+        slines.append('{0:<20}{1}\n'.format('Misfit Value:', self.misfit_value))
+        slines.append('{0:<20}{1}\n'.format('Misfit Reached:', 
+                                            self.misfit_reached))
+        slines.append('{0:<20}{1}\n'.format('Param Count:', self.param_count))
         
-        Author: Alison Kirkby (2013)
-        """
+        #write out starting resistivity values
+        sline = []
+        for ii in range(self.param_count):
+            sline.append('{0:^10}'.format('{0:.4f}'.format(self.resistivity_start)))
+            if np.remainder(ii+1, 4) == 0:
+                sline.append('\n')
+                slines.append(''.join(list(sline)))
+                sline = []
+        slines.append(''.join(list(sline+['\n'])))
+        #--> write file
+        sfid = file(self.startup_fn, 'w')
+        sfid.writelines(slines)
+        sfid.close()
         
-        if not hasattr(self,'interfaces'):
-            print "nothing to build roughness exceptions from; please use project_interface to define interfaces first"
-            return
-        else:
-            block_z = self.modelblocklocations_z
-            block_x = self.modelblocklocations_x
-            x_vals = block_x[0]
-            block_nums = self.block_nums
-
-            blockmerges_x = [[int(val) for val in line.strip('\n').split()] for line in self.parameters_inmodel['lo_modelblockstrings']]
-            
-            values = []          
-            cell_x = []
-            
-            for interface in self.interfaces:
-                z_msl = -interface
-                values_tmp = []
-                cell_x_tmp = []
-                values_tmp_v = []
+        print 'Wrote Occam2D startup file to {0}'.format(self.startup_fn)
                 
-                for i in range(len(interface)):
-                    z = block_z[block_z-z_msl[i]<0][-1] # get out first block for which z_msl value is greater than z location of block
-                    j = list(block_z).index(z) # get the index j for the z value
-                    
-                    crit = abs(block_x[j]-x_vals[i])==min(abs(block_x[j]-x_vals[i])) #  define criteria to find closest x block
-                    bn1 = block_nums[j][crit][0]
-                    ii = list(block_nums[j]).index(bn1)
-                    iii = 0
-                    while sum(blockmerges_x[j+1][:iii]) <= sum(blockmerges_x[j][:ii]):
-                        iii += 1
-                    iii -= 1
-                    bn2 = block_nums[j+1][iii]
-                    if not [block_x[j][ii],block_x[j+1][iii]] in cell_x_tmp:
-                        values_tmp.append([bn1,bn2])
-                        cell_x_tmp.append([block_x[j][ii],block_x[j+1][iii]])
-                    if i != 0:
-                        bmin1 = np.min(values_tmp[-1][0])
-                        bmin2 = np.min(values_tmp[-2][0])
-                        bmax1 = np.max(values_tmp[-1][0])
-                        bmax2 = np.max(values_tmp[-2][0])
-                        if bmin1 - bmin2 != 1:
-                            if bmin1 > bmin2:                                                                 
-                                bn3 = [bmin1-1,bmin1]
-                                bn4 = [bmax2,bmax2+1]
-                            else: 
-                                bn3 = [bmin2,bmin2+1] 
-                                bn4 = [bmax1-1,bmax1]
-                            for bval in [bn3,bn4]:
-                                if not bn3 in values_tmp_v:
-                                    values_tmp_v.append(bval)
-                                
-                
-                values += values_tmp+values_tmp_v
-                cell_x.append(cell_x_tmp)
-                
-            if self.parameters_inmodel['roughness_exceptions'] is None:
-                self.parameters_inmodel['roughness_exceptions'] = []  
-
-            self.parameters_inmodel['roughness_exceptions'] += values
-
-        
-    def project_well_loc(self):
-        """
-        project a well location onto the profile.
-        stores the result in the setup variable well_locations.
-        x,y = x,y locations of well
-        
-        Author: Alison Kirkby
-        """
-        distances = []
-
-        for well_xy in self.well_xy:
-        
-            [xp,yp] = well_xy       
-            
-            # get profile origin
-            self.Data.get_profile_origin()
-            
-            # project drillhole location onto profile and get distance along profile
-            [m,c1] = self.Data.profile
-            [x0,y0] = self.Data.profile_origin
-            x = (yp+(1.0/m)*xp-c1)/(m+(1.0/m))
-            y = m*x+c1
-            x -= x0
-            y -= y0
-            distances.append((x**2.+y**2.)**(0.5))
-        self.well_locations = distances
-        
-        
-    def prejudice_subsample_welldata(self):
-        """
-        subsample a resistivity array by averaging
-        input: 1-D array or list of 1-D arrays containing resistivity and depth data
-        result: resitivity values and block indices stored in variables 
-        prejudice_resitivity and prejudice_indices_z
-        
-        Author: Alison Kirkby
-        """
-        
-        blockmerges_z = self.parameters_inmodel['lo_merged_lines']
-        blockedges_z = [0]+[self.meshlocations_z[i-1] for i in [int(sum(blockmerges_z[:ii])) for ii in range(1,len(blockmerges_z)+1)]]
-
-        
-        if not hasattr(self,'prejudice_resisitivity'):
-            self.prejudice_resistivity = []
-        
-        if not hasattr(self,'prejudice_indices_z'):
-            self.prejudice_indices_z = []
-            
-    
-        for w in range(len(self.welldata)):
-            self.prejudice_resistivity.append([])
-            self.prejudice_indices_z.append([])
-                        
-            for i in range(1,len(blockedges_z)):
-                temp_res = []
-                for j in range(len(self.welldata[w])):
-                    if blockedges_z[i-1]<self.welldata[w][j,1]<blockedges_z[i]:
-                        temp_res.append(self.welldata[w][j,0])
-                if len(temp_res)>0:
-                    self.prejudice_resistivity[-1].append(np.around(np.median(temp_res),1))
-                    self.prejudice_indices_z[-1].append(i)                
- 
-       
-    def prejudice_get_blocknums(self):
-        """
-        get block numbers for prejudice file
-        requires prejudice_resistivity and prejudice_indices_z to be defined
-        
-        prejudice_weights = weighting (range 0.0 to 1.0) for each prejudice
-        value (see occam documentation for definition)
-        
-        Author: Alison Kirkby        
-        """
-
-        
-        res_values = self.prejudice_resistivity
-        num_values = sum([len(l) for l in res_values])        
-        
-        if not hasattr(self,'prejudice_blocknums'):
-            self.prejudice_blocknums = []
-        if not hasattr(self,'prejudice_fstrings'):
-            self.prejudice_fstrings = ["FORMAT:           OCCAM2MTPREJ_2.0\n",
-                                       "NO. PARAMS:       "+str(num_values)+'\n']
-     
-        i = 0
-        
-        for w in range(len(res_values)):
-            self.prejudice_blocknums.append([])
-            distance = self.well_locations[w]
-
-            for i in range(len(res_values[w])):
-                row = self.prejudice_indices_z[w][i]
-                # define model block locations for given row
-                modc = self.modelblocklocations_x[row]
-                # find index of closest model block to x location of drillhole:
-                col = list(abs(modc - distance)).index(np.min(abs(modc - distance)))
-                # append block nums
-                blocknum = self.block_nums[row][col]
-                self.prejudice_blocknums[w].append(blocknum)
-                self.prejudice_fstrings.append(' '.join(['%01i'%blocknum,
-                                                         '%.03f'%np.log10(self.prejudice_resistivity[w][i]),
-                                                         '%.01f'%self.prejudice_weight])+'\n')
-
-    def write_prejudicefile(self):
-        """
-        build model prejudices from well data and write to a file.
-        
-        first need to define:
-        self.well_xy = list of lists containing xy coordinates
-        self.welldata = list of 2-D arrays containing res, depth 
-        (shape = (num_wells,num_datapoints,2)) for each well_xy
-
-        
-        Author: Alison Kirkby        
-        """    
-        if self.well_xy is None:
-            print "please first define well xy location"
-            return
-            
-        if self.welldata is None:
-            print "please first define well data"
-            return
-
-        if not hasattr(self,'block_nums'):
-            self.get_modelblock_info() 
-        
-        self.project_well_loc()
-        self.prejudice_subsample_welldata()
-        self.prejudice_get_blocknums()
-        
-        
-        pf = open(os.path.join(self.wd,self.prejudicefile),'wb')
-        pf.writelines(self.prejudice_fstrings)
-        pf.close()
-
-        
 #------------------------------------------------------------------------------
-
-
-class Data():
+class Data(Profile):
     """
     Handling input data.
 
@@ -2573,63 +1367,31 @@ class Data():
     Reading and writing data files.
     Allow merging of data files.
     """
-    def __init__(self, edilist = None, wd = None, **data_parameters):
-
-        self.wd = op.abspath(os.curdir)
-        self.datafile = 'OccamDataFile.dat'
-        self.edilist = []
-
-        if edilist is not None:
-            if np.iterable(edilist):
-                self.edilist = edilist
+    def __init__(self, edi_path=None, **kwargs):
+        Profile.__init__(self, edi_path, **kwargs)
         
-        if wd is not None:
-            if op.isdir(wd):
-                self.wd = op.abspath(wd)
+        self.data_basename = kwargs.pop('data_fn', 'OccamDataFile.dat')
+        self.save_path = kwargs.pop('save_path', None)
+        self.frequency_list = kwargs.pop('frequency_list', None)
+        self.model_mode = kwargs.pop('model_mode', 'all')
 
-        self._strike_set = False
-        self.strike = None
-        self.azimuth = 0.
-        self.profile = None
         self.frequencies = None
-        self.stations = []
-        self.stationlocations = []
-        self.data = []
-        self.mode = 'tetm'
-        self.profile_offset = 0.
+        self.data = None
+        
+        self.reste_err = kwargs.pop('reste_err', 10)
+        self.restm_err = kwargs.pop('restm_err', 10)
+        self.phasete_err = kwargs.pop('phasete_err', 5)
+        self.phasetm_err = kwargs.pop('phasetm_err', 5)
+        self.tipper_err = kwargs.pop('tipper_err', None)
+        
+        self.freq_dict = kwargs.pop('freq_dict', None)
+        self.freq_step = kwargs.pop('freq_step', None)
+        self.freq_tol = kwargs.pop('freq_tol', 0.05)
+
         self.format = 'OCCAM2MTDATA_1.0'
         self.title = 'MTpy-OccamDatafile'
         self.edi_type = 'z'
-        self.profile_origin = None
 
-        self.phase_errorfloor = 5
-        self.rho_errorfloor = 5
-        self.tipper_errorfloor = 5
-
-        self.min_frequency = None
-        self.max_frequency = None
-        self.max_no_frequencies = None
-
-
-        for key in data_parameters:
-            setattr(self,key,data_parameters[key])
-        
-        if ('strike' in data_parameters) and (data_parameters['strike'] is not None):
-            self._strike_set = True
-
-        try:
-            self.generate_profile()
-        except:
-            print 'cannot generate profile'
-            raise
-        
-        try:
-            self.build_data()
-        except:
-            print 'cannot build data file'
-            raise
-
-       
 
     def readfile(self,fn):
         if not op.isfile(fn):
