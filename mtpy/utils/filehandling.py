@@ -239,12 +239,12 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
 
             no_samples = len(data_in)
 
-            file_time_axis = (np.arange(no_samples)*sampling +
-                             file_start_time).tolist()
+            tmp_file_time_axis = (np.arange(no_samples)*sampling +
+                             file_start_time)#.tolist()
 
 
             #time of the last sample + 1x sampling-interval
-            file_end_time =  file_time_axis[-1] + sampling
+            file_end_time =  tmp_file_time_axis[-1] + sampling
          
 
 
@@ -252,8 +252,9 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
             #set the time as starting time for output file, if no output file is open already
             if fileopen == 0:
                 outfile_starttime =  file_start_time
-                outfile_timeaxis = file_time_axis
-         
+                #outfile_timeaxis = file_time_axis
+                old_time_axis = tmp_file_time_axis[:]
+
                 arrayindex = 0
 
                 #if it's a single column of data
@@ -287,33 +288,38 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
             else:
                 #check, if the new file ends earlier than data in buffer.
                 #if yes, just skip this file:
-                if file_end_time < outfile_timeaxis[-1]:
+                if file_end_time < old_time_axis[-1]:# outfile_timeaxis[-1]:
                     continue 
 
                 #if current file starts earlier than the endtime of data in buffer then delete ambiguous  parts of the buffer:
-                elif (outfile_timeaxis[-1] - file_start_time) > epsilon:
+                #elif (outfile_timeaxis[-1] - file_start_time) > epsilon:
+                elif (old_time_axis[-1] - file_start_time) > epsilon:
 
                     #find point on the current outfile time axis for the beginning of current file:
                     overlap_idx = np.argmin(np.abs(np.array(
-                                            outfile_timeaxis) - file_start_time)) 
+                                            old_time_axis) - file_start_time)) 
 
                     #set the array index back
                     arrayindex = overlap_idx
 
                     #re-define outfile time axis and data
-                    outfile_timeaxis = np.delete(outfile_timeaxis,
-                                                 np.arange(len(outfile_timeaxis) - 
-                                                 overlap_idx) + 
-                                                 overlap_idx).tolist()
+                    # outfile_timeaxis = np.delete(outfile_timeaxis,
+                    #                              np.arange(len(outfile_timeaxis) - 
+                    #                              overlap_idx) + 
+                    #                              overlap_idx).tolist()
 
+                    # old_time_axis = np.delete(old_time_axis,
+                    #                              np.arange(len(old_time_axis) - 
+                    #                              overlap_idx) + 
+                    #                              overlap_idx)
                     # outfile_data = np.delete(outfile_data, 
                     #                             np.arange(len(outfile_data) - 
                     #                             overlap_idx) + 
                     #                             overlap_idx).tolist()
                 
-
+                old_time_axis = tmp_file_time_axis[:]
                 #append current file's time axis
-                outfile_timeaxis.extend(file_time_axis)
+                #outfile_timeaxis.extend(file_time_axis)
                     
                 #append current data                  
                 #if it's a single column of data
@@ -326,7 +332,6 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
                     #outfile_data.extend(data_in[:,1].tolist())
 
                 arrayindex += len(data_in)
-                print len(data_in),arrayindex
 
 
 
@@ -369,7 +374,7 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
                 #define header info
                 headerline = '# {0} {1} {2:.1f} {3} {4} \n'.format(
                                     stationname, comp.lower(), 1./sampling, 
-                                    outfile_timeaxis[0], arrayindex)#len(outfile_timeaxis))
+                                    outfile_starttime, arrayindex)#len(outfile_timeaxis))
 
                 F.write(headerline)
 
