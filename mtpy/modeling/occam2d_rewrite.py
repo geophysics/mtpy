@@ -67,11 +67,6 @@ reload(MTex)
 
 #==============================================================================
 
-occamdict = {'1':'resxy','2':'phasexy','3':'realtip','4':'imagtip','5':'resyx',
-             '6':'phaseyx'}
-
-#------------------------------------------------------------------------------
-
 class Mesh():
     """
     deals only with the finite element mesh.  Builds a finite element mesh 
@@ -881,9 +876,19 @@ class Profile():
             print 'Rotated Z and Tipper to align with {0:+.2f} degrees E of N'.format(self.geoelectric_strike) 
             print 'Profile angle is {0:+.2f} degrees E of N'.format(self.profile_angle)        
             print '='*72
+        else:
+            for edi in self.edi_list:
+                edi.Z.rotate((self.profile_angle-90)%180-edi.Z.rotation_angle)
+                # rotate tipper to profile azimuth, not strike.
+                edi.Tipper.rotate((self.profile_angle-90)%180-edi.Tipper.rotation_angle)
+           
+            print '='*72
+            print 'Rotated Z and Tipper to be perpendicular  with {0:+.2f} profile angle'.format((self.profile_angle-90)%180) 
+            print 'Profile angle is {0:+.2f} degrees E of N'.format(self.profile_angle)        
+            print '='*72
         
         #--> project stations onto profile line
-        projected_stations = np.zeros((self.num_edi,2))
+        projected_stations = np.zeros((self.num_edi, 2))
         self.station_locations = np.zeros(self.num_edi)
         
         #create profile vector
@@ -1366,71 +1371,137 @@ class Data(Profile):
     Generation of suitable Occam data file(s) from Edi files/directories.
     Reading and writing data files.
     Allow merging of data files.
+    
+    ===================== =====================================================
+    Model Modes           Description                     
+    ===================== =====================================================
+    1 or log_all          Log resistivity of TE and TM plus Tipper
+    2 or log_te_tip       Log resistivity of TE plus Tipper
+    3 or log_tm_tip       Log resistivity of TM plut Tipper
+    4 or log_te           Log resistivity of TE
+    5 or log_tm           Log resistivity of TM
+    6 or all              TE, TM and Tipper
+    7 or te_tip           TE plus Tipper
+    8 or tm_tip           TM plus Tipper
+    9 or te               TE mode
+    10 or tm              TM mode
+    11 or tip             Only Tipper
+    ===================== =====================================================
+    Modes:
+        * 1 or log_all --> log resistivity TE, TM, Tipper
+        * 2 or log_te_tip -- > 
     """
     def __init__(self, edi_path=None, **kwargs):
         Profile.__init__(self, edi_path, **kwargs)
         
-        self.data_basename = kwargs.pop('data_fn', 'OccamDataFile.dat')
+        self.data_fn = kwargs.pop('data_fn', None)
+        self.fn_basename = kwargs.pop('fn_basename', 'OccamDataFile.dat')
         self.save_path = kwargs.pop('save_path', None)
-        self.frequency_list = kwargs.pop('frequency_list', None)
+        self.freq = kwargs.pop('freq', None)
         self.model_mode = kwargs.pop('model_mode', 'all')
-
-        self.frequencies = None
-        self.data = None
+        self.data = kwargs.pop('data', None)
         
-        self.reste_err = kwargs.pop('reste_err', 10)
-        self.restm_err = kwargs.pop('restm_err', 10)
-        self.phasete_err = kwargs.pop('phasete_err', 5)
-        self.phasetm_err = kwargs.pop('phasetm_err', 5)
+        self.res_te_err = kwargs.pop('reste_err', 10)
+        self.res_tm_err = kwargs.pop('restm_err', 10)
+        self.phase_te_err = kwargs.pop('phasete_err', 5)
+        self.phase_tm_err = kwargs.pop('phasetm_err', 5)
         self.tipper_err = kwargs.pop('tipper_err', None)
         
         self.freq_dict = kwargs.pop('freq_dict', None)
         self.freq_step = kwargs.pop('freq_step', None)
         self.freq_tol = kwargs.pop('freq_tol', 0.05)
 
-        self.format = 'OCCAM2MTDATA_1.0'
+        self.occam_format = 'OCCAM2MTDATA_1.0'
         self.title = 'MTpy-OccamDatafile'
-        self.edi_type = 'z'
+        self.edi_type = 'z' 
+        
+        self.occam_dict = {'1':'log_te_res',
+                           '2':'te_phase',
+                           '3':'re_tip',
+                           '4':'im_tip',
+                           '5':'log_tm_res',
+                           '6':'tm_phase',
+                           '9':'te_res',
+                           '10':'tm_res'}
+                           
+        self.mode_dict = {'log_all':[1, 2, 3, 4, 5, 6],
+                          'all':[9, 2, 3, 4, 10, 6],                          
+                          'log_te':[1, 2],
+                          'log_tm':[5, 6],
+                          'te':[9, 2],
+                          'tm':[10, 6],
+                          'log_te_tip':[1, 2, 3, 4],
+                          'log_tm_tip':[5, 6, 3, 4],
+                          'te_tip':[9, 2, 3, 4],
+                          'tm_tip':[10, 6, 3, 4],
+                          'tip':[3, 4],
+                          '1':[1, 2, 3, 4, 5, 6],
+                          '6':[9, 2, 3, 4, 10, 6],                          
+                          '4':[1, 2],
+                          '5':[5, 6],
+                          '9':[9, 2],
+                          '10':[10, 6],
+                          '2':[1, 2, 3, 4],
+                          '3':[5, 6, 3, 4],
+                          '7':[9, 2, 3, 4],
+                          '8':[10, 6, 3, 4],
+                          '11':[3, 4]}
 
+        
+    def read_data_file(self, data_fn=None):
+        """
+        read in Occam data file.  Fills attributes format, title, data,
+        
+        """
+        if data_fn is not None:
+            self.data_fn = data_fn
+        
+        if not os.path.isfile(self.data_fn) == None:
+            raise OccamInputError('Could not find {0}'.format(self.data_fn))
+        if self.data_fn is None:
+            raise OccamInputError('data_fn is None, input filename')
+            
+        self.save_path = op.dirname(self.data_fn)
 
-    def readfile(self,fn):
-        if not op.isfile(fn):
-            print 'Error - not a valid file: {0}'.fn
-
-        self.filename = op.basename(fn)
-        self.wd = op.split(fn)[0]
-
-        F_in = file(fn,'r')
-        datafile_raw = F_in.read()
-        F_in.close()
+        dfid = file(self.data_fn, 'r')
+        data_string = dfid.read()
+        dfid.close()
 
         #string is reduced each step, i.e. cut off the sections, 
         #which are already read in
-        reduced_string = self._read_format(datafile_raw)
-        reduced_string = self._read_title(datafile_raw)
-        reduced_string = self._read_sites(datafile_raw)
-        reduced_string = self._read_offsets(datafile_raw)
-        reduced_string = self._read_frequencies(datafile_raw)
+        reduced_string = self._read_format(data_string)
+        reduced_string = self._read_title(data_string)
+        reduced_string = self._read_sites(data_string)
+        reduced_string = self._read_offsets(data_string)
+        reduced_string = self._read_frequencies(data_string)
         
         self._read_data(reduced_string)
 
-    def _find_string(key,datastring):
-        
+    def _find_string(self, key, datastring):
+        """
+        get the index where a character first appears in a string
+        """
         index = datastring.lower().find('key')
         return index
 
-    def _read_format(self,datastring):
-        idx = _find_string('format',datastring)
+    def _read_format(self, datastring):
+        """
+        get occam format
+        """
+        idx = self._find_string('format', datastring)
         reduced_string = datastring[idx:]
         data_list = datastring.split('\n')
         line = data_list[0]
         line = line.strip().split(':')
-        self.format = line[1].strip().lower()
+        self.occam_format = line[1].strip().lower()
 
         return reduced_string 
 
-    def _read_title(self,datastring):
-        idx = _find_string('title',datastring)
+    def _read_title(self, datastring):
+        """
+        get title
+        """
+        idx = self._find_string('title', datastring)
         reduced_string = datastring[idx:]
         data_list = datastring.split('\n')
         line = data_list[0]
@@ -1440,89 +1511,143 @@ class Data(Profile):
         return reduced_string 
         
 
-    def _read_sites(self,datastring):
+    def _read_sites(self, datastring):
+        """
+        get site names
+        """
 
-        idx = _find_string('sites',datastring)
+        idx = self._find_string('sites', datastring)
         reduced_string = datastring[idx:]
         data_list = datastring.split('\n')
         line = data_list[0]
         line = line.strip().split(':')
         no_sites = int(float(line[1].strip().lower()))
-        lo_stations = []
+        self.station_list = np.zeros(no_sites, dtype='|S20')
         for idx in range(no_sites):
-            sta = data_list[idx+1].strip()
-            lo_stations.append(sta)
+            self.station_list[idx] = data_list[idx+1].strip()
 
-        self.stations = lo_stations
-
-        return reduced_string 
-        
+        return reduced_string     
 
     def _read_offsets(self,datastring):
-        idx = _find_string('offsets',datastring)
+        """
+        get station offsets
+        """
+        idx = self._find_string('offsets', datastring)
         reduced_string = datastring[idx:]
         data_list = datastring.split('\n')
         line = data_list[0]
         line = line.strip().split(':')
         no_sites = len(self.stations)
-        lo_offsets = []
+        self.station_locations = np.zeros(no_sites)
         for idx in range(no_sites):
-            offset = float(data_list[idx+1].strip())
-            lo_offsets.append(offset)
-
-        self.stationlocations = lo_offsets
+            self.station_locations[idx] = float(data_list[idx+1].strip())
 
         return reduced_string 
-        
-
+    
     def _read_frequencies(self,datastring):
-        idx = _find_string('frequencies',datastring)
+        idx = self._find_string('frequencies',datastring)
         reduced_string = datastring[idx:]
         data_list = datastring.split('\n')
         line = data_list[0]
         line = line.strip().split(':')
         no_freqs = int(float(line[1]))
-
-        lo_freqs = []
+        self.freq = np.zeros(no_freqs)
         for idx in range(no_freqs):
-            freq = float(data_list[idx+1].strip())
-            lo_freqs.append(freq)
-
-        self.frequencies = lo_freqs
-
+            self.freq = float(data_list[idx+1].strip())
+            
         return reduced_string 
 
-    def _read_data(self,datastring):
-        idx = _find_string('data',datastring)
-        reduced_string = datastring[idx:]
+    def _read_data(self, datastring):
+        """
+        
+        Returns:
+        --------
+            **data** : list of dictionaries for each station 
+                                         with keywords:
+                
+                *'station'* : string
+                              station name
+                
+                *'offset'* : float
+                            relative offset
+                
+                *'te_res'* : np.array(nf,2)
+                          TE resistivity and error as row 0 and 1 ressectively
+                
+                *'tm_res'* : np.array(fn,2)
+                          TM resistivity and error as row 0 and 1 respectively
+                
+                *'te_phase'* : np.array(nf,2)
+                            TE phase and error as row 0 and 1 respectively
+                
+                *'tm_phase'* : np.array(nf,2)
+                            Tm phase and error as row 0 and 1 respectively
+                
+                *'re_tip'* : np.array(nf,2)
+                            Real Tipper and error as row 0 and 1 respectively
+                
+                *'im_tip'* : np.array(nf,2)
+                            Imaginary Tipper and error as row 0 and 1 
+                            respectively
+                
+            .. note:: resistivity is converted to linear if input as log
+                      and data error are converted as dx*ln(10)
+                
+        :Example: ::
+            
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Data()
+            >>> ocd.read_data_file(r"/home/Occam2D/Line1/Inv1/Data.dat")
+            
+        """
+        
         data_list = datastring.split('\n')
-        line = data_list[0]
-        line = line.strip().split(':')
-        no_data = int(float(line[1]))
 
-        lo_data = []
-        idx = 0
-        row_idx = 2
-        while idx < no_data:
-            row = data_list[row_idx].strip().split()
-            if row[0][0] == '#':
-                row_idx += 1
-                continue
-            rowlist = [float(i) for i in row]
-            lo_data.append(rowlist)
-            row_idx += 1
-            idx += 1
-
+        #set zero array size the first row will be the data and second the error
+        asize = (2, self.freq.shape[0])
+        
+        #make a list of dictionaries for each station.
+        self.data=[{'station':station,
+                    'offset':offset,
+                    'te_phase':np.zeros(asize),
+                    'tm_phase':np.zeros(asize),
+                    're_tip':np.zeros(asize),
+                    'im_tip':np.zeros(asize),
+                    'te_res':np.zeros(asize),
+                    'tm_res':np.zeros(asize)}
+                     for station, offset in zip(self.station_list, 
+                                                self.station_locations)]
+        for line in data_list:
+            try:
+                station, freq, comp, odata, oerr = line.split()
+                #station index -1 cause python starts at 0
+                ss = int(station)-1
+    
+                #frequency index -1 cause python starts at 0       
+                ff = int(freq)-1
+                #data key
+                key = self.occam_dict[comp]
+                
+                #put into array
+                if comp == 1 or comp == 5:
+                    self.data[ss][key][0, ff] = 10**float(odata) 
+                    #error       
+                    self.data[ss][key][1, ff] = float(odata)*np.log(10)
+                else:
+                    self.data[ss][key][0, ff] = float(oerr) 
+                    #error       
+                    self.data[ss][key][1, ff] = float(oerr)
+            except ValueError:
+                print 'Could not read line {0}'.format(line)
 
     def build_data(self):
-        """Data file Generation
+        """
+        Data file Generation
 
         Read all Edi files. 
+        Create a profile
+        rotate impedance and tipper
         Extract frequencies. 
-        Read in strike. If strike = None: find average strike over all stations and frequencies. 
-        90 degree strike ambiguity leads to choice of strike: Larger angle with profile line is chosen.
-        Rotate Z and Tipper: X components are along strike, Y orthogonal.  
-        Extract off-diagonal data from Z. Extract Tipper x-component (along profile).
 
         Collect all information sorted according to occam specifications.
 
@@ -1530,23 +1655,9 @@ class Data(Profile):
         Error is assumed to be 1 stddev.
         """ 
         
-
-        #set data modes
-        lo_modes = []
-        modes = self.mode.lower().strip()
-        
-        if 'both' in modes :
-            lo_modes.extend([9,10,2,6])  
-        if 'te' in modes:
-            lo_modes.extend([9,2])
-        if 'tm' in modes:
-            lo_modes.extend([10,6])
-        if ('tipper' in modes): 
-            lo_modes.extend([3,4])
-        if 'all' in modes :
-            lo_modes.extend([9,10,2,6,3,4])  
-
-        lo_modes = sorted(list(set(lo_modes))) 
+        #create a profile line
+        self.generate_profile()
+        self.plot_profile()
 
         #set data frequencies
         min_freq = self.min_frequency
