@@ -292,6 +292,7 @@ class Mesh():
             #get the index value for z_grid by calculating the elevation
             #difference relative to the top of the model
             dz = elev.max()-func_elev(xg)
+            #index of ground in the model for that x location
             zz = int(np.ceil(dz/self.z1_layer))
             if zz == 0:
                 pass
@@ -338,8 +339,8 @@ class Mesh():
                     xright = xg+3*(self.x_grid[ii+1]-xg)/4
                     yright = zlayer+(self.z_grid[zz]-self.z_grid[zz-1])/2
                     elev_right = func_elev(xright)
-                    #print xg, xright, yright, elev_right, zz
-                    if elev_right > yright:
+                    if elev_right > yright*.95:
+                        
                         self.mesh_values[ii, 0:zz, 3] = self.air_key
                 except ValueError:
                     pass
@@ -352,6 +353,7 @@ class Mesh():
                        
                        
         print '{0:^55}'.format('--- Added Elevation to Mesh --')
+   
     def plot_mesh(self, **kwargs):
         """
         plot mesh with station locations
@@ -788,7 +790,7 @@ class Profile():
             if self.geoelectric_strike is None:
                 try:
                     #check dimensionality to be sure strike is estimate for 2D
-                    dim = MTgy.dimensionality(edi.Z.z)
+                    dim = MTgy.dimensionality(z_object=edi.Z)
                     #get strike for only those periods
                     gstrike = MTgy.strike_angle(edi.Z.z[np.where(dim==2)])[:,0] 
                     strike_angles[ii] = np.median(gstrike)
@@ -870,21 +872,27 @@ class Profile():
             for edi in self.edi_list:
                 edi.Z.rotate(self.geoelectric_strike-edi.Z.rotation_angle)
                 # rotate tipper to profile azimuth, not strike.
-                edi.Tipper.rotate((self.profile_angle-90)%180-edi.Tipper.rotation_angle)
+                edi.Tipper.rotate((self.profile_angle-90)%180-
+                                                    edi.Tipper.rotation_angle)
            
             print '='*72
-            print 'Rotated Z and Tipper to align with {0:+.2f} degrees E of N'.format(self.geoelectric_strike) 
-            print 'Profile angle is {0:+.2f} degrees E of N'.format(self.profile_angle)        
+            print ('Rotated Z and Tipper to align with '
+                   '{0:+.2f} degrees E of N'.format(self.geoelectric_strike)) 
+            print ('Profile angle is '
+                   '{0:+.2f} degrees E of N'.format(self.profile_angle))        
             print '='*72
         else:
             for edi in self.edi_list:
                 edi.Z.rotate((self.profile_angle-90)%180-edi.Z.rotation_angle)
                 # rotate tipper to profile azimuth, not strike.
-                edi.Tipper.rotate((self.profile_angle-90)%180-edi.Tipper.rotation_angle)
+                edi.Tipper.rotate((self.profile_angle-90)%180-
+                                   edi.Tipper.rotation_angle)
            
             print '='*72
-            print 'Rotated Z and Tipper to be perpendicular  with {0:+.2f} profile angle'.format((self.profile_angle-90)%180) 
-            print 'Profile angle is {0:+.2f} degrees E of N'.format(self.profile_angle)        
+            print ('Rotated Z and Tipper to be perpendicular  with '
+                   '{0:+.2f} profile angle'.format((self.profile_angle-90)%180)) 
+            print ('Profile angle is'
+                   '{0:+.2f} degrees E of N'.format(self.profile_angle))        
             print '='*72
         
         #--> project stations onto profile line
@@ -1058,8 +1066,10 @@ class Regularization(Mesh):
         self.binding_offset = None
         self.reg_fn = None
         self.reg_basename = 'Occam2DModel'
-        self.description = 'model made by mtpy.modeling.occam2d'
+        self.model_name = 'model made by mtpy.modeling.occam2d'
+        self.description = 'simple Inversion'
         self.num_param = None
+        self.num_free_param = None
         
         
         #--> build mesh         
@@ -1130,17 +1140,54 @@ class Regularization(Mesh):
         #model block to the furthest left station.
         self.binding_offset = self.x_grid[self.num_x_pad_cells]
         
+        self.get_num_free_params()
+        
         print '='*55
         print '{0:^55}'.format('regularization parameters'.upper())
         print '='*55
         print '   binding offset       = {0:.1f}'.format(self.binding_offset)
         print '   number layers        = {0}'.format(len(self.model_columns))
         print '   number of parameters = {0}'.format(self.num_param)
+        print '   number of free param = {0}'.format(self.num_free_param)
         print '='*55
 
+    def get_num_free_params(self):
+        """
+        estimate the number of free parameters in model mesh.
+        
+        I'm assuming that if there are any fixed parameters in the block, then
+        that model block is assumed to be fixed. Not sure if this is write
+        cause there is no documentation.
+        """
+        
+        self.num_free_param = 0
+
+        row_count = 0
+        #loop over columns and rows of regularization grid
+        for col, row in zip(self.model_columns, self.model_rows):
+            rr = row[0]
+            col_count = 0
+            for ii, cc in enumerate(col):
+                #make a model block from the index values of the regularization
+                #grid
+                model_block = self.mesh_values[row_count:row_count+rr, 
+                                              col_count:col_count+cc, :]
+                     
+                #find all the free triangular blocks within that model block                         
+                find_free = np.where(model_block=='?')
+                try:
+                    #test to see if the number of free parameters is equal 
+                    #to the number of triangular elements with in the model 
+                    #block, if there is the model block is assumed to be free.
+                    if find_free[0].size == model_block.size:
+                        self.num_free_param  += 1
+                except IndexError:
+                    pass
+                col_count += cc
+            row_count += rr 
         
     def write_regularization_file(self, reg_fn=None, reg_basename=None, 
-                                  statics_fn='None', prejudice_fn='None',
+                                  statics_fn='none', prejudice_fn='none',
                                   save_path=None):
         """
         write a regularization file for input into occam.
@@ -1170,28 +1217,34 @@ class Regularization(Mesh):
         reg_lines = []
         
         #--> write out header information
-        reg_lines.append('{0:<18}{1}\n'.format('format:'.upper(), 
-                                               'occam2dmtmod_1.0'.upper()))
-        reg_lines.append('{0:<18}{1}\n'.format('model name:'.upper(), 
+        reg_lines.append('{0:<18}{1}\n'.format('Format:', 
+                                               'occam2mtmod_1.0'.upper()))
+        reg_lines.append('{0:<18}{1}\n'.format('Model Name:', 
+                                               self.model_name.upper()))
+        reg_lines.append('{0:<18}{1}\n'.format('Description:', 
                                                self.description.upper()))
-        reg_lines.append('{0:<18}{1}\n'.format('mesh file:'.upper(), 
-                                               self.mesh_fn))
-        reg_lines.append('{0:<18}{1}\n'.format('mesh type:'.upper(), 
+        if os.path.dirname(self.mesh_fn) == self.save_path:
+            reg_lines.append('{0:<18}{1}\n'.format('Mesh File:', 
+                                                   os.path.basename(self.mesh_fn)))
+        else:
+            reg_lines.append('{0:<18}{1}\n'.format('Mesh File:',self.mesh_fn))
+        reg_lines.append('{0:<18}{1}\n'.format('Mesh Type:', 
                                                'pw2d'.upper()))
-        reg_lines.append('{0:<18}{1}\n'.format('statics file:'.upper(), 
+        reg_lines.append('{0:<18}{1}\n'.format('Statics File:', 
                                                statics_fn))
-        reg_lines.append('{0:<18}{1}\n'.format('prejudice file:'.upper(), 
+        reg_lines.append('{0:<18}{1}\n'.format('Prejudice File:', 
                                                prejudice_fn))
-        reg_lines.append('{0:<18}{1:.1f}\n'.format('binding offset:'.upper(), 
+        reg_lines.append('{0:<20}{1: .1f}\n'.format('Binding Offset:', 
                                                    self.binding_offset))
-        reg_lines.append('{0:<18}{1}\n'.format('num layers:'.upper(), 
+        reg_lines.append('{0:<20}{1}\n'.format('Num Layers:', 
                                                len(self.model_columns)))
         
         #--> write rows and columns of regularization grid                                        
         for row, col in zip(self.model_rows, self.model_columns):
-            reg_lines.append(''.join(['{0:>5}'.format(rr) for rr in row])+'\n')
+            reg_lines.append(''.join([' {0:>5}'.format(rr) for rr in row])+'\n')
             reg_lines.append(''.join(['{0:>5}'.format(cc) for cc in col])+'\n')
-                                    
+        
+        reg_lines.append('{0:<18}{1}\n'.format('NO. EXCEPTIONS:', '0'))                           
         rfid = file(self.reg_fn, 'w')
         rfid.writelines(reg_lines)
         rfid.close()
@@ -1312,8 +1365,16 @@ class Startup(object):
         slines = []
         slines.append('{0:<20}{1}\n'.format('Format:','OCCAMITER_FLEX'))
         slines.append('{0:<20}{1}\n'.format('Description:', self.description))
-        slines.append('{0:<20}{1}\n'.format('Model File:', self.model_fn))
-        slines.append('{0:<20}{1}\n'.format('Data File:', self.data_fn))
+        if os.path.dirname(self.model_fn) == self.save_path:
+            slines.append('{0:<20}{1}\n'.format('Model File:', 
+                          os.path.basename(self.model_fn)))
+        else:
+            slines.append('{0:<20}{1}\n'.format('Model File:', self.model_fn))
+        if os.path.dirname(self.data_fn) == self.save_path:
+            slines.append('{0:<20}{1}\n'.format('Data File:', 
+                          os.path.basename(self.data_fn)))
+        else:
+            slines.append('{0:<20}{1}\n'.format('Data File:', self.data_fn))
         slines.append('{0:<20}{1}\n'.format('Date/Time:', time.ctime()))
         slines.append('{0:<20}{1}\n'.format('Iterations to run:',
                                             self.max_iteration))
@@ -1372,6 +1433,29 @@ class Data(Profile):
     Reading and writing data files.
     Allow merging of data files.
     
+    **freq_min** : float (Hz)
+                   minimum frequency to invert for.
+                   *default* is None and will use the data to find min
+    
+    **freq_max** : float (Hz)
+                   maximum frequency to invert for
+                   *default* is None and will use the data to find max
+                   
+    **freq_num** : int
+                   number of frequencies to inver for
+                   *default* is None and will use the data to find num
+                   
+    **freq_tol** : float (decimal percent)
+                   tolerance to find nearby frequencies.
+                   *default* is .05 --> 5 percent.
+                   
+    **mode_num** : float (decimal percent)
+                   percent of stations to have the same frequency to 
+                   add it to the frequency list.  *default* is .5 -->
+                   50 percent.  Meaning if 50% of stations have the 
+                   same frequency within freq_tol it will be its 
+                   individual frequency in frequency list.    
+    
     ===================== =====================================================
     Model Modes           Description                     
     ===================== =====================================================
@@ -1387,9 +1471,7 @@ class Data(Profile):
     10 or tm              TM mode
     11 or tip             Only Tipper
     ===================== =====================================================
-    Modes:
-        * 1 or log_all --> log resistivity TE, TM, Tipper
-        * 2 or log_te_tip -- > 
+
     """
     def __init__(self, edi_path=None, **kwargs):
         Profile.__init__(self, edi_path, **kwargs)
@@ -1398,18 +1480,21 @@ class Data(Profile):
         self.fn_basename = kwargs.pop('fn_basename', 'OccamDataFile.dat')
         self.save_path = kwargs.pop('save_path', None)
         self.freq = kwargs.pop('freq', None)
-        self.model_mode = kwargs.pop('model_mode', 'all')
+        self.model_mode = kwargs.pop('model_mode', '1')
         self.data = kwargs.pop('data', None)
+        self.data_list = None
         
         self.res_te_err = kwargs.pop('reste_err', 10)
         self.res_tm_err = kwargs.pop('restm_err', 10)
         self.phase_te_err = kwargs.pop('phasete_err', 5)
         self.phase_tm_err = kwargs.pop('phasetm_err', 5)
-        self.tipper_err = kwargs.pop('tipper_err', None)
+        self.tipper_err = kwargs.pop('tipper_err', 10)
         
-        self.freq_dict = kwargs.pop('freq_dict', None)
-        self.freq_step = kwargs.pop('freq_step', None)
+        self.freq_min = kwargs.pop('freq_min', None)
+        self.freq_max = kwargs.pop('freq_max', None)
+        self.freq_num = kwargs.pop('freq_num', None)
         self.freq_tol = kwargs.pop('freq_tol', 0.05)
+        self.freq_mode_num = kwargs.pop('freq_mode_num', .50)
 
         self.occam_format = 'OCCAM2MTDATA_1.0'
         self.title = 'MTpy-OccamDatafile'
@@ -1446,6 +1531,10 @@ class Data(Profile):
                           '7':[9, 2, 3, 4],
                           '8':[10, 6, 3, 4],
                           '11':[3, 4]}
+                          
+        self._data_string = '{0:^6}{1:^6}{2:^6} {3: >8} {4: >8}\n'
+        self._data_header = '{0:<6}{1:<6}{2:<6} {3:<8} {4:<8}\n'.format(
+                            'SITE', 'FREQ', 'TYPE', 'DATUM', 'ERROR')
 
         
     def read_data_file(self, data_fn=None):
@@ -1601,7 +1690,7 @@ class Data(Profile):
             
         """
         
-        data_list = datastring.split('\n')
+        self.data_list = datastring.split('\n')
 
         #set zero array size the first row will be the data and second the error
         asize = (2, self.freq.shape[0])
@@ -1617,7 +1706,7 @@ class Data(Profile):
                     'tm_res':np.zeros(asize)}
                      for station, offset in zip(self.station_list, 
                                                 self.station_locations)]
-        for line in data_list:
+        for line in self.data_list:
             try:
                 station, freq, comp, odata, oerr = line.split()
                 #station index -1 cause python starts at 0
@@ -1639,11 +1728,85 @@ class Data(Profile):
                     self.data[ss][key][1, ff] = float(oerr)
             except ValueError:
                 print 'Could not read line {0}'.format(line)
-
-    def build_data(self):
+                
+    def _get_frequencies(self):
         """
-        Data file Generation
+        from the list of edi's get a frequency list to invert for.
+        
+        Arguments:
+        ------------
+            **freq_min** : float (Hz)
+                           minimum frequency to invert for.
+                           *default* is None and will use the data to find min
+            
+            **freq_max** : float (Hz)
+                           maximum frequency to invert for
+                           *default* is None and will use the data to find max
+                           
+            **freq_num** : int
+                           number of frequencies to inver for
+                           *default* is None and will use the data to find num
+                           
+            **freq_tol** : float (decimal percent)
+                           tolerance to find nearby frequencies.
+                           *default* is .05 --> 5 percent.
+                           
+            **mode_num** : float (decimal percent)
+                           percent of stations to have the same frequency to 
+                           add it to the frequency list.  *default* is .5 -->
+                           50 percent.  Meaning if 50% of stations have the 
+                           same frequency within freq_tol it will be its 
+                           individual frequency in frequency list.
+        """
 
+        #get all frequencies from all edi files
+        lo_all_freqs = []
+        for edi in self.edi_list:
+            lo_all_freqs.extend(list(edi.Z.freq))
+        
+        #sort all frequencies so that they are in descending order,
+        #use set to remove repeats and make an array
+        all_freqs = np.array(sorted(list(set(lo_all_freqs)), reverse=True))
+
+        #--> get min and max values if none are given
+        if (self.freq_min is None) or (self.freq_min < all_freqs.min()) or\
+           (self.freq_min > all_freqs.max()):
+            self.freq_min = all_freqs.min()
+            
+        if (self.freq_max is None) or (self.freq_max > all_freqs.max()) or\
+           (self.freq_max < all_freqs.max()):
+            self.freq_max = all_freqs.max()
+        
+        #--> get all frequencies within the given range
+        self.freq = all_freqs[np.where((all_freqs >= self.freq_min) & 
+                                       (all_freqs <= self.freq_max))]
+
+        if len(self.freq) == 0:
+            raise OccamInputError('No frequencies in user-defined interval '
+                           '[{0}, {1}]'.format(self.freq_min, self.freq_max))
+
+        #check, if frequency list is longer than given max value
+        if self.freq_num is not None:
+            if int(self.freq_num) < self.freq.shape[0]:
+                print ('Number of frequencies exceeds freq_num ' 
+                        '{0} > {1} '.format(self.freq.shape[0], self.freq_num)+
+                        'Trimming frequencies to {0}'.format(self.freq_num))
+                        
+                excess = self.freq.shape[0]/float(self.freq_num)
+                if excess < 2:
+                    offset = 0
+                else:
+                    stepsize = (self.freq.shape[0]-1)/self.freq_num
+                    offset = stepsize/2.
+                indices = np.array(np.around(np.linspace(offset,
+                                   self.freq.shape[0]-1-offset, 
+                                   self.freq_num),0), dtype='int')
+                if indices[0] > (self.freq.shape[0]-1-indices[-1]):
+                    indices -= 1
+                self.freq = self.freq[indices]
+
+    def _fill_data(self):
+        """
         Read all Edi files. 
         Create a profile
         rotate impedance and tipper
@@ -1655,454 +1818,290 @@ class Data(Profile):
         Error is assumed to be 1 stddev.
         """ 
         
-        #create a profile line
+        #create a profile line, this sorts the stations by offset and rotates
+        #data.
         self.generate_profile()
         self.plot_profile()
 
-        #set data frequencies
-        min_freq = self.min_frequency
-        max_freq = self.max_frequency
-        no_freqs_max = self.max_no_frequencies
- 
-
-        lo_all_freqs = []
-        for lo_f in self.station_frequencies:
-            lo_all_freqs.extend(list(lo_f))
-        lo_all_freqs = sorted(list(set(lo_all_freqs)),reverse=True)
-
-        if (min_freq is None) or (min_freq < min(lo_all_freqs) ) or (min_freq > max(lo_all_freqs) ) :
-            min_freq = min(lo_all_freqs)
-        if (max_freq is None) or (max_freq > max(lo_all_freqs) ) or (max_freq < min(lo_all_freqs) ) :
-            max_freq = max(lo_all_freqs)
+        #--> get frequencies to invert for
+        self._get_frequencies()
         
-        lo_all_freqs_tmp = []
-        for f in  lo_all_freqs:
-            if min_freq <= f <= max_freq :
-                lo_all_freqs_tmp.append(f)
-            else:
-                continue
+        #set zero array size the first row will be the data and second the error
+        asize = (2, self.freq.shape[0])
+        
+        #make a list of dictionaries for each station.
+        self.data=[{'station':station,
+                    'offset':offset,
+                    'te_phase':np.zeros(asize),
+                    'tm_phase':np.zeros(asize),
+                    're_tip':np.zeros(asize),
+                    'im_tip':np.zeros(asize),
+                    'te_res':np.zeros(asize),
+                    'tm_res':np.zeros(asize)}
+                     for station, offset in zip(self.station_list, 
+                                                self.station_locations)]
 
-        if len(lo_all_freqs_tmp) == 0 :
-            print 'No frequencies in user-defined interval [{0},{1}]'.format(min_freq, max_freq)
-            sys.exit()
+        #loop over mt object in edi_list and use a counter starting at 1 
+        #because that is what occam starts at.
+        for s_index, edi in enumerate(self.edi_list):
+            rho = edi.Z.resistivity
+            phi = edi.Z.phase
+            rho_err = edi.Z.resistivity_err
+            station_freqs = edi.Z.freq
+            tipper = edi.Tipper.tipper
+            tipper_err = edi.Tipper.tippererr
+            
+            self.data[s_index]['station'] = edi.station
+            self.data[s_index]['offset'] = edi.offset
 
-
-        #check, if frequency list is longer than given max value
-        if no_freqs_max is not None:
-            no_freqs_max = int(float(no_freqs_max))
-            if no_freqs_max < len(lo_all_freqs_tmp):
-                lo_all_freqs_tmp2 = []
-                excess = len(lo_all_freqs_tmp)/float(no_freqs_max)
-                if excess < 2:
-                    offset = 0
-
-                else:
-                    stepsize = (len(lo_all_freqs_tmp)-1)/no_freqs_max
-                    offset = stepsize/2.
-                indices = np.array(np.around(np.linspace(offset,len(lo_all_freqs_tmp)-1-offset,no_freqs_max),0))
-                if indices[0]>(len(lo_all_freqs_tmp)-1-indices[-1]):
-                    indices -= 1
-                for idx in indices:
-                    index = int(np.round(idx,0))+1
-                    lo_all_freqs_tmp2.insert(0,lo_all_freqs_tmp[-index])
-                
-
-                lo_all_freqs_tmp = lo_all_freqs_tmp2
-
-        self.frequencies = np.array(lo_all_freqs_tmp)
-
-
-        #collect data 
-        self.data = []
-
-        for idx_s, station in enumerate(self.stations):
-            station_number = idx_s + 1
-            Z = self.Z[idx_s]
-            T = self.Tipper[idx_s]
-
-            rho = Z.resistivity
-            phi = Z.phase
-            rho_err = Z.resistivity_err
-            phi_err = Z.phase_err
-            z_array = Z.z
-            zerr_array = Z.zerr
-
-            for freq_num,freq in enumerate(self.frequencies):
-
-                frequency_number = freq_num + 1 #OCCAM indices start with 1 
-
-                #extract the freqs available for the respective station
-                station_freqs = self.station_frequencies[idx_s]
+            for freq_num, frequency in enumerate(self.freq):
                 #skip, if the listed frequency is not available for the station
-                if not (freq in station_freqs):
+                if not (frequency in station_freqs):
                     continue
 
                 #find the respective frequency index for the station     
-                idx_f = np.abs(station_freqs-freq).argmin()
+                f_index = np.abs(station_freqs-frequency).argmin()
 
-                for mode in lo_modes:
-                    if mode in [9,2] :
-                        raw_rho_value = rho[idx_f][0,1]
-                        value = raw_rho_value
-                        #value = np.log10(raw_rho_value)
-                        absolute_rho_error = rho_err[idx_f][0,1]
-                        try:
-                            if raw_rho_value == 0:
-                                raise
-                            relative_rho_error = np.abs(absolute_rho_error/raw_rho_value)
-                        except:
-                            relative_rho_error = 0.
-
-                        if mode == 9 :
-                            if self.rho_errorfloor is not None:
-                                if self.rho_errorfloor/100. > relative_rho_error:
-                                    relative_rho_error = self.rho_errorfloor/100.
-                            error = np.abs(relative_rho_error * raw_rho_value)   #relative_error/np.log(10.)
-                            #error = np.abs(relative_rho_error/np.log(10.))
-
-                        elif mode == 2 :
-                            raw_phi_value = phi[idx_f][0,1]
-                            if raw_phi_value >=180:
-                                raw_phi_value -= 180
-                            value = raw_phi_value
-                            if self.phase_errorfloor is not None:
-                                if self.phase_errorfloor/100. > relative_rho_error:
-                                    relative_rho_error = self.phase_errorfloor/100.
-                            if relative_rho_error >= 2.:
-                                error = 180.
-                            else:
-                                error = np.degrees(np.arcsin(0.5*relative_rho_error))#relative_error*100.*0.285
-
-                    if mode in [10,6] :
-                        raw_rho_value = rho[idx_f][1,0]
-                        value = raw_rho_value
-                        #value = np.log10(raw_rho_value)
-                        absolute_rho_error = rho_err[idx_f][1,0]
-                        try:
-                            if raw_rho_value == 0:
-                                raise
-                            relative_rho_error = np.abs(absolute_rho_error/raw_rho_value)
-                        except:
-                            relative_rho_error = 0.
-                        if mode == 10 :
-                            if self.rho_errorfloor is not None:
-                                if self.rho_errorfloor/100. > relative_rho_error:
-                                    relative_rho_error = self.rho_errorfloor/100.
-                            error = np.abs(relative_rho_error * raw_rho_value)   #relative_error/np.log(10.)
-                            #error = np.abs(relative_rho_error /np.log(10.))
-
-                        elif mode == 6 :
-                            raw_phi_value = phi[idx_f][1,0]
-                            if raw_phi_value >=180:
-                                raw_phi_value -= 180
-                            value = raw_phi_value
-                            if self.phase_errorfloor is not None:
-                                if self.phase_errorfloor/100. > relative_rho_error:
-                                    relative_rho_error = self.phase_errorfloor/100.
-                            if relative_rho_error >= 2.:
-                                error = 180.
-                            else:
-                                error = np.degrees(np.arcsin(0.5*relative_rho_error))#relative_error*100.*0.285
-                 
-                    elif mode in [3,4] :
-                        if T.tipper is None:
-                            #print 'no Tipper data for {0} Hz at station {1}'.format(freq, station_number) 
-                            continue
-
-                        tipper = T.tipper[idx_f]
-                        try: 
-                            tippererr = T.tippererr[idx_f]
-                        except:
-                            #print 'no Tipper error for station {0}/frequency {1}'.format(station_number,frequency_number)
-                            tippererr = None
-
-
-                        if mode == 3 :
-                            value = np.real(tipper[0,1])
-
-                        if mode == 4 :
-                            value = np.imag(tipper[0,1])
-
-
-                        if tippererr is None:
-                            raw_error = 0
-                            if self.tipper_errorfloor is not None:
-                                raw_error = (self.tipper_errorfloor/100.)*value
-                        else:
-                            raw_error = tippererr[0,1] 
+                #--> get te resistivity
+                self.data[s_index]['te_res'][0, freq_num] = rho[f_index, 0, 1]
+                #compute error                
+                if rho[f_index, 0, 1] != 0.0:
+                    #--> get error from data
+                    if self.res_te_err is None:
+                        self.data[s_index]['te_res'][1, freq_num] = \
+                            np.abs(rho_err[f_index, 0, 1]/rho[f_index, 0, 1])
+                    #--> set generic error floor
+                    else:
+                        self.data[s_index]['te_res'][1, freq_num] = \
+                                                        self.res_te_err/100.
                             
-                        if value == 0 :
-                            rel_error = 0 
-                        else:
-                            rel_error = raw_error
-
-                        error = raw_error/value
-                        if self.tipper_errorfloor is not None:                                
-                            if self.tipper_errorfloor/100. > rel_error:
-                                error = (self.tipper_errorfloor/100.)#*value
+                #--> get tm resistivity
+                self.data[s_index]['tm_res'][0, freq_num] =  rho[f_index, 1, 0]
+                #compute error
+                if rho[f_index, 1, 0] != 0.0:
+                    #--> get error from data
+                    if self.res_te_err is None:
+                        self.data[s_index]['tm_res'][1, freq_num] = \
+                        np.abs(rho_err[f_index, 1, 0]/rho[f_index, 1, 0])
+                    #--> set generic error floor
+                    else:
+                        self.data[s_index]['tm_res'][1, freq_num] = \
+                            self.res_te_err/100.
                             
+                #--> get te phase
+                phase_te = phi[f_index, 0, 1]
+                #be sure the phase is in the first quadrant
+                if phase_te > 180:
+                    phase_te -= 180
+                self.data[s_index]['te_phase'][0, freq_num] =  phase_te
+                #compute error
+                #if phi[f_index, 0, 1] != 0.0:
+                #--> get error from data
+                if self.phase_te_err is None:
+                    self.data[s_index]['te_phase'][1, freq_num] = \
+                    np.degrees(np.arcsin(.5*
+                               self.data[s_index]['te_res'][0, freq_num]))
+                #--> set generic error floor
+                else:
+                    self.data[s_index]['te_phase'][1, freq_num] = \
+                        (self.phase_te_err/100.)*57./2.
+                            
+                #--> get tm phase
+                phase_tm = phi[f_index, 1, 0]
+                #be sure the phase is in the first quadrant
+                if phase_tm > 180:
+                    phase_tm -= 180
+                self.data[s_index]['tm_phase'][0, freq_num] =  phase_tm
+                #compute error
+                #if phi[f_index, 1, 0] != 0.0:
+                #--> get error from data
+                if self.phase_tm_err is None:
+                    self.data[s_index]['tm_phase'][1, freq_num] = \
+                    np.degrees(np.arcsin(.5*
+                               self.data[s_index]['tm_res'][0, freq_num]))
+                #--> set generic error floor
+                else:
+                    self.data[s_index]['tm_phase'][1, freq_num] = \
+                        (self.phase_tm_err/100.)*57./2.
+               
 
-                    self.data.append([station_number,frequency_number,mode,value,np.abs(error)])
-
-    def generate_profile(self):
+                                
+                #--> get Tipper
+                if tipper is not None:
+                    self.data[s_index]['re_tip'][0, freq_num] = \
+                                                    tipper[f_index, 0, 1].real
+                    self.data[s_index]['im_tip'][0, freq_num] = \
+                                                    tipper[f_index, 0, 1].imag
+                                                    
+                    #get error
+                    if self.tipper_err is not None:
+                        self.data[s_index]['re_tip'][1, freq_num] = \
+                                                        self.tipper_err/100.
+                        self.data[s_index]['im_tip'][1, freq_num] = \
+                                                        self.tipper_err/100.
+                    else:
+                        self.data[s_index]['re_tip'][1, freq_num] = \
+                           tipper[f_index, 0, 1].real/tipper_err[f_index, 0, 1]
+                        self.data[s_index]['im_tip'][1, freq_num] = \
+                           tipper[f_index, 0, 1].imag/tipper_err[f_index, 0, 1]
+                           
+    def _get_data_list(self):
         """
-            Generate linear profile by regression of station locations.
-
-            Stations are projected orthogonally onto the profile. Calculate 
-            orientation of profile (azimuth) and position of stations on the 
-            profile.
-
-            Sorting along the profile is always West->East.
-            (In unlikely/synthetic case of azimuth=0, it's North->South)
-
-
-            (self.stationlocations, self.azimuth, self.stations)
-
+        get a list of data to put into data file
         """
 
-
-        self.station_coords = []
-        self.stations = []
-        self.station_frequencies = []
-        
-        self.Z = []
-        self.Tipper = []
-
-        lo_strike_angles = []
-
-        lo_easts = []
-        lo_norths = []
-        utmzones = []
-
-        lo_wrong_edifiles = []
-
-        for edifile in self.edilist:
-            edi = MTedi.Edi()
-            try:
-                edi.readfile(edifile,datatype=self.edi_type)
-            except:
-                lo_wrong_edifiles.append(edifile)
-                continue
-
-            if self.strike is None:
-                try:
-                    lo_strike_angles.extend(list(MTgy.strike_angle(edi.Z.z[np.where(MTgy.dimensionality(edi.Z.z)!=1)])[:,0]%90))
-                except:
-                    pass
-            self.station_coords.append([edi.lat,edi.lon,edi.elev])
-            self.stations.append(edi.station)
-            self.station_frequencies.append(np.around(edi.freq,5))
-            try:
-                self.Tipper.append(edi.Tipper)
-            except:
-                self.Tipper.append(None)
+        self.data_list = []
+        for ss, sdict in enumerate(self.data, 1):
+            for ff in range(self.freq.shape[0]):
+                for mmode in self.mode_dict[self.model_mode]:
+                    #log(te_res)
+                    if mmode == 1:
+                        if sdict['te_res'][0, ff] != 0.0:
+                            dvalue = np.log10(sdict['te_res'][0, ff])
+                            derror = sdict['te_res'][1, ff]/np.log(10)
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
+                    #te_res
+                    if mmode == 9:
+                        if sdict['te_res'][0, ff] != 0.0:
+                            dvalue = sdict['te_res'][0, ff]
+                            derror = sdict['te_res'][1, ff]
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
+                    #te_phase
+                    if mmode == 2:
+                        if sdict['te_phase'][0, ff] != 0.0:
+                            dvalue = sdict['te_phase'][0, ff]
+                            derror = sdict['te_phase'][1, ff]
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                   
+                   #log(tm_res)
+                    if mmode == 5:
+                        if sdict['tm_res'][0, ff] != 0.0:
+                            dvalue = np.log10(sdict['tm_res'][0, ff])
+                            derror = sdict['tm_res'][1, ff]/np.log(10)
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
+                    #tm_res
+                    if mmode == 10:
+                        if sdict['tm_res'][0, ff] != 0.0:
+                            dvalue = sdict['tm_res'][0, ff]
+                            derror = sdict['tm_res'][1, ff]
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
+                    #tm_phase
+                    if mmode == 6:
+                        if sdict['tm_phase'][0, ff] != 0.0:
+                            dvalue = sdict['tm_phase'][0, ff]
+                            derror = sdict['tm_phase'][1, ff]
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
+                    #Re_tip
+                    if mmode == 3:
+                        if sdict['re_tip'][0, ff] != 0.0:
+                            dvalue = sdict['re_tip'][0, ff]
+                            derror = sdict['re_tip'][1, ff]
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
+                    #Im_tip
+                    if mmode == 4:
+                        if sdict['im_tip'][0, ff] != 0.0:
+                            dvalue = sdict['im_tip'][0, ff]
+                            derror = sdict['im_tip'][1, ff]
+                            dstr = '{0:.4f}'.format(dvalue)
+                            derrstr = '{0:.4f}'.format(derror)
+                            line = self._data_string.format(ss, ff+1, mmode, 
+                                                            dstr, derrstr)
+                            self.data_list.append(line)
+                    
                 
-            self.Z.append(edi.Z)
-            utm = MTcv.LLtoUTM(23,edi.lat,edi.lon)
-            lo_easts.append(utm[1])
-            lo_norths.append(utm[2])
-            utmzones.append(int(utm[0][:-1]))
-       
 
-        for i in lo_wrong_edifiles:
-            self.edilist.remove(i)
-
-        if len(self.edilist) == 0:
-            raise
-
-        if self.strike is None:
-            try:
-                self.strike = np.mean(lo_strike_angles)
-            except:
-                #empty list or so....
-                #can happen, if everyhing is just 1D
-                self.strike = 0.
-
-        main_utmzone = mode(utmzones)[0][0]
-
-
-        for idx, zone in enumerate(utmzones):
-            if zone == main_utmzone:
-                continue
-            utm = MTcv.LLtoUTM(23,edi.lat,edi.lon,main_utmzone)
-
-            lo_easts[idx] = utm[1]
-            lo_norths[idx] = utm[2]
+    def write_data_file(self, data_fn=None):
+        """
+        write a data file 
         
-        lo_easts = np.array(lo_easts)
-        lo_norths = np.array(lo_norths)
-
-        # check regression for 2 profile orientations:
-        # horizontal (N=N(E)) or vertical(E=E(N))
-        # use the one with the lower standard deviation
-        profile1 = sp.stats.linregress(lo_easts, lo_norths)
-        profile2 = sp.stats.linregress(lo_norths, lo_easts)
-        profile_line = profile1[:2]
-        #if the profile is rather E=E(N), the parameters have to converted 
-        # into N=N(E) form:
-        if profile2[4]<profile1[4]:
-            profile_line = (1./profile2[0], -profile2[1]/profile2[0])
-
-        #profile_line = sp.polyfit(lo_easts, lo_norths, 1) 
-        self.azimuth = (90-(np.arctan(profile_line[0])*180/np.pi))%180
-
-
+        """        
         
-        #rotate Z according to strike angle, 
+        if self.data is None:
+            self._fill_data()
+            self._get_data_list()
 
-        #if strike was explicitely given, use that value!
-
-        #otherwise:
-        #have 90 degree ambiguity in strike determination
-        #choose strike which offers larger angle with profile
-        #if profile azimuth is in [0,90].
-
-        if self._strike_set is False:
-            if 0 <= self.azimuth < 90:
-                if np.abs(self.azimuth - self.strike) < 45:
-                    self.strike += 90
-            elif 90 <= self.azimuth < 135:
-                if self.azimuth - self.strike < 45:
-                    self.strike -= 90
-            else:
-                if self.azimuth - self.strike >= 135:
-                    self.strike += 90
-         
-
-        self.strike = self.strike%180
-
-
-        rotation_angle = self.strike
-        
-        for old_z in self.Z:
-            original_rotation_angle = np.array(old_z.rotation_angle)
-            effective_rot_angle = rotation_angle - original_rotation_angle
-            old_z.rotate(effective_rot_angle)
-        
-        # rotate tipper to profile azimuth, not strike. Need angle to be between
-
-        rotation_angle = (self.azimuth - 90) % 180
+        if self.data_list is None:
+            self._get_data_list()
             
+        if data_fn is not None:
+            self.data_fn = data_fn
+        if self.data_fn is None:
+            if self.save_path is None:
+                self.save_path = os.getcwd()
+            if not os.path.exists(self.save_path):
+                os.mkdir(self.save_path)
+                
+            self.data_fn = os.path.join(self.save_path, self.fn_basename)
+            
+        data_lines = []
         
-        for old_tipper in self.Tipper:
-            try:
-                original_rotation_angle = np.array(old_tipper.rotation_angle)
-                effective_rot_angle = rotation_angle - original_rotation_angle
-                old_tipper.rotate(effective_rot_angle)
-            except:
-                pass
-
-
-        projected_stations = []
-        lo_offsets = []
-        profile_vector = np.array([1,profile_line[0]])
-        profile_vector /= np.linalg.norm(profile_vector)
-
-        for idx,sta in enumerate(self.stations):
-            station_vector = np.array([lo_easts[idx],lo_norths[idx]-profile_line[1]])
-            position = np.dot(profile_vector,station_vector) * profile_vector 
-            lo_offsets.append(np.linalg.norm(position))
-            projected_stations.append([position[0],position[1]+profile_line[1]])
-
-        lo_offsets -= min(lo_offsets)
-
-
-        #Sort from West to East:
-        profile_idxs = np.argsort(lo_offsets)
-        if self.azimuth == 0:
-            #Exception: sort from North to South
-            profile_idxs = np.argsort(lo_norths)
-
-
-        #sorting along the profile
-        projected_stations = [projected_stations[i] for i in profile_idxs]
-        projected_stations =  np.array(projected_stations)
-        lo_offsets = np.array([lo_offsets[i] for i in profile_idxs])
-        lo_offsets -= min(lo_offsets)
-
-        self.station_coords = [self.station_coords[i] for i in profile_idxs]
-        self.stations = [self.stations[i] for i in profile_idxs]
-        self.station_frequencies = [self.station_frequencies[i] for i in profile_idxs]
-        self.Z = [self.Z[i] for i in profile_idxs]
-        self.Tipper = [self.Tipper[i] for i in profile_idxs]
-        lo_easts = np.array([lo_easts[i] for i in profile_idxs])
-        lo_norths = np.array([lo_norths[i] for i in profile_idxs])
-              
-
-        self.profile = profile_line
-        self.stationlocations = lo_offsets
-        self.easts = lo_easts
-        self.norths = lo_norths
-        #print self.stationlocations
-
-        #plot profile and stations:
-        if 0:
-            lo_all_easts = list(lo_easts)
-            lo_all_easts.extend(list(projected_stations[:,0]))
-            lo_all_norths = list(lo_norths)
-            lo_all_norths.extend(list(projected_stations[:,1]))
-            x_extent = max(lo_all_easts) - min(lo_all_easts)
-            y_extent = max(lo_all_norths) - min(lo_all_norths)
-            plt.close('all')
-            lfig = plt.figure(4, dpi=200)#, figsize=(2,2))
-            plt.clf()
-            ploty = sp.polyval(profile_line, sorted(lo_all_easts))
-            lax = lfig.add_subplot(1, 1, 1,aspect='equal')
-            lax.plot(sorted(lo_all_easts), ploty, '-k', lw=1)
-            lax.scatter(lo_easts,lo_norths,color='b',marker='+')
-            lax.scatter(projected_stations[:,0], projected_stations[:,1],color='r',marker='x')
-            lax.set_title('Original/Projected Stations')
-            lax.set_ylim(np.min([lo_norths.min(),projected_stations[:,1].min()])-0.2*y_extent, 
-                                            np.max([lo_norths.max(),projected_stations[:,1].max()])+0.2*y_extent)
-            lax.set_xlim(np.min([lo_easts.min(),projected_stations[:,0].min()])-0.2*x_extent, 
-                                            np.max([lo_easts.max(),projected_stations[:,0].max()])+0.2*x_extent)
-            lax.set_xlabel('Easting (m)', 
-                           fontdict={'size':4, 'weight':'bold'})
-            lax.set_ylabel('Northing (m)',
-                           fontdict={'size':4, 'weight':'bold'})
-            plt.show()
-            #raw_input()
-
-
-
-
-    def writefile(self, filename = None):
-
-        if filename is not None:
-            try:
-                fn = op.abspath(op.join(self.wd,filename))
-                self.datafile = op.split(fn)[1]
-                #self.wd = op.abspath(op.split(fn)[0])
-            except:
-                self.datafile = op.abspath(op.join(self.wd,'OccamDataFile.dat')) 
-
-        outstring = ''
-
-        outstring += 'FORMAT:'+11*' '+self.format+'\n'
-        outstring += 'TITLE:'+12*' '+'{0} - profile azimuth {1:.1f} deg -'\
-                    ' strike {2:.1f} deg\n'.format(self.title,self.azimuth,
-                                                                 self.strike)
-        outstring += 'SITES:'+12*' '+'{0}\n'.format(len(self.stations))
-        for s in self.stations:
-            outstring += '    {0}\n'.format(s)
-        outstring += 'OFFSETS (M):\n'
-        for l in self.stationlocations:
-            outstring += '    {0}\n'.format(l + self.profile_offset)
-        outstring += 'FREQUENCIES:      {0}\n'.format(len(self.frequencies))
-        for f in self.frequencies:
-            outstring += '    {0}\n'.format(f)
-        outstring += 'DATA BLOCKS:      {0}\n'.format(len(self.data))
-
-        outstring += 'SITE    FREQ    TYPE    DATUM    ERROR\n'
-        for d in self.data:
-            outstring += '{0}    {1}    {2}    {3}    {4}\n'.format(*d)
-
-        outfn = op.abspath(op.join(self.wd,self.datafile))
-
-        F = open(outfn,'w')
-        F.write(outstring)
-        F.close()
-
+        #--> header line
+        data_lines.append('{0:<18}{1}\n'.format('FORMAT:', self.occam_format))
+        
+        #--> title line
+        data_lines.append('{0:<18}{1}\n'.format('TITLE:', self.title))
+        
+        #--> sites
+        data_lines.append('{0:<18}{1}\n'.format('SITES:', len(self.data)))
+        for sdict in self.data:
+            data_lines.append('   {0}\n'.format(sdict['station']))
+        
+        #--> offsets
+        data_lines.append('{0:<18}\n'.format('OFFSETS (M):'))
+        for sdict in self.data:
+            data_lines.append('   {0:.1f}\n'.format(sdict['offset']))
+        #--> frequencies
+        data_lines.append('{0:<18}{1}\n'.format('FREQUENCIES:', 
+                                                self.freq.shape[0]))
+        for ff in self.freq:
+            data_lines.append('   {0:.6f}\n'.format(ff))
+            
+        #--> data
+        data_lines.append('{0:<18}{1}\n'.format('DATA BLOCKS:', 
+                                                len(self.data_list)))
+        data_lines.append(self._data_header)
+        data_lines += self.data_list
+        
+        dfid = file(self.data_fn, 'w')
+        dfid.writelines(data_lines)
+        dfid.close()
+        
+        print 'Wrote Occam2D data file to {0}'.format(self.data_fn)
+        
     def get_profile_origin(self):
         """
         get the origin of the profile in real world coordinates
