@@ -635,8 +635,7 @@ class Mesh():
             line_count += 1
             if h_index == nh:
                 break
-
-        print line_count 
+ 
         #--> fill vertical nodes
         for mline in mlines[line_count:]:
             mline = mline.strip().split()
@@ -649,6 +648,7 @@ class Mesh():
 
         #--> fill model values
         for ll, mline in enumerate(mlines[line_count+1:], line_count):
+            mline = mline.strip()
             if m_index == nv or mline.lower().find('exception')>0:
                 break
             else:
@@ -677,7 +677,17 @@ class Mesh():
         if self.z_nodes.shape[0] != nv:
             new_nv = self.z_nodes.shape[0]
             print 'The header number {0} should read {1}'.format(nv, new_nv)
-            self.mesh_values.resize(new_nh, nv, 4)                                            
+            self.mesh_values.resize(new_nh, nv, 4)
+
+        #make x_grid and z_grid
+        self.x_grid = self.x_nodes.copy()
+        self.x_grid = np.append(self.x_grid, self.x_grid[-1])
+        self.x_grid = np.array([self.x_grid[:ii].sum() 
+                                for ii in range(self.x_grid.shape[0])])
+        self.x_grid -= self.x_grid.mean()
+        self.z_grid = np.array([self.z_nodes[:ii].sum() 
+                                for ii in range(self.z_nodes.shape[0])])  
+                                                    
 
          
 class Profile():
@@ -1738,9 +1748,9 @@ class Data(Profile):
                 if int(comp) == 1 or int(comp) == 5:
                     self.data[ss][key[4:]][0, ff] = 10**float(odata) 
                     #error       
-                    self.data[ss][key[4:]][1, ff] = float(odata)*np.log(10)
+                    self.data[ss][key[4:]][1, ff] = float(oerr)*np.log(10)
                 else:
-                    self.data[ss][key][0, ff] = float(oerr) 
+                    self.data[ss][key][0, ff] = float(odata) 
                     #error       
                     self.data[ss][key][1, ff] = float(oerr)
             except ValueError:
@@ -3612,7 +3622,7 @@ class PlotPseudoSection(object):
             gs1 = gridspec.GridSpec(1, 2,
                                     left=self.subplot_left,
                                     right=self.subplot_right,
-                                    wspace=.15)
+                                    wspace=.1)
         
             gs2 = gridspec.GridSpecFromSubplotSpec(2, 2,
                                                    hspace=self.subplot_hspace,
@@ -3720,6 +3730,8 @@ class PlotPseudoSection(object):
                     cbx = mcb.make_axes(ax, 
                                         shrink=self.cb_shrink, 
                                         pad=self.cb_pad)
+                if xx == 2 or xx == 6:
+                    plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                                         
                 if xx < 4:
                     plt.setp(ax.xaxis.get_ticklabels(), visible=False)
@@ -3849,6 +3861,7 @@ class PlotPseudoSection(object):
                                                   int(self.res_limits_te[1])+1)])
                 elif xx == 1:
                     plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+                    plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                     
                     cb = mcb.ColorbarBase(cbx[0],cmap=self.res_cmap,
                                     norm=Normalize(vmin=self.res_limits_tm[0],
@@ -3869,6 +3882,7 @@ class PlotPseudoSection(object):
                     cb.set_ticks(np.arange(self.phase_limits_te[0], 
                                            self.phase_limits_te[1]+1, 15))
                 elif xx == 3:
+                    plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                     cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
                                     norm=Normalize(vmin=self.phase_limits_tm[0],
                                                    vmax=self.phase_limits_tm[1]))
@@ -3877,7 +3891,7 @@ class PlotPseudoSection(object):
                                            'weight':'bold'})
                     cb.set_ticks(np.arange(self.phase_limits_te[0], 
                                            self.phase_limits_te[1]+1, 15))
-                ax.text(xloc, yloc, self.label_list[xx],
+                ax.text(xloc, yloc, self.label_list[2*xx],
                         fontdict={'size':self.font_size+1},
                         bbox={'facecolor':'white'},
                         horizontalalignment='left',
@@ -4011,14 +4025,430 @@ class PlotPseudoSection(object):
         
         return ("Plots a pseudo section of TE and TM modes for data and "
                 "response if given.") 
-
-class Plot():
+#==============================================================================
+# plot misfits as a pseudo-section
+#==============================================================================
+class PlotMisfitPseudoSection(object):
     """
-    Graphical representations of in- and output data.
+    plot a pseudo section of the data and response if given
+    
+        
+    Arguments:
+    -------------
+        **rp_list** : list of dictionaries for each station with keywords:
+                
+                * *station* : string
+                             station name
+                
+                * *offset* : float
+                             relative offset
+                
+                * *resxy* : np.array(nf,4)
+                            TE resistivity and error as row 0 and 1 respectively
+                
+                * *resyx* : np.array(fn,4)
+                            TM resistivity and error as row 0 and 1 respectively
+                
+                * *phasexy* : np.array(nf,4)
+                              TE phase and error as row 0 and 1 respectively
+                
+                * *phaseyx* : np.array(nf,4)
+                              Tm phase and error as row 0 and 1 respectively
+                
+                * *realtip* : np.array(nf,4)
+                              Real Tipper and error as row 0 and 1 respectively
+                
+                * *imagtip* : np.array(nf,4)
+                              Imaginary Tipper and error as row 0 and 1 
+                              respectively
+                
+                Note: that the resistivity will be in log10 space.  Also, there
+                are 2 extra rows in the data arrays, this is to put the 
+                response from the inversion.  
+        
+        **period** : np.array of periods to plot that correspond to the index
+                     values of each rp_list entry ie. resxy.
+    
+    ==================== ==================================================
+    key words            description
+    ==================== ==================================================
+    axmpte               matplotlib.axes instance for TE model phase
+    axmptm               matplotlib.axes instance for TM model phase
+    axmrte               matplotlib.axes instance for TE model app. res 
+    axmrtm               matplotlib.axes instance for TM model app. res 
+    axpte                matplotlib.axes instance for TE data phase 
+    axptm                matplotlib.axes instance for TM data phase
+    axrte                matplotlib.axes instance for TE data app. res.
+    axrtm                matplotlib.axes instance for TM data app. res.
+    cb_pad               padding between colorbar and axes
+    cb_shrink            percentage to shrink the colorbar to
+    fig                  matplotlib.figure instance
+    fig_dpi              resolution of figure in dots per inch
+    fig_num              number of figure instance
+    fig_size             size of figure in inches (width, height)
+    font_size            size of font in points
+    label_list            list to label plots
+    ml                   factor to label stations if 2 every other station
+                         is labeled on the x-axis
+    period               np.array of periods to plot
+    phase_cmap           color map name of phase
+    phase_limits_te      limits for te phase in degrees (min, max)
+    phase_limits_tm      limits for tm phase in degrees (min, max)            
+    plot_resp            [ 'y' | 'n' ] to plot response
+    plot_yn              [ 'y' | 'n' ] 'y' to plot on instantiation
 
-    Provide gui for masking points.
-    Represent output models.
+    res_cmap             color map name for resistivity
+    res_limits_te        limits for te resistivity in log scale (min, max)
+    res_limits_tm        limits for tm resistivity in log scale (min, max)
+    rp_list               list of dictionaries as made from read2Dresp
+    station_id           index to get station name (min, max)
+    station_list          station list got from rp_list
+    subplot_bottom       subplot spacing from bottom (relative coordinates) 
+    subplot_hspace       vertical spacing between subplots
+    subplot_left         subplot spacing from left  
+    subplot_right        subplot spacing from right
+    subplot_top          subplot spacing from top
+    subplot_wspace       horizontal spacing between subplots
+    ==================== ==================================================
+    
+    =================== =======================================================
+    Methods             Description
+    =================== =======================================================
+    plot                plots a pseudo-section of apparent resistiviy and phase
+                        of data and model if given.  called on instantiation 
+                        if plot_yn is 'y'.
+    redraw_plot         call redraw_plot to redraw the figures, 
+                        if one of the attributes has been changed
+    save_figure         saves the matplotlib.figure instance to desired 
+                        location and format
+    =================== =======================================================
+                    
+   :Example: ::
+        
+        >>> import mtpy.modeling.occam2d as occam2d
+        >>> ocd = occam2d.Occam2DData()
+        >>> rfile = r"/home/Occam2D/Line1/Inv1/Test_15.resp"
+        >>> ocd.data_fn = r"/home/Occam2D/Line1/Inv1/DataRW.dat"
+        >>> ps1 = ocd.plot2PseudoSection(resp_fn=rfile) 
+    
     """
+    
+    def __init__(self, rp_list, period, **kwargs):
+        
+        self.rp_list = rp_list
+        self.period = period
+        self.station_list = [rp['station'] for rp in self.rp_list]
+        
+        self.label_list = [r'$\rho_{TE}$', r'$\rho_{TM}$',
+                           '$\phi_{TE}$', '$\phi_{TM}$']
+        
+        self.phase_limits_te = kwargs.pop('phase_limits_te', (-10, 10))
+        self.phase_limits_tm = kwargs.pop('phase_limits_tm', (-10, 10))
+        self.res_limits_te = kwargs.pop('res_limits_te', (-2, 2))
+        self.res_limits_tm = kwargs.pop('res_limits_tm', (-2, 2))
+        
+        self.phase_cmap = kwargs.pop('phase_cmap', 'BrBG')
+        self.res_cmap = kwargs.pop('res_cmap', 'BrBG_r')
+        
+        self.ml = kwargs.pop('ml', 2)
+        self.station_id = kwargs.pop('station_id', [0,4])
+
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        
+        self.subplot_wspace = .0025
+        self.subplot_hspace = .0
+        self.subplot_right = .95
+        self.subplot_left = .085
+        self.subplot_top = .97
+        self.subplot_bottom = .1
+
+        self.font_size = kwargs.pop('font_size', 6)
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+        
+        self.cb_shrink = .7
+        self.cb_pad = .015
+        
+        self.axrte = None
+        self.axrtm = None
+        self.axpte = None
+        self.axptm = None
+
+        self.fig = None
+        
+        if self.plot_yn == 'y':
+            self.plot()
+            
+    def get_misfit(self):
+        """
+        compute misfit of MT response found from the model and the data.
+        
+        Need to normalize correctly
+        """
+
+        n_stations = len(self.rp_list)
+        n_periods = len(self.period)
+        
+        self.misfit_te_res = np.zeros((n_periods, n_stations))        
+        self.misfit_te_phase = np.zeros((n_periods, n_stations))        
+        self.misfit_tm_res = np.zeros((n_periods, n_stations))        
+        self.misfit_tm_phase = np.zeros((n_periods, n_stations)) 
+        
+        for rr, rp in enumerate(self.rp_list):
+            self.misfit_te_res[:, rr] = rp['resxy'][3]
+            self.misfit_tm_res[:, rr] = rp['resyx'][3]
+            self.misfit_te_phase[:, rr] = rp['phasexy'][3]             
+            self.misfit_tm_phase[:, rr] = rp['phaseyx'][3] 
+                                          
+        self.misfit_te_res = np.nan_to_num(self.misfit_te_res)
+        self.misfit_te_phase = np.nan_to_num(self.misfit_te_phase)
+        self.misfit_tm_res = np.nan_to_num(self.misfit_tm_res)
+        self.misfit_tm_phase = np.nan_to_num(self.misfit_tm_phase)
+                        
+    def plot(self):
+        """
+        plot pseudo section of data and response if given
+        
+        """
+         
+        self.get_misfit()
+        
+        ylimits = (self.period.max(), self.period.min())
+        
+        offset_list = np.array([rp['offset'] for rp in self.rp_list]+
+                                [self.rp_list[-1]['offset']*1.15])
+        
+        #make a meshgrid for plotting
+        #flip frequency so bottom corner is long period
+        dgrid, fgrid = np.meshgrid(offset_list, self.period[::-1])
+    
+        #make list for station labels
+        ns = len(self.station_list)
+        slabel = [self.station_list[ss][self.station_id[0]:self.station_id[1]] 
+                    for ss in range(0, ns, self.ml)]
+
+        xloc = offset_list[0]+abs(offset_list[0]-offset_list[1])/5
+        yloc = 1.10*self.period[1]
+        
+        plt.rcParams['font.size'] = self.font_size
+        plt.rcParams['figure.subplot.bottom'] = self.subplot_bottom
+        plt.rcParams['figure.subplot.top'] = self.subplot_top
+        plt.rcParams['figure.subplot.hspace'] = self.subplot_hspace
+        plt.rcParams['figure.subplot.wspace'] = self.subplot_wspace        
+        
+        self.fig = plt.figure(self.fig_num, self.fig_size, dpi=self.fig_dpi)
+        plt.clf()
+        
+        self.axrte = self.fig.add_subplot(2, 2, 1)
+        self.axrtm = self.fig.add_subplot(2, 2, 2, sharex=self.axrte)
+        self.axpte = self.fig.add_subplot(2, 2, 3, sharex=self.axrte)
+        self.axptm = self.fig.add_subplot(2, 2, 4, sharex=self.axrte)
+        
+        #--> TE Resistivity
+        self.axrte.pcolormesh(dgrid, 
+                              fgrid, 
+                              np.flipud(self.misfit_te_res),
+                              cmap=self.res_cmap,
+                              vmin=self.res_limits_te[0],
+                              vmax=self.res_limits_te[1])
+        #--> TM Resistivity
+        self.axrtm.pcolormesh(dgrid, 
+                              fgrid, 
+                              np.flipud(self.misfit_tm_res),
+                              cmap=self.res_cmap,
+                              vmin=self.res_limits_tm[0],
+                              vmax=self.res_limits_tm[1])
+        #--> TE Phase
+        self.axpte.pcolormesh(dgrid, 
+                              fgrid, 
+                              np.flipud(self.misfit_te_phase),
+                              cmap=self.phase_cmap,
+                              vmin=self.phase_limits_te[0],
+                              vmax=self.phase_limits_te[1])
+        #--> TM Phase
+        self.axptm.pcolormesh(dgrid, 
+                              fgrid, 
+                              np.flipud(self.misfit_tm_phase),
+                              cmap=self.phase_cmap,
+                              vmin=self.phase_limits_tm[0],
+                              vmax=self.phase_limits_tm[1])
+           
+            
+        axlist = [self.axrte, self.axrtm, self.axpte, self.axptm]
+        
+        #make everthing look tidy
+        for xx, ax in enumerate(axlist):
+            ax.semilogy()
+            ax.set_ylim(ylimits)
+            ax.xaxis.set_ticks(offset_list[np.arange(0, ns, self.ml)])
+            ax.xaxis.set_ticks(offset_list, minor=True)
+            ax.xaxis.set_ticklabels(slabel)
+            ax.set_xlim(offset_list.min(),offset_list.max())
+            if np.remainder(xx, 2.0) == 1:
+                plt.setp(ax.yaxis.get_ticklabels(), visible=False)
+            cbx = mcb.make_axes(ax, 
+                                shrink=self.cb_shrink, 
+                                pad=self.cb_pad)
+                                    
+            if xx == 0:
+                plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+                cb = mcb.ColorbarBase(cbx[0],cmap=self.res_cmap,
+                        norm=Normalize(vmin=self.res_limits_te[0],
+                                       vmax=self.res_limits_te[1]))
+            elif xx == 1:
+                plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+                cb = mcb.ColorbarBase(cbx[0],cmap=self.res_cmap,
+                        norm=Normalize(vmin=self.res_limits_tm[0],
+                                       vmax=self.res_limits_tm[1]))
+                cb.set_label('Log$_{10}$ App. Res. ($\Omega \cdot$m)',
+                             fontdict={'size':self.font_size+1,
+                                       'weight':'bold'})
+            elif xx == 2:
+                cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
+                        norm=Normalize(vmin=self.phase_limits_te[0],
+                                       vmax=self.phase_limits_te[1]))
+            elif xx == 3:
+                cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
+                        norm=Normalize(vmin=self.phase_limits_tm[0],
+                                       vmax=self.phase_limits_tm[1]))
+                cb.set_label('Phase (deg)', 
+                             fontdict={'size':self.font_size+1,
+                                       'weight':'bold'})
+            ax.text(xloc, yloc, self.label_list[xx],
+                    fontdict={'size':self.font_size+2},
+                    bbox={'facecolor':'white'},
+                    horizontalalignment='left',
+                    verticalalignment='top')
+            if xx == 0 or xx == 2:
+                ax.set_ylabel('Period (s)',
+                              fontdict={'size':self.font_size+2, 
+                              'weight':'bold'})
+            if xx > 1:
+                ax.set_xlabel('Station',fontdict={'size':self.font_size+2,
+                                                  'weight':'bold'})
+            
+                
+        plt.show()
+            
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plotPseudoSection()
+            >>> #change color of te markers to a gray-blue
+            >>> p1.res_cmap = 'seismic_r'
+            >>> p1.redraw_plot()
+        """
+        
+        plt.close(self.fig)
+        self.plot()
+        
+    def save_figure(self, save_fn, file_format='pdf', orientation='portrait', 
+                  fig_dpi=None, close_plot='y'):
+        """
+        save_plot will save the figure to save_fn.
+        
+        Arguments:
+        -----------
+        
+            **save_fn** : string
+                          full path to save figure to, can be input as
+                          * directory path -> the directory path to save to
+                            in which the file will be saved as 
+                            save_fn/station_name_PhaseTensor.file_format
+                            
+                          * full path -> file will be save to the given 
+                            path.  If you use this option then the format
+                            will be assumed to be provided by the path
+                            
+            **file_format** : [ pdf | eps | jpg | png | svg ]
+                              file type of saved figure pdf,svg,eps... 
+                              
+            **orientation** : [ landscape | portrait ]
+                              orientation in which the file will be saved
+                              *default* is portrait
+                              
+            **fig_dpi** : int
+                          The resolution in dots-per-inch the file will be
+                          saved.  If None then the dpi will be that at 
+                          which the figure was made.  I don't think that 
+                          it can be larger than dpi of the figure.
+                          
+            **close_plot** : [ y | n ]
+                             * 'y' will close the plot after saving.
+                             * 'n' will leave plot open
+                          
+        :Example: ::
+            
+            >>> # to save plot as jpg
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotPseudoSection()
+            >>> ps1.save_plot(r'/home/MT/figures', file_format='jpg')
+            
+        """
+
+        if fig_dpi == None:
+            fig_dpi = self.fig_dpi
+            
+        if os.path.isdir(save_fn) == False:
+            file_format = save_fn[-3:]
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                             orientation=orientation, bbox_inches='tight')
+            
+        else:
+            save_fn = os.path.join(save_fn, 'OccamMisfitPseudoSection.'+
+                                    file_format)
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                        orientation=orientation, bbox_inches='tight')
+        
+        if close_plot == 'y':
+            plt.clf()
+            plt.close(self.fig)
+        
+        else:
+            pass
+        
+        self.fig_fn = save_fn
+        print 'Saved figure to: '+self.fig_fn
+        
+    def update_plot(self):
+        """
+        update any parameters that where changed using the built-in draw from
+        canvas.  
+        
+        Use this if you change an of the .fig or axes properties
+        
+        :Example: ::
+            
+            >>> # to change the grid lines to only be on the major ticks
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotPseudoSection()
+            >>> [ax.grid(True, which='major') for ax in [ps1.axrte,ps1.axtep]]
+            >>> ps1.update_plot()
+        
+        """
+
+        self.fig.canvas.draw()
+                          
+    def __str__(self):
+        """
+        rewrite the string builtin to give a useful message
+        """
+        
+        return ("Plots a pseudo section of TE and TM modes for data and "
+                "response if given.") 
 
 class Run():
     """
