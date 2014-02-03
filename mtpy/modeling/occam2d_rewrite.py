@@ -2403,6 +2403,896 @@ class Model(Startup):
         self.res_model = np.flipud(self.res_model)
         
 #==============================================================================
+# plot the MT and model responses            
+#==============================================================================
+class PlotResponse():
+    """
+    Helper class to deal with plotting the MT response and occam2d model.
+    
+    Arguments:
+    -------------
+        **rp_list** : list of dictionaries for each station with keywords:
+                
+                * *station* : string
+                             station name
+                
+                * *offset* : float
+                             relative offset
+                
+                * *resxy* : np.array(nf,4)
+                            TE resistivity and error as row 0 and 1 respectively
+                
+                * *resyx* : np.array(fn,4)
+                            TM resistivity and error as row 0 and 1 respectively
+                
+                * *phasexy* : np.array(nf,4)
+                              TE phase and error as row 0 and 1 respectively
+                
+                * *phaseyx* : np.array(nf,4)
+                              Tm phase and error as row 0 and 1 respectively
+                
+                * *realtip* : np.array(nf,4)
+                              Real Tipper and error as row 0 and 1 respectively
+                
+                * *imagtip* : np.array(nf,4)
+                              Imaginary Tipper and error as row 0 and 1 
+                              respectively
+                
+                Note: that the resistivity will be in log10 space.  Also, there
+                are 2 extra rows in the data arrays, this is to put the 
+                response from the inversion.  
+        
+        **period** : np.array of periods to plot that correspond to the index
+                     values of each rp_list entry ie. resxy.
+                     
+    ==================== ======================================================
+    Attributes/key words            description
+    ==================== ======================================================
+    color_mode           [ 'color' | 'bw' ] plot figures in color or 
+                         black and white ('bw')
+    cted                 color of Data TE marker and line
+    ctem                 color of Model TE marker and line
+    ctewl                color of Winglink Model TE marker and line
+    ctmd                 color of Data TM marker and line
+    ctmm                 color of Model TM marker and line
+    ctmwl                color of Winglink Model TM marker and line
+    e_capsize            size of error bar caps in points
+    e_capthick           line thickness of error bar caps in points 
+    fig_dpi              figure resolution in dots-per-inch 
+    fig_list              list of dictionaries with key words
+                         station --> station name
+                         fig --> matplotlib.figure instance
+                         axrte --> matplotlib.axes instance for TE app.res
+                         axrtm --> matplotlib.axes instance for TM app.res
+                         axpte --> matplotlib.axes instance for TE phase
+                         axptm --> matplotlib.axes instance for TM phase
+             
+    fig_num              starting number of figure
+    fig_size             size of figure in inches (width, height)
+    font_size            size of axes ticklabel font in points
+    lw                   line width of lines in points
+    ms                   marker size in points
+    mted                 marker for Data TE mode
+    mtem                 marker for Model TE mode
+    mtewl                marker for Winglink Model TE
+    mtmd                 marker for Data TM mode
+    mtmm                 marker for Model TM mode
+    mtmwl                marker for Winglink TM mode
+    period               np.ndarray of periods to plot 
+    phase_limits         limits on phase plots in degrees (min, max)
+    plot_num             [ 1 | 2 ] 
+                         1 to plot both modes in a single plot
+                         2 to plot modes in separate plots (default)
+    plot_type            [ '1' | station_list]
+                         '1' --> to plot all stations in different figures
+                         station_list --> to plot a few stations, give names
+                         of stations ex. ['mt01', 'mt07']
+    plot_yn              [ 'y' | 'n']
+                         'y' --> to plot on instantiation
+                         'n' --> to not plot on instantiation
+    res_limits           limits on resistivity plot in log scale (min, max)
+    rp_list               list of dictionaries from read2Ddata
+    station_list          station_list list of stations in rp_list
+    subplot_bottom       subplot spacing from bottom (relative coordinates) 
+    subplot_hspace       vertical spacing between subplots
+    subplot_left         subplot spacing from left  
+    subplot_right        subplot spacing from right
+    subplot_top          subplot spacing from top
+    subplot_wspace       horizontal spacing between subplots
+    wl_fn                Winglink file name (full path)
+    ==================== ======================================================
+    
+    =================== =======================================================
+    Methods             Description
+    =================== =======================================================
+    plot                plots the apparent resistiviy and phase of data and
+                        model if given.  called on instantiation if plot_yn
+                        is 'y'.
+    redraw_plot         call redraw_plot to redraw the figures, 
+                        if one of the attributes has been changed
+    save_figures        save all the matplotlib.figure instances in fig_list
+    =================== =======================================================
+
+    """
+    
+    def __init__(self, data_fn, resp_fn=None, **kwargs):
+        
+        self.data_fn = data_fn
+        self.resp_fn = resp_fn
+        if self.resp_fn is not None:
+            if type(self.resp_fn) != list:
+                self.resp_fn = [self.resp_fn]
+
+        self.wl_fn = kwargs.pop('wl_fn', None)
+
+        self.color_mode = kwargs.pop('color_mode', 'color')
+        
+        self.ms = kwargs.pop('ms', 1.5)
+        self.lw = kwargs.pop('lw', .5)
+        self.e_capthick = kwargs.pop('e_capthick', .5)
+        self.e_capsize = kwargs.pop('e_capsize', 2)
+
+        #color mode
+        if self.color_mode == 'color':
+            #color for data
+            self.cted = kwargs.pop('cted', (0, 0, 1))
+            self.ctmd = kwargs.pop('ctmd', (1, 0, 0))
+            self.mted = kwargs.pop('mted', 's')
+            self.mtmd = kwargs.pop('mtmd', 'o')
+            
+            #color for occam2d model
+            self.ctem = kwargs.pop('ctem', (0, .6, .3))
+            self.ctmm = kwargs.pop('ctmm', (.9, 0, .8))
+            self.mtem = kwargs.pop('mtem', '+')
+            self.mtmm = kwargs.pop('mtmm', '+')
+            
+            #color for Winglink model
+            self.ctewl = kwargs.pop('ctewl', (0, .6, .8))
+            self.ctmwl = kwargs.pop('ctmwl', (.8, .7, 0))
+            self.mtewl = kwargs.pop('mtewl', 'x')
+            self.mtmwl = kwargs.pop('mtmwl', 'x')
+            
+            #color of tipper
+            self.ctipr = kwargs.pop('ctipr', 'k')
+            self.ctipi = kwargs.pop('ctipi', (.5, .5, .5))
+         
+        #black and white mode
+        elif self.color_mode == 'bw':
+            #color for data
+            self.cted = kwargs.pop('cted', (0, 0, 0))
+            self.ctmd = kwargs.pop('ctmd', (0, 0, 0))
+            self.mted = kwargs.pop('mted', '*')
+            self.mtmd = kwargs.pop('mtmd', 'v')
+            
+            #color for occam2d model
+            self.ctem = kwargs.pop('ctem', (0.6, 0.6, 0.6))
+            self.ctmm = kwargs.pop('ctmm', (0.6, 0.6, 0.6))
+            self.mtem = kwargs.pop('mtem', '+')
+            self.mtmm = kwargs.pop('mtmm', 'x')
+            
+            #color for Winglink model
+            self.ctewl = kwargs.pop('ctewl', (0.3, 0.3, 0.3))
+            self.ctmwl = kwargs.pop('ctmwl', (0.3, 0.3, 0.3))
+            self.mtewl = kwargs.pop('mtewl', '|')
+            self.mtmwl = kwargs.pop('mtmwl', '_')
+            
+            self.ctipr = kwargs.pop('ctipr', 'k')
+            self.ctipi = kwargs.pop('ctipi', (.5, .5, .5))
+            
+        self.phase_limits = kwargs.pop('phase_limits', (-5, 95))
+        self.res_limits = kwargs.pop('res_limits', None)
+        self.tip_limits = kwargs.pop('tip_limits', (-.5, .5))
+
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        
+        self.subplot_wspace = .1
+        self.subplot_hspace = .15
+        self.subplot_right = .98
+        self.subplot_left = .085
+        self.subplot_top = .93
+        self.subplot_bottom = .1
+
+        self.font_size = kwargs.pop('font_size', 6)
+        
+        self.plot_type = kwargs.pop('plot_type', '1')
+        self.plot_num = kwargs.pop('plot_num', 2)
+        self.plot_tipper = kwargs.pop('plot_tipper', 'n')
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+        
+        self.fig_list = []
+        
+        if self.plot_yn == 'y':
+            self.plot()
+        
+    def plot(self):
+        """
+        plot the data and model response, if given, in individual plots.
+         
+        """
+        
+        data_obj = Data()
+        data_obj.read_data_file(self.data_fn)
+        
+        rp_list = data_obj.data
+        nr = len(rp_list)
+        
+        #create station list
+        self.station_list = [rp['station'] for rp in rp_list]
+        
+        #boolean for adding winglink output to the plots 0 for no, 1 for yes
+        addwl = 0
+        #read in winglink data file
+        if self.wl_fn != None:
+            addwl = 1
+            self.subplot_hspace+.1
+            wld, wlrp_list, wlplist, wlslist, wltlist = MTwl.readOutputFile(
+                                                                   self.wl_fn)
+            sdict = dict([(ostation, wlistation) for wlistation in wlslist 
+                          for ostation in self.station_list 
+                          if wlistation.find(ostation)>=0])
+        
+        #set a local parameter period for less typing
+        period = data_obj.period
+                                          
+        #---------------plot each respones in a different figure---------------
+        if self.plot_type == '1':
+            pstation_list = range(len(self.station_list))
+
+        else:
+            if type(self.plot_type) is not list:
+                self.plot_type = [self.plot_type]
+            
+            pstation_list = []
+            for ii, station in enumerate(self.station_list):
+                for pstation in self.plot_type:
+                    if station.find(pstation) >= 0:
+                        pstation_list.append(ii)  
+            
+        #set the grid of subplots
+        if self.plot_tipper == 'y':
+            gs = gridspec.GridSpec(3, 2,
+                                   wspace=self.subplot_wspace,
+                                   left=self.subplot_left,
+                                   top=self.subplot_top,
+                                   bottom=self.subplot_bottom, 
+                                   right=self.subplot_right, 
+                                   hspace=self.subplot_hspace,
+                                   height_ratios=[2, 1.5, 1])
+        else:
+            gs = gridspec.GridSpec(2, 2,
+                                   wspace=self.subplot_wspace,
+                                   left=self.subplot_left,
+                                   top=self.subplot_top,
+                                   bottom=self.subplot_bottom, 
+                                   right=self.subplot_right, 
+                                   hspace=self.subplot_hspace,
+                                   height_ratios=[2, 1.5])
+        
+        #--> set default font size                           
+        plt.rcParams['font.size'] = self.font_size
+                                 
+        #loop over each station to plot
+        for ii, jj in enumerate(pstation_list):
+            fig = plt.figure(self.station_list[jj], 
+                             self.fig_size, dpi=self.fig_dpi)
+            plt.clf()
+            
+            #--> set subplot instances
+            #---plot both TE and TM in same subplot---
+            if self.plot_num == 1:
+                axrte = fig.add_subplot(gs[0,:])
+                axrtm = axrte
+                axpte = fig.add_subplot(gs[1,:],sharex=axrte)
+                axptm = axpte
+                if self.plot_tipper == 'y':
+                    axtipre = fig.add_subplot(gs[2, :], sharex=axrte)
+                    axtipim = axtipre
+                
+            #---plot TE and TM in separate subplots---
+            elif self.plot_num == 2:
+                axrte = fig.add_subplot(gs[0,0])
+                axrtm = fig.add_subplot(gs[0,1])
+                axpte = fig.add_subplot(gs[1,0], sharex=axrte)
+                axptm = fig.add_subplot(gs[1,1], sharex=axrtm)
+                if self.plot_tipper == 'y':
+                    axtipre = fig.add_subplot(gs[2, 0], sharex=axrte)
+                    axtipim = fig.add_subplot(gs[2, 1], sharex=axrtm)
+                
+            #plot the data, it should be the same for all response files
+            #empty lists for legend marker and label
+            rlistte = []
+            llistte = []
+            rlisttm = []
+            llisttm = []
+            #------------Plot Resistivity----------------------------------
+            #cut out missing data points first
+            #--> data
+            rxy = np.where(rp_list[jj]['te_res'][0]!=0)[0]
+            ryx = np.where(rp_list[jj]['tm_res'][0]!=0)[0]
+            
+            #--> TE mode Data 
+            if len(rxy) > 0:
+                rte = axrte.errorbar(period[rxy],
+                                     rp_list[jj]['te_res'][0, rxy],
+                                     ls=':',
+                                     marker=self.mted,
+                                     ms=self.ms,
+                                     mfc=self.cted,
+                                     mec=self.cted,
+                                     color=self.cted,
+                                     yerr=rp_list[jj]['te_res'][1, rxy]*\
+                                          rp_list[jj]['te_res'][0, rxy],
+                                    ecolor=self.cted,
+                                    picker=2,
+                                    lw=self.lw,
+                                    elinewidth=self.lw,
+                                    capsize=self.e_capsize,
+                                    capthick=self.e_capthick)
+                rlistte.append(rte[0])
+                llistte.append('$Obs_{TE}$')
+            else:
+                pass
+            
+             #--> TM mode data
+            if len(ryx) > 0:
+                rtm = axrtm.errorbar(period[ryx],
+                                     rp_list[jj]['tm_res'][0, ryx],
+                                     ls=':',
+                                     marker=self.mtmd,
+                                     ms=self.ms,
+                                     mfc=self.ctmd,
+                                     mec=self.ctmd,
+                                     color=self.ctmd,
+                                     yerr=rp_list[jj]['tm_res'][1, ryx]*\
+                                          rp_list[jj]['tm_res'][0, ryx],
+                                     ecolor=self.ctmd,
+                                     picker=2,
+                                     lw=self.lw,
+                                     elinewidth=self.lw,
+                                     capsize=self.e_capsize,
+                                     capthick=self.e_capthick)
+                rlisttm.append(rtm[0])
+                llisttm.append('$Obs_{TM}$')
+            else:
+                pass 
+            
+            #--------------------plot phase--------------------------------
+            #cut out missing data points first
+            #--> data
+            pxy = np.where(rp_list[jj]['te_phase'][0]!=0)[0]
+            pyx = np.where(rp_list[jj]['tm_phase'][0]!=0)[0]
+            
+            #--> TE mode data
+            if len(pxy) > 0:
+                axpte.errorbar(period[pxy],
+                               rp_list[jj]['te_phase'][0, pxy],
+                               ls=':',
+                               marker=self.mted,
+                               ms=self.ms,
+                               mfc=self.cted,
+                               mec=self.cted,
+                               color=self.cted,
+                               yerr=rp_list[jj]['te_phase'][1, pxy],
+                               ecolor=self.cted,
+                               picker=1,
+                               lw=self.lw,
+                               elinewidth=self.lw,
+                               capsize=self.e_capsize,
+                               capthick=self.e_capthick)
+            else:
+                pass
+            
+            #--> TM mode data
+            if len(pyx)>0:
+                axptm.errorbar(period[pyx],
+                               rp_list[jj]['tm_phase'][0, pyx],
+                               ls=':',
+                               marker=self.mtmd,
+                               ms=self.ms,
+                               mfc=self.ctmd,
+                               mec=self.ctmd,
+                               color=self.ctmd,
+                               yerr=rp_list[jj]['tm_phase'][1, pyx],
+                               ecolor=self.ctmd,
+                               picker=1,
+                               lw=self.lw,
+                               elinewidth=self.lw,
+                               capsize=self.e_capsize,
+                               capthick=self.e_capthick)
+            else:
+                pass
+            
+            #---------------------plot tipper----------------------------------
+            if self.plot_tipper == 'y':
+                txy = np.where(rp_list[jj]['re_tip'][0]!=0)[0]
+                tyx = np.where(rp_list[jj]['im_tip'][0]!=0)[0]
+                #--> real tipper  data
+                if len(txy)>0:
+                    per_list_p =[]
+                    tpr_list_p = []
+                    per_list_n =[]
+                    tpr_list_n = []
+                    for per, tpr in zip(period[txy],
+                                        rp_list[jj]['re_tip'][0, txy]):
+                        if tpr >= 0:
+                            per_list_p.append(per)
+                            tpr_list_p.append(tpr)
+                        else:
+                            per_list_n.append(per)
+                            tpr_list_n.append(tpr)
+                    if len(per_list_p) > 0:
+                        m_line, s_line, b_line = axtipre.stem(per_list_p, 
+                                                              tpr_list_p,
+                                                              markerfmt='^',
+                                                              basefmt='k')
+                        plt.setp(m_line, 'markerfacecolor', self.ctipr)
+                        plt.setp(m_line, 'markersize', self.ms)
+                        plt.setp(s_line, 'linewidth', self.lw)
+                        plt.setp(s_line, 'color', self.ctipr)
+                        plt.setp(b_line, 'linewidth', .01)
+                    if len(per_list_n) > 0:
+                        m_line, s_line, b_line = axtipre.stem(per_list_n, 
+                                                              tpr_list_n,
+                                                              markerfmt='v',
+                                                              basefmt='k')
+                        plt.setp(m_line, 'markerfacecolor', self.ctipr)
+                        plt.setp(m_line, 'markersize', self.ms)
+                        plt.setp(s_line, 'linewidth', self.lw)
+                        plt.setp(s_line, 'color', self.ctipr)
+                        plt.setp(b_line, 'linewidth', .01)
+    
+                else:
+                    pass
+                if len(tyx)>0:
+                    per_list_p =[]
+                    tpi_list_p = []
+                    per_list_n =[]
+                    tpi_list_n = []
+                    for per, tpi in zip(period[tyx],
+                                        rp_list[jj]['im_tip'][0, tyx]):
+                        if tpr >= 0:
+                            per_list_p.append(per)
+                            tpi_list_p.append(tpi)
+                        else:
+                            per_list_n.append(per)
+                            tpi_list_n.append(tpi)
+                    if len(per_list_p) > 0:
+                        m_line, s_line, b_line = axtipim.stem(per_list_p, 
+                                                              tpi_list_p,
+                                                              markerfmt='^',
+                                                              basefmt='k')
+                        plt.setp(m_line, 'markerfacecolor', self.ctipi)
+                        plt.setp(m_line, 'markersize', self.ms)
+                        plt.setp(s_line, 'linewidth', self.lw)
+                        plt.setp(s_line, 'color', self.ctipi)
+                        plt.setp(b_line, 'linewidth', .01)
+                    if len(per_list_n) > 0:
+                        m_line, s_line, b_line = axtipim.stem(per_list_n, 
+                                                              tpi_list_n,
+                                                              markerfmt='v',
+                                                              basefmt='k')
+                        plt.setp(m_line, 'markerfacecolor', self.ctipi)
+                        plt.setp(m_line, 'markersize', self.ms)
+                        plt.setp(s_line, 'linewidth', self.lw)
+                        plt.setp(s_line, 'color', self.ctipi)
+                        plt.setp(b_line, 'linewidth', .01)
+        
+                else:
+                    pass
+           
+            #------------------- plot model response --------------------------
+            if self.resp_fn is not None:
+                for rr, rfn in enumerate(self.resp_fn):
+                    resp_obj = Response()
+                    resp_obj.read_resp_file(rfn)
+                    
+                    rp = resp_obj.resp
+                    # create colors for different responses
+                    if self.color_mode == 'color':   
+                        cxy = (0, .4+float(rr)/(3*nr), 0)
+                        cyx = (.7+float(rr)/(4*nr), .13, .63-float(rr)/(4*nr))
+                    elif self.color_mode == 'bw':
+                        cxy = (1-1.25/(rr+2.), 1-1.25/(rr+2.), 1-1.25/(rr+2.))                    
+                        cyx = (1-1.25/(rr+2.), 1-1.25/(rr+2.), 1-1.25/(rr+2.))
+                    
+                    #calculate rms's
+                    rmslistte = np.hstack((rp[jj]['te_res'][1],
+                                          rp[jj]['te_phase'][1]))
+                    rmslisttm = np.hstack((rp[jj]['tm_res'][1],
+                                          rp[jj]['tm_phase'][1]))
+                    rmste = np.sqrt(np.sum([rms**2 for rms in rmslistte])/
+                                    len(rmslistte))
+                    rmstm = np.sqrt(np.sum([rms**2 for rms in rmslisttm])/
+                                    len(rmslisttm))
+    
+                    #------------Plot Resistivity----------------------------------
+                    #cut out missing data points first
+                    #--> response
+                    mrxy = np.where(rp[jj]['te_res'][0]!=0)[0]
+                    mryx = np.where(rp[jj]['tm_res'][0]!=0)[0]
+    
+                    #--> TE mode Model Response
+                    if len(mrxy) > 0:
+                        yerrxy = rp[jj]['te_res'][1, mrxy]*\
+                                 rp[jj]['te_res'][0, mrxy]
+                        r3 = axrte.errorbar(period[mrxy],
+                                            rp[jj]['te_res'][0, mrxy],
+                                            ls='--',
+                                            marker=self.mtem,
+                                            ms=self.ms,
+                                            mfc=cxy,
+                                            mec=cxy,
+                                            color=cxy,
+                                            yerr=yerrxy,
+                                            ecolor=cxy,
+                                            lw=self.lw,
+                                            elinewidth=self.lw,
+                                            capsize=self.e_capsize,
+                                            capthick=self.e_capthick)
+                        rlistte.append(r3[0])
+                        llistte.append('$Mod_{TE}$ '+'{0:.2f}'.format(rmste))
+                    else:
+                        pass
+    
+                    #--> TM mode model response
+                    if len(mryx)>0:
+                        yerryx = rp[jj]['tm_res'][1, mryx]*\
+                                 rp[jj]['tm_res'][0, mryx]
+                        r4 = axrtm.errorbar(period[mryx],
+                                            rp[jj]['tm_res'][0, mryx],
+                                            ls='--',
+                                            marker=self.mtmm,
+                                            ms=self.ms,
+                                            mfc=cyx,
+                                            mec=cyx,
+                                            color=cyx,
+                                            yerr=yerryx,
+                                            ecolor=cyx,
+                                            lw=self.lw,
+                                            elinewidth=self.lw,
+                                            capsize=self.e_capsize,
+                                            capthick=self.e_capthick)
+                        rlisttm.append(r4[0])
+                        llisttm.append('$Mod_{TM}$ '+'{0:.2f}'.format(rmstm))
+                    else:
+                        pass
+        
+                    #--------------------plot phase--------------------------------
+                    #cut out missing data points first
+                    #--> reponse
+                    mpxy = np.where(rp[jj]['te_phase'][2]!=0)[0]
+                    mpyx = np.where(rp[jj]['tm_phase'][2]!=0)[0]
+                    
+                    #--> TE mode response
+                    if len(mpxy) > 0:
+                        axpte.errorbar(period[mpxy],
+                                       rp[jj]['te_phase'][0, mpxy],
+                                       ls='--',
+                                        ms=self.ms,
+                                       mfc=cxy,
+                                       mec=cxy,
+                                       color=cxy,
+                                       yerr=rp[jj]['te_phase'][1, mpxy],
+                                       ecolor=cxy,
+                                       lw=self.lw,
+                                       elinewidth=self.lw,
+                                       capsize=self.e_capsize,
+                                       capthick=self.e_capthick)
+                    else:
+                        pass
+    
+                    #--> TM mode response
+                    if len(mpyx) > 0:
+                        axptm.errorbar(period[mpyx],
+                                       rp[jj]['tm_phase'][0, mpyx],
+                                       ls='--',
+                                       marker=self.mtmm,
+                                       ms=self.ms,
+                                       mfc=cyx,
+                                       mec=cyx,
+                                       color=cyx,
+                                       yerr=rp[jj]['tm_phase'][1, mpyx],
+                                       ecolor=cyx,
+                                       lw=self.lw,
+                                       elinewidth=self.lw,
+                                       capsize=self.e_capsize,
+                                       capthick=self.e_capthick)
+                    else:
+                        pass
+                    
+                    
+                    #---------------------plot tipper--------------------------
+                    if self.plot_tipper == 'y':
+                        txy = np.where(rp_list[jj]['re_tip'][0]!=0)[0]
+                        tyx = np.where(rp_list[jj]['im_tip'][0]!=0)[0]
+                        #--> real tipper  data
+                        if len(txy)>0:
+                            for per, tpr in zip(period[txy],
+                                                rp[jj]['re_tip'][0, txy]):
+                                if tpr >= 0:
+                                    axtipre.plot([per, per], [0, tpr], 
+                                                 marker='^', 
+                                                 ms=self.ms,
+                                                 mfc=self.ctipr,
+                                                 mec=self.ctipr,
+                                                 lw=self.lw,
+                                                 ls='-',
+                                                 color=self.ctipr)
+                                else:
+                                    axtipre.plot([per, per], [tpr, 0], 
+                                                 marker='v', 
+                                                 ms=self.ms,
+                                                 mfc=self.ctipr,
+                                                 mec=self.ctipr,
+                                                 lw=self.lw,
+                                                 ls='-',
+                                                 color=self.ctipr)
+            
+                        else:
+                            pass
+                        if len(tyx)>0:
+                            for per, tpi in zip(period[tyx],
+                                                rp[jj]['im_tip'][0, tyx]):
+                                if tpi >= 0:
+                                    axtipim.plot([per, per], [0, tpi], 
+                                                 marker='^', 
+                                                 ms=self.ms,
+                                                 mfc=self.ctipi,
+                                                 mec=self.ctipi,
+                                                 lw=self.lw,
+                                                 ls='-',
+                                                 color=self.ctipi)
+                                else:
+                                    axtipim.plot([per, per], [tpi, 0], 
+                                                 marker='^', 
+                                                 ms=self.ms,
+                                                 mfc=self.ctipi,
+                                                 mec=self.ctipi,
+                                                 lw=self.lw,
+                                                 ls='-',
+                                                 color=self.ctipi)
+            
+                        else:
+                            pass
+            
+            #--------------add in winglink responses------------------------
+            if addwl == 1:
+                try:
+                    wlrms = wld[sdict[self.station_list[jj]]]['rms']
+                    axrte.set_title(self.station_list[jj]+
+                                   '\n rms_occ_TE={0:.2f}'.format(rmste)+
+                                   'rms_occ_TM={0:.2f}'.format(rmstm)+
+                                   'rms_wl={0:.2f}'.format(wlrms),
+                                   fontdict={'size':self.font_size,
+                                             'weight':'bold'})
+                    for ww, wlistation in enumerate(wlslist):
+                        if wlistation.find(self.station_list[jj])==0:
+                            print '{0} was Found {0} in winglink file'.format(
+                                              self.station_list[jj], wlistation)
+                            wlrpdict = wlrp_list[ww]
+                    
+                    zrxy = [np.where(wlrpdict['te_res'][0]!=0)[0]]
+                    zryx = [np.where(wlrpdict['tm_res'][0]!=0)[0]]
+                    
+                     #plot winglink resistivity
+                    r5 = axrte.loglog(wlplist[zrxy],
+                                      wlrpdict['te_res'][1][zrxy],
+                                      ls='-.',
+                                      marker=self.mtewl,
+                                      ms=self.ms,
+                                      color=self.ctewl,
+                                      mfc=self.ctewl,
+                                      lw=self.lw)
+                    r6 = axrtm.loglog(wlplist[zryx],
+                                      wlrpdict['tm_res'][1][zryx],
+                                      ls='-.',
+                                      marker=self.mtmwl,
+                                      ms=self.ms,
+                                      color=self.ctmwl,
+                                      mfc=self.ctmwl,
+                                      lw=self.lw)
+                    
+                    #plot winglink phase
+                    axpte.semilogx(wlplist[zrxy],
+                                   wlrpdict['te_phase'][1][zrxy],
+                                   ls='-.',
+                                   marker=self.mtewl,
+                                   ms=self.ms,
+                                   color=self.ctewl,
+                                   mfc=self.ctewl,
+                                   lw=self.lw)
+                                   
+                    axptm.semilogx(wlplist[zryx],
+                                   wlrpdict['tm_phase'][1][zryx],
+                                   ls='-.',
+                                   marker=self.mtmwl,
+                                   ms=self.ms,
+                                   color=self.ctmwl,
+                                   mfc=self.ctmwl,
+                                   lw=self.lw)
+                    
+                    rlistte.append(r5[0])
+                    rlisttm.append(r6[0])
+                    llistte.append('$WLMod_{TE}$ '+'{0:.2f}'.format(wlrms))
+                    llisttm.append('$WLMod_{TM}$ '+'{0:.2f}'.format(wlrms))
+                except (IndexError, KeyError):
+                    print 'Station not present'
+            else:
+                if self.plot_num == 1:
+                    axrte.set_title(self.station_list[jj], 
+                                    fontdict={'size':self.font_size+2,
+                                              'weight':'bold'})
+                elif self.plot_num == 2:
+                    fig.suptitle(self.station_list[jj], 
+                                    fontdict={'size':self.font_size+2,
+                                              'weight':'bold'})
+
+            #set the axis properties
+            ax_list = [axrte, axrtm]
+            for aa, axr in enumerate(ax_list):
+                #set both axes to logarithmic scale
+                axr.set_xscale('log')
+                
+                try:
+                    axr.set_yscale('log')
+                except ValueError:
+                    pass
+                
+                #put on a grid
+                axr.grid(True, alpha=.3, which='both', lw=.5*self.lw)
+                axr.yaxis.set_label_coords(-.12, .5)
+                
+                #set resistivity limits if desired
+                if self.res_limits != None:
+                    axr.set_ylim(10**self.res_limits[0],
+                                 10**self.res_limits[1])
+                    
+                #set the tick labels to invisible
+                plt.setp(axr.xaxis.get_ticklabels(), visible=False)
+                if aa == 0:
+                    axr.set_ylabel('App. Res. ($\Omega \cdot m$)',
+                                   fontdict={'size':self.font_size+2,
+                                             'weight':'bold'})
+                           
+                #set legend based on the plot type
+                if self.plot_num == 1:
+                    if aa == 0:
+                        axr.legend(rlistte+rlisttm,llistte+llisttm,
+                                   loc=2,markerscale=1,
+                                   borderaxespad=.05,
+                                   labelspacing=.08,
+                                   handletextpad=.15,
+                                   borderpad=.05,
+                                   prop={'size':self.font_size+1})
+                elif self.plot_num == 2:
+                    if aa == 0:
+                        axr.legend(rlistte,
+                                   llistte,
+                                   loc=2,markerscale=1,
+                                   borderaxespad=.05,
+                                   labelspacing=.08,
+                                   handletextpad=.15,
+                                   borderpad=.05,
+                                   prop={'size':self.font_size+1}) 
+                                           
+                    if aa==1:
+                        axr.legend(rlisttm,
+                                   llisttm,
+                                   loc=2,markerscale=1,
+                                   borderaxespad=.05,
+                                   labelspacing=.08,
+                                   handletextpad=.15,
+                                   borderpad=.05,
+                                   prop={'size':self.font_size+1})
+                      
+            #set Properties for the phase axes
+            for aa, axp in enumerate([axpte, axptm]):
+                #set the x-axis to log scale
+                axp.set_xscale('log')
+                
+                #set the phase limits
+                axp.set_ylim(self.phase_limits)
+                
+                #put a grid on the subplot
+                axp.grid(True, alpha=.3, which='both', lw=.5*self.lw)
+                
+                #set the tick locations
+                axp.yaxis.set_major_locator(MultipleLocator(10))
+                axp.yaxis.set_minor_locator(MultipleLocator(2))
+                
+                #set the x axis label
+                if self.plot_tipper == 'y':
+                    plt.setp(axp.get_xticklabels(), visible=False)
+                else:
+                    axp.set_xlabel('Period (s)',
+                                   fontdict={'size':self.font_size+2,
+                                             'weight':'bold'})
+                
+                #put the y label on the far left plot
+                axp.yaxis.set_label_coords(-.12,.5)
+                if aa==0:
+                    axp.set_ylabel('Phase (deg)',
+                                   fontdict={'size':self.font_size+2,
+                                             'weight':'bold'})
+                                             
+            #set axes properties of tipper axis
+            if self.plot_tipper == 'y':
+                for aa, axt in enumerate([axtipre, axtipim]):
+                    axt.set_xscale('log')
+                    
+                    #set tipper limits
+                    axt.set_ylim(self.tip_limits)
+                    
+                    #put a grid on the subplot
+                    axt.grid(True, alpha=.3, which='both', lw=.5*self.lw)
+                    
+                    #set the tick locations
+                    axt.yaxis.set_major_locator(MultipleLocator(.2))
+                    axt.yaxis.set_minor_locator(MultipleLocator(.1))
+                    
+                    #set the x axis label
+                    axt.set_xlabel('Period (s)',
+                                   fontdict={'size':self.font_size+2,
+                                         'weight':'bold'})
+                    
+            #make sure the axis and figure are accessible to the user
+            self.fig_list.append({'station':self.station_list[jj], 
+                                 'fig':fig, 'axrte':axrte, 'axrtm':axrtm, 
+                                 'axpte':axpte, 'axptm':axptm})
+        
+        #set the plot to be full screen well at least try
+        plt.show()
+        
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plot2DResponses()
+            >>> #change color of te markers to a gray-blue
+            >>> p1.cted = (.5, .5, .7)
+            >>> p1.redraw_plot()
+        """
+        
+        plt.close('all')
+        self.plot()
+        
+    def save_figures(self, save_path, fig_fmt='pdf', fig_dpi=None, 
+                     close_fig='y'):
+        """
+        save all the figure that are in self.fig_list
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plot2DResponses()
+            >>> p1.save_figures(r"/home/occam2d/Figures", fig_fmt='jpg')
+        """
+        
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+            
+        for fdict in self.fig_list:
+            svfn = '{0}_resp.{1}'.format(fdict['station'], fig_fmt)
+            fdict['fig'].savefig(os.path.join(save_path, svfn), 
+                                 dpi=self.fig_dpi)
+            if close_fig == 'y':
+                plt.close(fdict['fig'])
+            
+            print "saved figure to {0}".format(os.path.join(save_path, svfn)) 
+
+        
+#==============================================================================
 # plot model 
 #==============================================================================
 class PlotModel(Model):
@@ -3491,15 +4381,20 @@ class PlotPseudoSection(object):
         self.label_list = [r'$\rho_{TE-Data}$',r'$\rho_{TE-Model}$',
                           r'$\rho_{TM-Data}$',r'$\rho_{TM-Model}$',
                           '$\phi_{TE-Data}$','$\phi_{TE-Model}$',
-                          '$\phi_{TM-Data}$','$\phi_{TM-Model}$']
+                          '$\phi_{TM-Data}$','$\phi_{TM-Model}$',
+                          '$\Re e\{T_{Data}\}$','$\Re e\{T_{Model}\}$',
+                          '$\Im m\{T_{Data}\}$','$\Im m\{T_{Model}\}$']
         
         self.phase_limits_te = kwargs.pop('phase_limits_te', (-5, 95))
         self.phase_limits_tm = kwargs.pop('phase_limits_tm', (-5, 95))
         self.res_limits_te = kwargs.pop('res_limits_te', (0,3))
         self.res_limits_tm = kwargs.pop('res_limits_tm', (0,3))
+        self.tip_limits_re = kwargs.pop('tip_limits_re', (-1, 1))
+        self.tip_limits_im = kwargs.pop('tip_limits_im', (-1, 1))
         
         self.phase_cmap = kwargs.pop('phase_cmap', 'jet')
         self.res_cmap = kwargs.pop('res_cmap', 'jet_r')
+        self.tip_cmap = kwargs.pop('res_cmap', 'Spectral')
         
         self.ml = kwargs.pop('ml', 2)
         self.station_id = kwargs.pop('station_id', [0,4])
@@ -3519,6 +4414,7 @@ class PlotPseudoSection(object):
         
         self.plot_type = kwargs.pop('plot_type', '1')
         self.plot_num = kwargs.pop('plot_num', 2)
+        self.plot_tipper = kwargs.pop('plot_tipper', 'n')
         self.plot_yn = kwargs.pop('plot_yn', 'y')
         
         self.cb_shrink = .7
@@ -3532,11 +4428,17 @@ class PlotPseudoSection(object):
         self.axmrtm = None
         self.axmpte = None
         self.axmptm = None
+        self.axtpr = None
+        self.axtpi = None
+        self.axmtpr = None
+        self.axmtpi = None
         
         self.te_res_arr = None
         self.tm_res_arr = None
         self.te_phase_arr = None
         self.tm_phase_arr = None
+        self.tip_real_arr = None
+        self.tip_imag_arr = None
         
         self.fig = None
         
@@ -3571,6 +4473,8 @@ class PlotPseudoSection(object):
         tm_res_arr = np.ones((nf, ns, nr))    
         te_phase_arr = np.zeros((nf, ns, nr))    
         tm_phase_arr = np.zeros((nf, ns, nr))
+        tip_real_arr = np.zeros((nf, ns, nr))
+        tip_imag_arr = np.zeros((nf, ns, nr))
     
         for ii, d_dict in enumerate(data_obj.data):
             offset_list[ii] = d_dict['offset']     
@@ -3578,6 +4482,8 @@ class PlotPseudoSection(object):
             tm_res_arr[:, ii, 0] = d_dict['tm_res'][0]
             te_phase_arr[:, ii, 0] = d_dict['te_phase'][0]
             tm_phase_arr[:, ii, 0] = d_dict['tm_phase'][0]
+            tip_real_arr[:, ii, 0] = d_dict['re_tip'][0]
+            tip_imag_arr[:, ii, 0] = d_dict['im_tip'][0]
             
         #read in response data
         if self.plot_resp == 'y':
@@ -3586,6 +4492,8 @@ class PlotPseudoSection(object):
                 tm_res_arr[:, ii, 1] = r_dict['tm_res'][0]
                 te_phase_arr[:, ii, 1] = r_dict['te_phase'][0]
                 tm_phase_arr[:, ii, 1] = r_dict['tm_phase'][0]
+                tip_real_arr[:, ii, 1] = r_dict['re_tip'][0]
+                tip_imag_arr[:, ii, 1] = r_dict['im_tip'][0]
          
         #need to make any zeros 1 for taking log10 
         te_res_arr[np.where(te_res_arr == 0)] = 1.0
@@ -3595,6 +4503,8 @@ class PlotPseudoSection(object):
         self.tm_res_arr = tm_res_arr
         self.te_phase_arr = te_phase_arr
         self.tm_phase_arr = tm_phase_arr
+        self.tip_real_arr = tip_real_arr
+        self.tip_imag_arr = tip_imag_arr
          
         #need to extend the last grid cell because meshgrid expects n+1 cells 
         offset_list[-1] = offset_list[-2]*1.15       
@@ -3603,7 +4513,9 @@ class PlotPseudoSection(object):
         dgrid, fgrid = np.meshgrid(offset_list, data_obj.period[::-1])
     
         #make list for station labels
-        slabel = [data_obj.station_list[ss][self.station_id[0]:self.station_id[1]] 
+        sindex_1 = self.station_id[0]
+        sindex_2 = self.station_id[1]
+        slabel = [data_obj.station_list[ss][sindex_1:sindex_2] 
                     for ss in range(0, ns, self.ml)]
 
         xloc = offset_list[0]+abs(offset_list[0]-offset_list[1])/5
@@ -3612,29 +4524,45 @@ class PlotPseudoSection(object):
         
         plt.rcParams['font.size'] = self.font_size
         plt.rcParams['figure.subplot.bottom'] = self.subplot_bottom
-        plt.rcParams['figure.subplot.top'] = self.subplot_top        
+        plt.rcParams['figure.subplot.top'] = self.subplot_top  
+        plt.rcParams['figure.subplot.right'] = self.subplot_right  
+        plt.rcParams['figure.subplot.left'] = self.subplot_left  
+        
+        log_labels_te = ['10$^{0}$'.format('{'+str(nn)+'}')
+                 for nn in np.arange(int(self.res_limits_te[0]), 
+                                     int(self.res_limits_te[1])+1)]
+        log_labels_tm = ['10$^{0}$'.format('{'+str(nn)+'}')
+                         for nn in np.arange(int(self.res_limits_tm[0]), 
+                                             int(self.res_limits_tm[1])+1)]
         
         self.fig = plt.figure(self.fig_num, self.fig_size, dpi=self.fig_dpi)
         plt.clf()
            
         if self.plot_resp == 'y':
-            
-            gs1 = gridspec.GridSpec(1, 2,
-                                    left=self.subplot_left,
-                                    right=self.subplot_right,
-                                    wspace=.1)
-        
+            if self.plot_tipper == 'y':
+                gs1 = gridspec.GridSpec(1, 3,
+                                        left=self.subplot_left,
+                                        right=self.subplot_right,
+                                        wspace=self.subplot_wspace)
+                gs4 = gridspec.GridSpecFromSubplotSpec(2, 2,
+                                                   hspace=self.subplot_hspace,
+                                                   wspace=0,
+                                                   subplot_spec=gs1[2])
+            else:
+                gs1 = gridspec.GridSpec(1, 2,
+                                        left=self.subplot_left,
+                                        right=self.subplot_right,
+                                        wspace=self.subplot_wspace)
             gs2 = gridspec.GridSpecFromSubplotSpec(2, 2,
                                                    hspace=self.subplot_hspace,
-                                                   wspace=self.subplot_wspace,
+                                                   wspace=0,
                                                    subplot_spec=gs1[0])
             gs3 = gridspec.GridSpecFromSubplotSpec(2, 2,
                                                    hspace=self.subplot_hspace,
-                                                   wspace=self.subplot_wspace,
+                                                   wspace=0,
                                                    subplot_spec=gs1[1])
             
             #plot TE resistivity data
-            
             self.axrte = plt.Subplot(self.fig, gs2[0, 0])
             self.fig.add_subplot(self.axrte)
             self.axrte.pcolormesh(dgrid, 
@@ -3716,6 +4644,50 @@ class PlotPseudoSection(object):
             
             axlist=[self.axrte, self.axmrte, self.axrtm, self.axmrtm, 
                    self.axpte, self.axmpte, self.axptm, self.axmptm]
+                   
+            if self.plot_tipper == 'y':
+                #plot real tipper  data
+                self.axtpr = plt.Subplot(self.fig, gs4[0, 0])
+                self.fig.add_subplot(self.axtpr)
+                self.axtpr.pcolormesh(dgrid,
+                                       fgrid,
+                                       np.flipud(tip_real_arr[:,:,0]),
+                                       cmap=self.tip_cmap,
+                                       vmin=self.tip_limits_re[0],
+                                       vmax=self.tip_limits_re[1])
+                #plot real tipper  model
+                self.axmtpr = plt.Subplot(self.fig, gs4[0, 1])
+                self.fig.add_subplot(self.axmtpr)
+                self.axmtpr.pcolormesh(dgrid,
+                                       fgrid,
+                                       np.flipud(tip_real_arr[:,:,1]),
+                                       cmap=self.tip_cmap,
+                                       vmin=self.tip_limits_re[0],
+                                       vmax=self.tip_limits_re[1])
+                
+                #plot imag tipper  data
+                self.axtpi = plt.Subplot(self.fig, gs4[1, 0])
+                self.fig.add_subplot(self.axtpi)
+                self.axtpi.pcolormesh(dgrid,
+                                       fgrid,
+                                       np.flipud(tip_imag_arr[:,:,0]),
+                                       cmap=self.tip_cmap,
+                                       vmin=self.tip_limits_re[0],
+                                       vmax=self.tip_limits_re[1])
+                #plot imag tipper  model
+                self.axmtpi = plt.Subplot(self.fig, gs4[1, 1])
+                self.fig.add_subplot(self.axmtpi)
+                self.axmtpi.pcolormesh(dgrid,
+                                       fgrid,
+                                       np.flipud(tip_imag_arr[:,:,1]),
+                                       cmap=self.tip_cmap,
+                                       vmin=self.tip_limits_re[0],
+                                       vmax=self.tip_limits_re[1])
+                                       
+                axlist.append(self.axtpr)
+                axlist.append(self.axmtpr)
+                axlist.append(self.axtpi)
+                axlist.append(self.axmtpi)
             
             #make everthing look tidy
             for xx, ax in enumerate(axlist):
@@ -3730,7 +4702,7 @@ class PlotPseudoSection(object):
                     cbx = mcb.make_axes(ax, 
                                         shrink=self.cb_shrink, 
                                         pad=self.cb_pad)
-                if xx == 2 or xx == 6:
+                if xx == 2 or xx == 6 or xx == 8 or xx == 10:
                     plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                                         
                 if xx < 4:
@@ -3741,10 +4713,7 @@ class PlotPseudoSection(object):
                                                vmax=self.res_limits_te[1]))
                         cb.set_ticks(np.arange(int(self.res_limits_te[0]),
                                                int(self.res_limits_te[1])+1))
-                        cb.set_ticklabels(['10$^{0}$'.format('{'+str(nn)+'}')
-                                            for nn in 
-                                            np.arange(int(self.res_limits_te[0]), 
-                                                      int(self.res_limits_te[1])+1)])
+                        cb.set_ticklabels(log_labels_te)
                     if xx == 3:
                         cb = mcb.ColorbarBase(cbx[0],cmap=self.res_cmap,
                                 norm=Normalize(vmin=self.res_limits_tm[0],
@@ -3757,16 +4726,14 @@ class PlotPseudoSection(object):
                                                'weight':'bold'})
                         cb.set_ticks(np.arange(int(self.res_limits_tm[0]),
                                                int(self.res_limits_tm[1])+1))
-                        cb.set_ticklabels(['10$^{0}$'.format('{'+str(nn)+'}')
-                                            for nn in 
-                                            np.arange(int(self.res_limits_tm[0]), 
-                                                      int(self.res_limits_tm[1])+1)])
+                        cb.set_ticklabels(log_labels_tm)
                 else:
+                    #color bar TE phase
                     if xx == 5:
                         cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
                                 norm=Normalize(vmin=self.phase_limits_te[0],
                                                vmax=self.phase_limits_te[1]))
-
+                    #color bar TM phase
                     if xx == 7:
                         cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
                                 norm=Normalize(vmin=self.phase_limits_tm[0],
@@ -3774,6 +4741,22 @@ class PlotPseudoSection(object):
                         cb.set_label('Phase (deg)', 
                                      fontdict={'size':self.font_size+1,
                                                'weight':'bold'})
+                    #color bar tipper Imag
+                    if xx == 9:
+                        cb = mcb.ColorbarBase(cbx[0],cmap=self.tip_cmap,
+                                norm=Normalize(vmin=self.tip_limits_re[0],
+                                               vmax=self.tip_limits_re[1]))
+                        cb.set_label('Re{T}', 
+                                     fontdict={'size':self.font_size+1,
+                                               'weight':'bold'})
+                    if xx == 11:
+                        cb = mcb.ColorbarBase(cbx[0],cmap=self.tip_cmap,
+                                norm=Normalize(vmin=self.tip_limits_im[0],
+                                               vmax=self.tip_limits_im[1]))
+                        cb.set_label('Im{T}', 
+                                     fontdict={'size':self.font_size+1,
+                                               'weight':'bold'})
+                                               
                 ax.text(xloc, yloc, self.label_list[xx],
                         fontdict={'size':self.font_size+1},
                         bbox={'facecolor':'white'},
@@ -3791,11 +4774,19 @@ class PlotPseudoSection(object):
             plt.show()
             
         else: 
-            gs1 = gridspec.GridSpec(2, 2,
-                        left=self.subplot_left,
-                        right=self.subplot_right,
-                        hspace=self.subplot_hspace,
-                        wspace=self.subplot_wspace)
+            if self.plot_tipper == 'y':
+                gs1 = gridspec.GridSpec(2, 3,
+                            left=self.subplot_left,
+                            right=self.subplot_right,
+                            hspace=self.subplot_hspace,
+                            wspace=self.subplot_wspace)
+            
+            else:
+                gs1 = gridspec.GridSpec(2, 2,
+                            left=self.subplot_left,
+                            right=self.subplot_right,
+                            hspace=self.subplot_hspace,
+                            wspace=self.subplot_wspace)
             
             #plot TE resistivity data
             self.axrte = self.fig.add_subplot(gs1[0, 0])
@@ -3832,10 +4823,29 @@ class PlotPseudoSection(object):
                                   cmap=self.phase_cmap,
                                   vmin=self.phase_limits_tm[0],
                                   vmax=self.phase_limits_tm[1])
-            
-            
-            axlist=[self.axrte, self.axrtm, self.axpte, self.axptm]
-            
+            axlist = [self.axrte, self.axrtm, self.axpte, self.axptm]
+            if self.plot_tipper == 'y':
+                #plot real tipper  data
+                self.axtpr = plt.Subplot(self.fig, gs1[0, 2])
+                self.fig.add_subplot(self.axtpr)
+                self.axtpr.pcolormesh(dgrid,
+                                       fgrid,
+                                       np.flipud(tip_real_arr[:,:,0]),
+                                       cmap=self.tip_cmap,
+                                       vmin=self.tip_limits_re[0],
+                                       vmax=self.tip_limits_re[1])
+                #plot real tipper  data
+                self.axtpi = plt.Subplot(self.fig, gs1[1, 2])
+                self.fig.add_subplot(self.axtpi)
+                self.axtpi.pcolormesh(dgrid,
+                                       fgrid,
+                                       np.flipud(tip_imag_arr[:,:,0]),
+                                       cmap=self.tip_cmap,
+                                       vmin=self.tip_limits_re[0],
+                                       vmax=self.tip_limits_re[1])
+                axlist.append(self.axtpr)
+                axlist.append(self.axtpi)
+
             #make everything look tidy
             for xx,ax in enumerate(axlist):
                 ax.semilogy()
@@ -3855,10 +4865,7 @@ class PlotPseudoSection(object):
                                                    vmax=self.res_limits_te[1]))
                     cb.set_ticks(np.arange(self.res_limits_te[0], 
                                            self.res_limits_te[1]+1))
-                    cb.set_ticklabels(['10$^{0}$'.format('{'+str(nn)+'}')
-                                        for nn in 
-                                        np.arange(int(self.res_limits_te[0]), 
-                                                  int(self.res_limits_te[1])+1)])
+                    cb.set_ticklabels(log_labels_te)
                 elif xx == 1:
                     plt.setp(ax.xaxis.get_ticklabels(), visible=False)
                     plt.setp(ax.yaxis.get_ticklabels(), visible=False)
@@ -3871,10 +4878,7 @@ class PlotPseudoSection(object):
                                            'weight':'bold'})
                     cb.set_ticks(np.arange(self.res_limits_tm[0], 
                                            self.res_limits_tm[1]+1))
-                    cb.set_ticklabels(['10$^{0}$'.format('{'+str(nn)+'}')
-                                        for nn in 
-                                        np.arange(int(self.res_limits_tm[0]), 
-                                                  int(self.res_limits_tm[1])+1)])
+                    cb.set_ticklabels(log_labels_tm)
                 elif xx == 2:
                     cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
                                     norm=Normalize(vmin=self.phase_limits_te[0],
@@ -3891,6 +4895,27 @@ class PlotPseudoSection(object):
                                            'weight':'bold'})
                     cb.set_ticks(np.arange(self.phase_limits_te[0], 
                                            self.phase_limits_te[1]+1, 15))
+                                           
+                #real tipper                    
+                elif xx == 4:
+                    plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+                    plt.setp(ax.yaxis.get_ticklabels(), visible=False)
+                    cb = mcb.ColorbarBase(cbx[0], cmap=self.tip_cmap, 
+                                      norm=Normalize(vmin=self.tip_limits_re[0],
+                                                     vmax=self.tip_limits_re[1]))
+                    cb.set_label('Re{T}', 
+                                 fontdict={'size':self.font_size+1,
+                                           'weight':'bold'})               
+                #imag tipper
+                elif xx == 5:
+                    plt.setp(ax.yaxis.get_ticklabels(), visible=False)
+                    cb = mcb.ColorbarBase(cbx[0], cmap=self.tip_cmap, 
+                                      norm=Normalize(vmin=self.tip_limits_im[0],
+                                                     vmax=self.tip_limits_im[1]))
+                    cb.set_label('Im{T}', 
+                                 fontdict={'size':self.font_size+1,
+                                           'weight':'bold'})
+                    
                 ax.text(xloc, yloc, self.label_list[2*xx],
                         fontdict={'size':self.font_size+1},
                         bbox={'facecolor':'white'},
@@ -4133,22 +5158,26 @@ class PlotMisfitPseudoSection(object):
     
     """
     
-    def __init__(self, rp_list, period, **kwargs):
+    def __init__(self, data_fn, resp_fn, **kwargs):
         
-        self.rp_list = rp_list
-        self.period = period
-        self.station_list = [rp['station'] for rp in self.rp_list]
+        self.data_fn = data_fn
+        self.resp_fn = resp_fn
         
         self.label_list = [r'$\rho_{TE}$', r'$\rho_{TM}$',
-                           '$\phi_{TE}$', '$\phi_{TM}$']
-        
+                           '$\phi_{TE}$', '$\phi_{TM}$',
+                           '$\Re e\{T\}$', '$\Im m\{T\}$']
+                           
         self.phase_limits_te = kwargs.pop('phase_limits_te', (-10, 10))
         self.phase_limits_tm = kwargs.pop('phase_limits_tm', (-10, 10))
         self.res_limits_te = kwargs.pop('res_limits_te', (-2, 2))
         self.res_limits_tm = kwargs.pop('res_limits_tm', (-2, 2))
+        self.tip_limits_re = kwargs.pop('tip_limits_re', (-.2, .2))
+        self.tip_limits_im = kwargs.pop('tip_limits_im', (-.2, .2))
         
         self.phase_cmap = kwargs.pop('phase_cmap', 'BrBG')
         self.res_cmap = kwargs.pop('res_cmap', 'BrBG_r')
+        self.tip_cmap = kwargs.pop('tip_cmap', 'PuOr')
+        self.plot_tipper = kwargs.pop('plot_tipper', 'n')
         
         self.ml = kwargs.pop('ml', 2)
         self.station_id = kwargs.pop('station_id', [0,4])
@@ -4174,8 +5203,18 @@ class PlotMisfitPseudoSection(object):
         self.axrtm = None
         self.axpte = None
         self.axptm = None
+        self.axtpr = None
+        self.axtpi = None
+        
+        self.misfit_te_res = None       
+        self.misfit_te_phase = None       
+        self.misfit_tm_res = None        
+        self.misfit_tm_phase = None
+        self.misfit_tip_real = None
+        self.misfit_tip_imag = None
 
         self.fig = None
+        self._data_obj = None
         
         if self.plot_yn == 'y':
             self.plot()
@@ -4186,25 +5225,38 @@ class PlotMisfitPseudoSection(object):
         
         Need to normalize correctly
         """
-
-        n_stations = len(self.rp_list)
-        n_periods = len(self.period)
+        data_obj = Data()
+        data_obj.read_data_file(self.data_fn)
+        self._data_obj = data_obj
+        
+        resp_obj = Response()
+        resp_obj.read_response_file(self.resp_fn)
+        
+        
+        n_stations = len(data_obj.station_list)
+        n_periods = len(data_obj.freq)
         
         self.misfit_te_res = np.zeros((n_periods, n_stations))        
         self.misfit_te_phase = np.zeros((n_periods, n_stations))        
         self.misfit_tm_res = np.zeros((n_periods, n_stations))        
-        self.misfit_tm_phase = np.zeros((n_periods, n_stations)) 
+        self.misfit_tm_phase = np.zeros((n_periods, n_stations))
+        self.misfit_tip_real = np.zeros((n_periods, n_stations))
+        self.misfit_tip_imag = np.zeros((n_periods, n_stations))
         
-        for rr, rp in enumerate(self.rp_list):
-            self.misfit_te_res[:, rr] = rp['resxy'][3]
-            self.misfit_tm_res[:, rr] = rp['resyx'][3]
-            self.misfit_te_phase[:, rr] = rp['phasexy'][3]             
-            self.misfit_tm_phase[:, rr] = rp['phaseyx'][3] 
+        for rr, r_dict in zip(range(n_stations), resp_obj.resp):
+            self.misfit_te_res[:, rr] = r_dict['te_res'][1]
+            self.misfit_tm_res[:, rr] = r_dict['tm_res'][1]
+            self.misfit_te_phase[:, rr] = r_dict['te_phase'][1]             
+            self.misfit_tm_phase[:, rr] = r_dict['tm_phase'][1] 
+            self.misfit_tip_real[:, rr] = r_dict['re_tip'][1] 
+            self.misfit_tip_imag[:, rr] = r_dict['im_tip'][1] 
                                           
         self.misfit_te_res = np.nan_to_num(self.misfit_te_res)
         self.misfit_te_phase = np.nan_to_num(self.misfit_te_phase)
         self.misfit_tm_res = np.nan_to_num(self.misfit_tm_res)
         self.misfit_tm_phase = np.nan_to_num(self.misfit_tm_phase)
+        self.misfit_tip_real = np.nan_to_num(self.misfit_tip_real)
+        self.misfit_tip_imag = np.nan_to_num(self.misfit_tip_imag)
                         
     def plot(self):
         """
@@ -4214,36 +5266,49 @@ class PlotMisfitPseudoSection(object):
          
         self.get_misfit()
         
-        ylimits = (self.period.max(), self.period.min())
+        ylimits = (self._data_obj.period.max(), self._data_obj.period.min())
         
-        offset_list = np.array([rp['offset'] for rp in self.rp_list]+
-                                [self.rp_list[-1]['offset']*1.15])
+        offset_list = np.append(self._data_obj.station_locations, 
+                                self._data_obj.station_locations[-1]*1.15)
         
         #make a meshgrid for plotting
         #flip frequency so bottom corner is long period
-        dgrid, fgrid = np.meshgrid(offset_list, self.period[::-1])
+        dgrid, fgrid = np.meshgrid(offset_list, self._data_obj.period[::-1])
     
         #make list for station labels
-        ns = len(self.station_list)
-        slabel = [self.station_list[ss][self.station_id[0]:self.station_id[1]] 
+        ns = len(self._data_obj.station_list)
+        sindex_1 = self.station_id[0]
+        sindex_2 = self.station_id[1]
+        slabel = [self._data_obj.station_list[ss][sindex_1:sindex_2] 
                     for ss in range(0, ns, self.ml)]
 
         xloc = offset_list[0]+abs(offset_list[0]-offset_list[1])/5
-        yloc = 1.10*self.period[1]
+        yloc = 1.10*self._data_obj.period[1]
         
         plt.rcParams['font.size'] = self.font_size
         plt.rcParams['figure.subplot.bottom'] = self.subplot_bottom
         plt.rcParams['figure.subplot.top'] = self.subplot_top
+        plt.rcParams['figure.subplot.right'] = self.subplot_right
+        plt.rcParams['figure.subplot.left'] = self.subplot_left
         plt.rcParams['figure.subplot.hspace'] = self.subplot_hspace
         plt.rcParams['figure.subplot.wspace'] = self.subplot_wspace        
         
         self.fig = plt.figure(self.fig_num, self.fig_size, dpi=self.fig_dpi)
         plt.clf()
         
-        self.axrte = self.fig.add_subplot(2, 2, 1)
-        self.axrtm = self.fig.add_subplot(2, 2, 2, sharex=self.axrte)
-        self.axpte = self.fig.add_subplot(2, 2, 3, sharex=self.axrte)
-        self.axptm = self.fig.add_subplot(2, 2, 4, sharex=self.axrte)
+        if self.plot_tipper != 'y':
+            self.axrte = self.fig.add_subplot(2, 2, 1)
+            self.axrtm = self.fig.add_subplot(2, 2, 2, sharex=self.axrte)
+            self.axpte = self.fig.add_subplot(2, 2, 3, sharex=self.axrte)
+            self.axptm = self.fig.add_subplot(2, 2, 4, sharex=self.axrte)
+        
+        else:
+            self.axrte = self.fig.add_subplot(2, 3, 1)
+            self.axrtm = self.fig.add_subplot(2, 3, 2, sharex=self.axrte)
+            self.axpte = self.fig.add_subplot(2, 3, 4, sharex=self.axrte)
+            self.axptm = self.fig.add_subplot(2, 3, 5, sharex=self.axrte)
+            self.axtpr = self.fig.add_subplot(2, 3, 3, sharex=self.axrte)
+            self.axtpi = self.fig.add_subplot(2, 3, 6, sharex=self.axrte)
         
         #--> TE Resistivity
         self.axrte.pcolormesh(dgrid, 
@@ -4276,8 +5341,24 @@ class PlotMisfitPseudoSection(object):
            
             
         axlist = [self.axrte, self.axrtm, self.axpte, self.axptm]
-        
-        #make everthing look tidy
+            
+        if self.plot_tipper == 'y':
+            self.axtpr.pcolormesh(dgrid, 
+                                  fgrid, 
+                                  np.flipud(self.misfit_tip_real),
+                                  cmap=self.tip_cmap,
+                                  vmin=self.tip_limits_re[0],
+                                  vmax=self.tip_limits_re[1])
+            self.axtpi.pcolormesh(dgrid, 
+                                  fgrid, 
+                                  np.flipud(self.misfit_tip_imag),
+                                  cmap=self.tip_cmap,
+                                  vmin=self.tip_limits_im[0],
+                                  vmax=self.tip_limits_im[1])
+                                  
+            axlist.append(self.axtpr)
+            axlist.append(self.axtpi)
+         #make everthing look tidy
         for xx, ax in enumerate(axlist):
             ax.semilogy()
             ax.set_ylim(ylimits)
@@ -4285,41 +5366,68 @@ class PlotMisfitPseudoSection(object):
             ax.xaxis.set_ticks(offset_list, minor=True)
             ax.xaxis.set_ticklabels(slabel)
             ax.set_xlim(offset_list.min(),offset_list.max())
-            if np.remainder(xx, 2.0) == 1:
-                plt.setp(ax.yaxis.get_ticklabels(), visible=False)
             cbx = mcb.make_axes(ax, 
                                 shrink=self.cb_shrink, 
                                 pad=self.cb_pad)
-                                    
+            
+            #te res                        
             if xx == 0:
                 plt.setp(ax.xaxis.get_ticklabels(), visible=False)
                 cb = mcb.ColorbarBase(cbx[0],cmap=self.res_cmap,
                         norm=Normalize(vmin=self.res_limits_te[0],
                                        vmax=self.res_limits_te[1]))
+            #tm res
             elif xx == 1:
                 plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+                plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                 cb = mcb.ColorbarBase(cbx[0],cmap=self.res_cmap,
                         norm=Normalize(vmin=self.res_limits_tm[0],
                                        vmax=self.res_limits_tm[1]))
                 cb.set_label('Log$_{10}$ App. Res. ($\Omega \cdot$m)',
                              fontdict={'size':self.font_size+1,
                                        'weight':'bold'})
+            #te phase
             elif xx == 2:
                 cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
                         norm=Normalize(vmin=self.phase_limits_te[0],
                                        vmax=self.phase_limits_te[1]))
+            #tm phase
             elif xx == 3:
+                plt.setp(ax.yaxis.get_ticklabels(), visible=False)
                 cb = mcb.ColorbarBase(cbx[0],cmap=self.phase_cmap,
                         norm=Normalize(vmin=self.phase_limits_tm[0],
                                        vmax=self.phase_limits_tm[1]))
                 cb.set_label('Phase (deg)', 
                              fontdict={'size':self.font_size+1,
                                        'weight':'bold'})
+            
+            #real tipper                    
+            elif xx == 4:
+                plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+                plt.setp(ax.yaxis.get_ticklabels(), visible=False)
+                cb = mcb.ColorbarBase(cbx[0], cmap=self.tip_cmap, 
+                                  norm=Normalize(vmin=self.tip_limits_re[0],
+                                                 vmax=self.tip_limits_re[1]))
+                cb.set_label('Re{Tip}', 
+                             fontdict={'size':self.font_size+1,
+                                       'weight':'bold'})               
+            #imag tipper
+            elif xx == 5:
+                plt.setp(ax.yaxis.get_ticklabels(), visible=False)
+                cb = mcb.ColorbarBase(cbx[0], cmap=self.tip_cmap, 
+                                  norm=Normalize(vmin=self.tip_limits_im[0],
+                                                 vmax=self.tip_limits_im[1]))
+                cb.set_label('Im{Tip}', 
+                             fontdict={'size':self.font_size+1,
+                                       'weight':'bold'})
+                                       
+            #make label for plot
             ax.text(xloc, yloc, self.label_list[xx],
                     fontdict={'size':self.font_size+2},
                     bbox={'facecolor':'white'},
                     horizontalalignment='left',
                     verticalalignment='top')
+            
             if xx == 0 or xx == 2:
                 ax.set_ylabel('Period (s)',
                               fontdict={'size':self.font_size+2, 
@@ -4328,6 +5436,8 @@ class PlotMisfitPseudoSection(object):
                 ax.set_xlabel('Station',fontdict={'size':self.font_size+2,
                                                   'weight':'bold'})
             
+        
+       
                 
         plt.show()
             
