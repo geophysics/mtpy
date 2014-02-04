@@ -2100,10 +2100,11 @@ class Data(Profile):
         data_lines.append('{0:<18}{1}\n'.format('FORMAT:', self.occam_format))
         
         #--> title line
-        data_lines.append('{0:<18}{1}\n'.format('TITLE:', self.title+
-                                                ', Profile angle={0:.1f}'.format(self.profile_angle)))
-        
-        #--> sites
+        t_str = '{0}, Profile={1:.1f} deg, Strike={2:.1f} deg'.format(
+                 self.title, self.profile_angle, self.geoelectric_strike)
+        data_lines.append('{0:<18}{1}\n'.format('TITLE:', t_str))
+       
+       #--> sites
         data_lines.append('{0:<18}{1}\n'.format('SITES:', len(self.data)))
         for sdict in self.data:
             data_lines.append('   {0}\n'.format(sdict['station']))
@@ -2553,8 +2554,8 @@ class PlotResponse():
             self.mtmwl = kwargs.pop('mtmwl', 'x')
             
             #color of tipper
-            self.ctipr = kwargs.pop('ctipr', 'k')
-            self.ctipi = kwargs.pop('ctipi', (.5, .5, .5))
+            self.ctipr = kwargs.pop('ctipr', self.cted)
+            self.ctipi = kwargs.pop('ctipi', self.ctmd)
          
         #black and white mode
         elif self.color_mode == 'bw':
@@ -2576,8 +2577,8 @@ class PlotResponse():
             self.mtewl = kwargs.pop('mtewl', '|')
             self.mtmwl = kwargs.pop('mtmwl', '_')
             
-            self.ctipr = kwargs.pop('ctipr', 'k')
-            self.ctipi = kwargs.pop('ctipi', (.5, .5, .5))
+            self.ctipr = kwargs.pop('ctipr', self.cted)
+            self.ctipi = kwargs.pop('ctipi', self.ctmd)
             
         self.phase_limits = kwargs.pop('phase_limits', (-5, 95))
         self.res_limits = kwargs.pop('res_limits', None)
@@ -2600,6 +2601,12 @@ class PlotResponse():
         self.plot_num = kwargs.pop('plot_num', 2)
         self.plot_tipper = kwargs.pop('plot_tipper', 'n')
         self.plot_yn = kwargs.pop('plot_yn', 'y')
+
+        if self.plot_num == 1:        
+            self.ylabel_coord = kwargs.pop('ylabel_coords', (-.055, .5))
+        elif self.plot_num == 2:
+            self.ylabel_coord = kwargs.pop('ylabel_coords', (-.12, .5))
+        
         
         self.fig_list = []
         
@@ -2806,6 +2813,8 @@ class PlotResponse():
             
             #---------------------plot tipper----------------------------------
             if self.plot_tipper == 'y':
+                t_list = []
+                t_label = []
                 txy = np.where(rp_list[jj]['re_tip'][0]!=0)[0]
                 tyx = np.where(rp_list[jj]['im_tip'][0]!=0)[0]
                 #--> real tipper  data
@@ -2828,20 +2837,27 @@ class PlotResponse():
                                                               markerfmt='^',
                                                               basefmt='k')
                         plt.setp(m_line, 'markerfacecolor', self.ctipr)
+                        plt.setp(m_line, 'markeredgecolor', self.ctipr)
                         plt.setp(m_line, 'markersize', self.ms)
                         plt.setp(s_line, 'linewidth', self.lw)
                         plt.setp(s_line, 'color', self.ctipr)
                         plt.setp(b_line, 'linewidth', .01)
+                        t_list.append(m_line)
+                        t_label.append('Real')
                     if len(per_list_n) > 0:
                         m_line, s_line, b_line = axtipre.stem(per_list_n, 
                                                               tpr_list_n,
                                                               markerfmt='v',
                                                               basefmt='k')
                         plt.setp(m_line, 'markerfacecolor', self.ctipr)
+                        plt.setp(m_line, 'markeredgecolor', self.ctipr)
                         plt.setp(m_line, 'markersize', self.ms)
                         plt.setp(s_line, 'linewidth', self.lw)
                         plt.setp(s_line, 'color', self.ctipr)
                         plt.setp(b_line, 'linewidth', .01)
+                        if len(t_list) == 0:
+                             t_list.append(m_line)
+                             t_label.append('Real')
     
                 else:
                     pass
@@ -2852,7 +2868,7 @@ class PlotResponse():
                     tpi_list_n = []
                     for per, tpi in zip(period[tyx],
                                         rp_list[jj]['im_tip'][0, tyx]):
-                        if tpr >= 0:
+                        if tpi >= 0:
                             per_list_p.append(per)
                             tpi_list_p.append(tpi)
                         else:
@@ -2864,20 +2880,27 @@ class PlotResponse():
                                                               markerfmt='^',
                                                               basefmt='k')
                         plt.setp(m_line, 'markerfacecolor', self.ctipi)
+                        plt.setp(m_line, 'markeredgecolor', self.ctipi)
                         plt.setp(m_line, 'markersize', self.ms)
                         plt.setp(s_line, 'linewidth', self.lw)
                         plt.setp(s_line, 'color', self.ctipi)
                         plt.setp(b_line, 'linewidth', .01)
+                        t_list.append(m_line)
+                        t_label.append('Imag')
                     if len(per_list_n) > 0:
                         m_line, s_line, b_line = axtipim.stem(per_list_n, 
                                                               tpi_list_n,
                                                               markerfmt='v',
                                                               basefmt='k')
                         plt.setp(m_line, 'markerfacecolor', self.ctipi)
+                        plt.setp(m_line, 'markeredgecolor', self.ctipi)
                         plt.setp(m_line, 'markersize', self.ms)
                         plt.setp(s_line, 'linewidth', self.lw)
                         plt.setp(s_line, 'color', self.ctipi)
                         plt.setp(b_line, 'linewidth', .01)
+                        if len(t_list) <= 1:
+                            t_list.append(m_line)
+                            t_label.append('Imag')
         
                 else:
                     pass
@@ -2886,7 +2909,7 @@ class PlotResponse():
             if self.resp_fn is not None:
                 for rr, rfn in enumerate(self.resp_fn):
                     resp_obj = Response()
-                    resp_obj.read_resp_file(rfn)
+                    resp_obj.read_response_file(rfn)
                     
                     rp = resp_obj.resp
                     # create colors for different responses
@@ -2907,7 +2930,7 @@ class PlotResponse():
                     rmstm = np.sqrt(np.sum([rms**2 for rms in rmslisttm])/
                                     len(rmslisttm))
     
-                    #------------Plot Resistivity----------------------------------
+                    #------------Plot Resistivity------------------------------
                     #cut out missing data points first
                     #--> response
                     mrxy = np.where(rp[jj]['te_res'][0]!=0)[0]
@@ -2962,8 +2985,8 @@ class PlotResponse():
                     #--------------------plot phase--------------------------------
                     #cut out missing data points first
                     #--> reponse
-                    mpxy = np.where(rp[jj]['te_phase'][2]!=0)[0]
-                    mpyx = np.where(rp[jj]['tm_phase'][2]!=0)[0]
+                    mpxy = np.where(rp[jj]['te_phase'][0]!=0)[0]
+                    mpyx = np.where(rp[jj]['tm_phase'][0]!=0)[0]
                     
                     #--> TE mode response
                     if len(mpxy) > 0:
@@ -3005,58 +3028,85 @@ class PlotResponse():
                     
                     #---------------------plot tipper--------------------------
                     if self.plot_tipper == 'y':
-                        txy = np.where(rp_list[jj]['re_tip'][0]!=0)[0]
-                        tyx = np.where(rp_list[jj]['im_tip'][0]!=0)[0]
+                        txy = np.where(rp[jj]['re_tip'][0]!=0)[0]
+                        tyx = np.where(rp[jj]['im_tip'][0]!=0)[0]
                         #--> real tipper  data
                         if len(txy)>0:
+                            per_list_p =[]
+                            tpr_list_p = []
+                            per_list_n =[]
+                            tpr_list_n = []
                             for per, tpr in zip(period[txy],
                                                 rp[jj]['re_tip'][0, txy]):
                                 if tpr >= 0:
-                                    axtipre.plot([per, per], [0, tpr], 
-                                                 marker='^', 
-                                                 ms=self.ms,
-                                                 mfc=self.ctipr,
-                                                 mec=self.ctipr,
-                                                 lw=self.lw,
-                                                 ls='-',
-                                                 color=self.ctipr)
+                                    per_list_p.append(per)
+                                    tpr_list_p.append(tpr)
                                 else:
-                                    axtipre.plot([per, per], [tpr, 0], 
-                                                 marker='v', 
-                                                 ms=self.ms,
-                                                 mfc=self.ctipr,
-                                                 mec=self.ctipr,
-                                                 lw=self.lw,
-                                                 ls='-',
-                                                 color=self.ctipr)
+                                    per_list_n.append(per)
+                                    tpr_list_n.append(tpr)
+                            if len(per_list_p) > 0:
+                                m_line, s_line, b_line = axtipre.stem(per_list_p, 
+                                                                      tpr_list_p,
+                                                                      markerfmt='^',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', cxy)
+                                plt.setp(m_line, 'markeredgecolor', cxy)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', cxy)
+                                plt.setp(b_line, 'linewidth', .01)
+                            if len(per_list_n) > 0:
+                                m_line, s_line, b_line = axtipre.stem(per_list_n, 
+                                                                      tpr_list_n,
+                                                                      markerfmt='v',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', cxy)
+                                plt.setp(m_line, 'markeredgecolor', cxy)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', cxy)
+                                plt.setp(b_line, 'linewidth', .01)
             
                         else:
                             pass
                         if len(tyx)>0:
+                            per_list_p =[]
+                            tpi_list_p = []
+                            per_list_n =[]
+                            tpi_list_n = []
                             for per, tpi in zip(period[tyx],
                                                 rp[jj]['im_tip'][0, tyx]):
                                 if tpi >= 0:
-                                    axtipim.plot([per, per], [0, tpi], 
-                                                 marker='^', 
-                                                 ms=self.ms,
-                                                 mfc=self.ctipi,
-                                                 mec=self.ctipi,
-                                                 lw=self.lw,
-                                                 ls='-',
-                                                 color=self.ctipi)
+                                    per_list_p.append(per)
+                                    tpi_list_p.append(tpi)
                                 else:
-                                    axtipim.plot([per, per], [tpi, 0], 
-                                                 marker='^', 
-                                                 ms=self.ms,
-                                                 mfc=self.ctipi,
-                                                 mec=self.ctipi,
-                                                 lw=self.lw,
-                                                 ls='-',
-                                                 color=self.ctipi)
-            
+                                    per_list_n.append(per)
+                                    tpi_list_n.append(tpi)
+                            if len(per_list_p) > 0:
+                                m_line, s_line, b_line = axtipim.stem(per_list_p, 
+                                                                      tpi_list_p,
+                                                                      markerfmt='^',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', cyx)
+                                plt.setp(m_line, 'markeredgecolor', cyx)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', cyx)
+                                plt.setp(b_line, 'linewidth', .01)
+                            if len(per_list_n) > 0:
+                                m_line, s_line, b_line = axtipim.stem(per_list_n, 
+                                                                      tpi_list_n,
+                                                                      markerfmt='v',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', cyx)
+                                plt.setp(m_line, 'markeredgecolor', cyx)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', cyx)
+                                plt.setp(b_line, 'linewidth', .01)
+                
                         else:
                             pass
-            
             #--------------add in winglink responses------------------------
             if addwl == 1:
                 try:
@@ -3142,7 +3192,8 @@ class PlotResponse():
                 
                 #put on a grid
                 axr.grid(True, alpha=.3, which='both', lw=.5*self.lw)
-                axr.yaxis.set_label_coords(-.12, .5)
+                axr.yaxis.set_label_coords(self.ylabel_coord[0],
+                                           self.ylabel_coord[1])
                 
                 #set resistivity limits if desired
                 if self.res_limits != None:
@@ -3211,7 +3262,8 @@ class PlotResponse():
                                              'weight':'bold'})
                 
                 #put the y label on the far left plot
-                axp.yaxis.set_label_coords(-.12,.5)
+                axp.yaxis.set_label_coords(self.ylabel_coord[0], 
+                                           self.ylabel_coord[1])
                 if aa==0:
                     axp.set_ylabel('Phase (deg)',
                                    fontdict={'size':self.font_size+2,
@@ -3236,6 +3288,40 @@ class PlotResponse():
                     axt.set_xlabel('Period (s)',
                                    fontdict={'size':self.font_size+2,
                                          'weight':'bold'})
+                                         
+                    axt.set_xlim(10**np.floor(np.log10(data_obj.period.min())),
+                                 10**np.ceil(np.log10(data_obj.period.max())))
+                    
+                    #put the y label on the far left plot
+                    axt.yaxis.set_label_coords(self.ylabel_coord[0],
+                                               self.ylabel_coord[1])
+                    if aa==0:
+                        axt.set_ylabel('Tipper',
+                                       fontdict={'size':self.font_size+2,
+                                                 'weight':'bold'})
+                        if self.plot_num == 2:
+                            axt.text(axt.get_xlim()[0]*1.25, 
+                                     self.tip_limits[1]*.9,
+                                     'Real', horizontalalignment='left',
+                                      verticalalignment='top', 
+                                      bbox={'facecolor':'white'},
+                                      fontdict={'size':self.font_size+1})
+                        else:
+                            axt.legend(t_list, t_label,
+                                       loc=2,markerscale=1,
+                                       borderaxespad=.05,
+                                       labelspacing=.08,
+                                       handletextpad=.15,
+                                       borderpad=.05,
+                                       prop={'size':self.font_size+1})
+                    if aa == 1:
+                        if self.plot_num == 2:
+                            axt.text(axt.get_xlim()[0]*1.25, 
+                                     self.tip_limits[1]*.9,
+                                     'Imag', horizontalalignment='left',
+                                      verticalalignment='top', 
+                                      bbox={'facecolor':'white'},
+                                      fontdict={'size':self.font_size+1})
                     
             #make sure the axis and figure are accessible to the user
             self.fig_list.append({'station':self.station_list[jj], 
