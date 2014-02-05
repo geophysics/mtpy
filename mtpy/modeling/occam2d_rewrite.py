@@ -2182,24 +2182,19 @@ class Data(Profile):
         
         return pr_obj
     
-    def plot_mask_points(self, data_fn=None, **kwargs):
+    def plot_mask_points(self, data_fn=None, marker='h', res_err_inc=.25,
+                         phase_err_inc=.05):
         """
         An interactive plotting tool to mask points an add errorbars
         
         Arguments:
         ----------
-            **plottype** : string
-                           describes the way the responses are plotted. Can be:
-                               *list of stations to plot ['mt01','mt02']
-                               *one station 'mt01'
-                               *None plots all stations *Default*
-            
-            **reserrinc** : float
+            **res_err_inc** : float
                             amount to increase the error bars. Input as a 
                             decimal percentage.  0.3 for 30 percent
                             *Default* is 0.2 (20 percent)
                             
-            **phaseerrinc** : float
+            **phase_err_inc** : float
                               amount to increase the error bars. Input as a 
                               decimal percentage.  0.3 for 30 percent
                               *Default* is 0.05 (5 percent)
@@ -2208,28 +2203,6 @@ class Data(Profile):
                          marker that the masked points will be
                          *Default* is 'h' for hexagon
                         
-            **colormode** : string
-                            defines the color mode to plot the responses in
-                            *'color'* for color plots
-                            *'bw'* for black and white plots
-                            *Default* is 'color'
-            
-            **dpi** : int
-                      dot-per-inch resolution of the plots.
-                      *Default* is 300
-            
-            **ms** : float
-                     size of the marker in the response plots
-                     *Default* is 2
-                     
-            **self.res_limits**: tuple (min,max)
-                           min and max limits of the resistivity values in 
-                           linear scale
-                           *Default* is None
-                           
-            **phaselimits**: tuple (min,max)
-                            min and max phase limits 
-                            *Default* is (-5,90)
                             
         Returns:
         ---------
@@ -2247,208 +2220,13 @@ class Data(Profile):
         
         if data_fn is not None:
             self.data_fn = data_fn
-            
-        self.read_data_file()
-        rp_list = list(self.data)
-        
-        #color  and marker for data
-        cted = kwargs.pop('cted', (0,0,1))
-        ctmd = kwargs.pop('ctmd', (1,0,0))
-        mted = kwargs.pop('mted', 's')
-        mtmd = kwargs.pop('mtmd', 'o')
-        ms = kwargs.pop('ms', 2)
-        lw = kwargs.pop('lw', .75)
-        fig_dpi = kwargs.pop('fig_dpi', 300)
-        fig_size = kwargs.pop('fig_size', None)
-        plot_type = kwargs.pop('plot_type', None)
-        res_err_inc = kwargs.pop('res_err_inc', 20)
-        phase_err_inc = kwargs.pop('phase_err_inc', 5)
-        res_limits = kwargs.pop('res_limits', None)
-        phase_limits = kwargs.pop('phase_limits', (-5, 95))
-        
-        #get periods
-        period = self.period
-     
-        #define some empty lists to put things into
-        pstation_list = []
-        ax_list = []
-        line_list = []
-        err_list = []
-        
-        #get the stations to plot
-        #if none plot all of them
-        if plot_type==None:
-            pstation_list = range(len(self.station_list))
-            
-        #otherwise pick out the stations to plot along with their index number
-        elif type(plot_type) is not list:
-            plot_type = [plot_type]
-            for ii,station in enumerate(self.station_list):
-                for pstation in plot_type:
-                    if station.find(pstation) >= 0:
-                        pstation_list.append(ii) 
-        
-        #set the subplot grid
-        gs = gridspec.GridSpec(2, 2, wspace=.1, left=.1, top=.93, bottom=.07,
-                               height_ratios=[2, 1.5])
-        for jj, ii in enumerate(pstation_list):
-            if fig_size is not None:
-                fig = plt.figure(ii+1, fig_size, dpi=fig_dpi)
-            else:
-                fig = plt.figure(ii+1, dpi=fig_dpi)
-            plt.clf()
-            
-            #make subplots
-            axrte = fig.add_subplot(gs[0,0])
-            axrtm = fig.add_subplot(gs[0,1])
-            axpte = fig.add_subplot(gs[1:,0], sharex=axrte)    
-            axptm = fig.add_subplot(gs[1:,1], sharex=axrtm)    
-            
-            
-            #plot resistivity TE Mode
-            #cut out missing data points first
-            rxy = np.where(rp_list[ii]['te_res'][0] != 0)[0]
-            if len(rxy) > 0:
-                rte = axrte.errorbar(period[rxy], rp_list[ii]['te_res'][0, rxy],
-                                     ls=':',
-                                     marker=mted,
-                                     ms=ms,
-                                     mfc=cted,
-                                     mec=cted,
-                                     color=cted,
-                                     yerr=rp_list[ii]['te_res'][1, rxy]*\
-                                          rp_list[ii]['te_res'][0, rxy],
-                                     ecolor=cted,
-                                     picker=2)
-            else:
-                rte = [None, [None, None, None], [None, None, None]]
-                            
-            #plot Phase TE Mode
-            #cut out missing data points first
-            pxy = np.where(rp_list[ii]['te_phase'][0] != 0)[0]
-            if len(pxy) > 0:
-                pte = axpte.errorbar(period[pxy], rp_list[ii]['te_phase'][0, pxy],
-                                     ls=':',
-                                     marker=mted,
-                                     ms=ms,
-                                     mfc=cted,
-                                     mec=cted,
-                                     color=cted,
-                                     yerr=rp_list[ii]['te_phase'][1, pxy],
-                                     ecolor=cted,
-                                     picker=2)
-            else:
-                pte = [None, [None, None, None], [None, None, None]]
-            
-                           
-            #plot resistivity TM Mode
-            #cut out missing data points first                
-            ryx = np.where(rp_list[ii]['tm_res'][0] != 0)[0]
-            if len(rxy) > 0:
-                rtm = axrtm.errorbar(period[ryx], rp_list[ii]['tm_res'][0, ryx],
-                                     ls=':',
-                                     marker=mtmd,
-                                     ms=ms,
-                                     mfc=ctmd,
-                                     mec=ctmd,
-                                     color=ctmd,
-                                     yerr=rp_list[ii]['tm_res'][1, ryx]*\
-                                          rp_list[ii]['tm_res'][0, ryx],
-                                     ecolor=ctmd,
-                                     picker=2)
-            else:
-                rtm = [None, [None, None, None], [None, None, None]]
-            #plot Phase TM Mode
-            #cut out missing data points first
-            pyx = np.where(rp_list[ii]['tm_phase'][0]!=0)[0]
-            if len(pyx) > 0:
-                ptm = axptm.errorbar(period[pyx], rp_list[ii]['tm_phase'][0, pyx],
-                                     ls=':',
-                                     marker=mtmd,
-                                     ms=ms,
-                                     mfc=ctmd,
-                                     mec=ctmd,
-                                     color=ctmd,
-                                     yerr=rp_list[ii]['tm_phase'][1, pyx],
-                                     ecolor=ctmd,
-                                     picker=2)
-            else:
-                ptm = [None, [None, None, None], [None, None, None]]
-        
-        
-            #make the axis presentable
-            #set the apparent resistivity scales to log and x-axis to log
-            axplist = [axrte, axrtm, axpte, axptm]
-            llist = [rte[0], rtm[0], pte[0], ptm[0]]
-            elist = [[rte[1][0], rte[1][1], rte[2][0]],
-                    [rtm[1][0], rtm[1][1], rtm[2][0]],
-                    [pte[1][0], pte[1][1], pte[2][0]],
-                    [ptm[1][0], ptm[1][1], ptm[2][0]]]
-                
-            ax_list.append(axplist)
-            line_list.append(llist)
-            err_list.append(elist)
-            
-            #set the axes properties for each subplot
-            for nn, xx in enumerate(axplist):
-                #set xscale to logarithmic in period
-                xx.set_xscale('log')
-                xx.set_xlim(10**np.floor(np.log10(period.min())),
-                            10**np.ceil(np.log10(period.max())))
-                
-                #if apparent resistivity 
-                if nn == 0 or nn == 1:
-                    #set x-ticklabels to invisible
-                    plt.setp(xx.xaxis.get_ticklabels(), visible=False)
-                    
-                    #set apparent resistivity scale to logarithmic
-                    try:
-                        xx.set_yscale('log')
-                    except ValueError:
-                        pass
-                    
-                    #if there are resistivity limits set those
-                    if res_limits != None:
-                        xx.set_ylim(res_limits)
-                    
-                #Set the title of the TE plot                 
-                if nn == 0:
-                    xx.set_title(self.station_list[ii]+' Obs$_{xy}$ (TE-Mode)',
-                                 fontdict={'size':9,'weight':'bold'})
-                    xx.yaxis.set_label_coords(-.075,.5)
-                    xx.set_ylabel('App. Res. ($\Omega \cdot m$)',
-                                  fontdict={'size':9,'weight':'bold'})
-                #set the title of the TM plot
-                if nn == 1:
-                    xx.set_title(self.station_list[ii]+' Obs$_{yx}$ (TM-Mode)',
-                                 fontdict={'size':9,'weight':'bold'})
-                
-                #set the phase axes properties
-                if nn == 2 or nn == 3:
-                    #set the phase limits
-                    xx.set_ylim(phase_limits)
-                    
-                    #set label coordinates
-                    xx.yaxis.set_label_coords(-.075,.5)
-                    
-                    #give the y-axis label to the bottom left plot
-                    if nn == 2:
-                        xx.set_ylabel('Phase (deg)',
-                                       fontdict={'size':9, 'weight':'bold'})
-                    #set the x-axis label
-                    xx.set_xlabel('Period (s)',
-                                  fontdict={'size':9, 'weight':'bold'})
-                    
-                    #set tick marks of the y-axis
-                    xx.yaxis.set_major_locator(MultipleLocator(10))
-                    xx.yaxis.set_minor_locator(MultipleLocator(2))
-                    
-                xx.grid(True, alpha=.4, which='both') 
+
+        pr_obj = self.plot_response(**kwargs)
         
         #make points an attribute of self which is a data type OccamPointPicker       
-        self.masked_data = OccamPointPicker(ax_list,
-                                            line_list,
-                                            err_list,
+        self.masked_data = OccamPointPicker(pr_obj.ax_list,
+                                            pr_obj.line_list,
+                                            pr_obj.err_list,
                                             phase_err_inc=phase_err_inc,
                                             res_err_inc=res_err_inc)
         plt.show()
@@ -6043,6 +5821,15 @@ class OccamPointPicker(object):
     with reasonable errorbars.  You can change the increment that the error
     bars are increased with res_err_inc and phase_err_inc.
     
+    .. note:: There is a bug when only plotting TE or TM that you cannot mask
+              points in the phase.  I'm not sure where it comes from, but
+              works with all modes.  So my suggestion is to make a data file 
+              with all modes, mask data points and then rewrite that data file
+              if you want to use just one of the modes.  That's the work 
+              around for the moment.
+    
+    
+    
     Arguments:
     ----------
         **ax_list** : list of the resistivity and phase axis that have been 
@@ -6112,6 +5899,10 @@ class OccamPointPicker(object):
         self.ax = ax_list[0][0]
         self.line = line_list[0][0]
         self.cidlist = []
+        self.ax_num = None
+        self.res_index = None
+        self.phase_index = None
+        self.fig_num = 0
         for nn in range(len(ax_list)):
             self.data.append([])
             self.error.append([])
@@ -6119,9 +5910,8 @@ class OccamPointPicker(object):
         
             #get data from lines and make a dictionary of frequency points for 
             #easy indexing
-            line_find = False
+            #line_find = False
             for ii, line in enumerate(line_list[nn]):
-                print line
                 try:
                     self.data[nn].append(line.get_data()[1])
                     self.fdict[nn].append(dict([('{0:.5g}'.format(kk), ff) 
@@ -6130,20 +5920,20 @@ class OccamPointPicker(object):
                     self.fndict['{0}'.format(line.figure.number)] = nn
                     
                     #set some events
-                    if line_find == False:
-                        cid1 = line.figure.canvas.mpl_connect('pick_event',self)
-                        cid2 = line.figure.canvas.mpl_connect('axes_enter_event',
-                                                               self.inAxes)
-                        cid3 = line.figure.canvas.mpl_connect('key_press_event',
-                                                               self.on_close)
-                        cid4 = line.figure.canvas.mpl_connect('figure_enter_event',
-                                                               self.inFigure)
-                        self.cidlist.append([cid1, cid2, cid3, cid4])
-                            
-                        #set the figure number
-                        self.fig_num = self.line.figure.number
+                    #if line_find == False:
+                    cid1 = line.figure.canvas.mpl_connect('pick_event',self)
+                    cid2 = line.figure.canvas.mpl_connect('axes_enter_event',
+                                                           self.inAxes)
+                    cid3 = line.figure.canvas.mpl_connect('key_press_event',
+                                                           self.on_close)
+                    cid4 = line.figure.canvas.mpl_connect('figure_enter_event',
+                                                           self.inFigure)
+                    self.cidlist.append([cid1, cid2, cid3, cid4])
                         
-                        line_find = True
+                    #set the figure number
+                    self.fig_num = self.line.figure.number
+                        
+                        #line_find = True
                     
                 except AttributeError:
                     self.data[nn].append([])
@@ -6168,15 +5958,10 @@ class OccamPointPicker(object):
         
         #set the marker
         self.marker = marker
-        
-        
-        
+
         #make a list of occam2d lines to write later
         self.data_list = []
-    
-        
-        
-    
+
     def __call__(self, event):
         """
         When the function is called the mouse events will be recorder for 
@@ -6210,17 +5995,20 @@ class OccamPointPicker(object):
             yd = npoint.get_ydata()[ii]
             
             #set the x index from the frequency dictionary
-            ll = self.fdict[self.fig_num][self.jj]['{0:.5g}'.format(xd[0])]
+            ll = self.fdict[self.fig_num][self.ax_num]['{0:.5g}'.format(xd[0])]
             
             #change the data to be a zero
-            self.data[self.fig_num][self.jj][ll] = 0
+            self.data[self.fig_num][self.ax_num][ll] = 0
             
             #reset the point to be a gray x
-            self.ax.plot(xd,yd,
+            self.ax.plot(xd, yd,
                          ls = 'None',
-                         color=(.7,.7,.7),
+                         color=(.7, .7, .7),
                          marker=self.marker,
                          ms=4)
+                         
+            #redraw the canvas
+            self.ax.figure.canvas.draw()
         
         #if the left button is clicked change both resistivity and phase points
         elif event.mouseevent.button ==  1:
@@ -6230,87 +6018,95 @@ class OccamPointPicker(object):
             yd = npoint.get_ydata()[ii]
             
             #set the x index from the frequency dictionary
-            ll = self.fdict[self.fig_num][self.jj]['{0:.5g}'.format(xd[0])]
+            ll = self.fdict[self.fig_num][self.ax_num]['{0:.5g}'.format(xd[0])]
             
             #set the data point to zero
-            self.data[self.fig_num][self.jj][ll] = 0
+            print self.data[self.fig_num][self.ax_num][ll] 
+            self.data[self.fig_num][self.ax_num][ll] = 0
             
             #reset the point to be a gray x
-            self.ax.plot(xd,yd,
+            self.ax.plot(xd, yd,
                          ls='None',
-                         color=(.7,.7,.7),
+                         color=(.7, .7, .7),
                          marker=self.marker,
                          ms=4)
+
+            self.ax.figure.canvas.draw()
             
             #check to make sure there is a corresponding res/phase point
             try:
+                kk = (self.ax_num+2)%4
+                print kk
                 #get the corresponding y-value 
-                yd2 = self.data[self.fig_num][self.kk][ll]
+                yd2 = self.data[self.fig_num][kk][ll]
                 
                 #set that data point to 0 as well
-                self.data[self.fig_num][self.kk][ll] = 0
+                self.data[self.fig_num][kk][ll] = 0
                 
                 #make that data point a gray x
-                self.ax_list[self.fig_num][self.kk].plot(xd,yd2,
-                                                         ls='None',
-                                                         color=(.7,.7,.7),
-                                                         marker=self.marker,
-                                                         ms=4)
+                self.ax_list[self.fig_num][kk].plot(xd, yd2,
+                                                    ls='None',
+                                                    color=(.7, .7, .7),
+                                                    marker=self.marker,
+                                                    ms=4)
+                #redraw the canvas
+                self.ax.figure.canvas.draw()
             except KeyError:
                 print 'Axis does not contain res/phase point'
-                
+
         #if click the scroll button or middle button change increase the 
         #errorbars by the given amount
         elif event.mouseevent.button == 2:
             ii = event.ind
             xd = npoint.get_xdata()[ii]
             yd = npoint.get_ydata()[ii]
+            jj = self.ax_num
             
             #get x index
-            ll = self.fdict[self.fig_num][self.jj]['{0:.5g}'.format(xd[0])]
+            ll = self.fdict[self.fig_num][jj]['{0:.5g}'.format(xd[0])]
             
             #make error bar array
-            eb = self.err_list[self.fig_num][self.jj][2].get_paths()[ll].vertices
+            eb = self.err_list[self.fig_num][jj][2].get_paths()[ll].vertices
             
             #make ecap array
-            ecapl = self.err_list[self.fig_num][self.jj][0].get_data()[1][ll]
-            ecapu = self.err_list[self.fig_num][self.jj][1].get_data()[1][ll]
+            ecapl = self.err_list[self.fig_num][jj][0].get_data()[1][ll]
+            ecapu = self.err_list[self.fig_num][jj][1].get_data()[1][ll]
             
             #change apparent resistivity error
-            if self.jj == 0 or self.jj == 1:
+            if jj == 0 or jj == 1:
                 nebu = eb[0,1]-self.res_err_inc*eb[0,1]
                 nebl = eb[1,1]+self.res_err_inc*eb[1,1]
                 ecapl = ecapl-self.res_err_inc*ecapl
                 ecapu = ecapu+self.res_err_inc*ecapu
                 
             #change phase error
-            elif self.jj == 2 or self.jj == 3:
+            elif jj == 2 or jj == 3:
                 nebu = eb[0,1]-eb[0,1]*self.phase_err_inc
                 nebl = eb[1,1]+eb[1,1]*self.phase_err_inc
                 ecapl = ecapl-ecapl*self.phase_err_inc
                 ecapu = ecapu+ecapu*self.phase_err_inc
                 
             #put the new error into the error array    
-            self.error[self.fig_num][self.jj][ll] = abs(nebu-\
-                                        self.data[self.fig_num][self.jj][ll])
+            self.error[self.fig_num][jj][ll] = abs(nebu-\
+                                        self.data[self.fig_num][jj][ll])
             
             #set the new error bar values
-            eb[0,1] = nebu
-            eb[1,1] = nebl
+            eb[0, 1] = nebu
+            eb[1, 1] = nebl
             
             #reset the error bars and caps
-            ncapl = self.err_list[self.fig_num][self.jj][0].get_data()
-            ncapu = self.err_list[self.fig_num][self.jj][1].get_data()
+            ncapl = self.err_list[self.fig_num][jj][0].get_data()
+            ncapu = self.err_list[self.fig_num][jj][1].get_data()
             ncapl[1][ll] = ecapl
             ncapu[1][ll] = ecapu
             
             #set the values 
-            self.err_list[self.fig_num][self.jj][0].set_data(ncapl)
-            self.err_list[self.fig_num][self.jj][1].set_data(ncapu)
-            self.err_list[self.fig_num][self.jj][2].get_paths()[ll].vertices = eb
+            self.err_list[self.fig_num][jj][0].set_data(ncapl)
+            self.err_list[self.fig_num][jj][1].set_data(ncapu)
+            self.err_list[self.fig_num][jj][2].get_paths()[ll].vertices = eb
             
-        #redraw the canvas
-        self.ax.figure.canvas.draw()
+            #redraw the canvas
+            self.ax.figure.canvas.draw()
 
     #get the axis number that the mouse is in and change to that axis
     def inAxes(self, event):
@@ -6332,20 +6128,11 @@ class OccamPointPicker(object):
         
         self.event2 = event
         self.ax = event.inaxes
-        for jj,axj in enumerate(self.ax_list):
-            for ll,axl in enumerate(axj):
+        for jj, axj in enumerate(self.ax_list):
+            for ll, axl in enumerate(axj):
                 if self.ax == axl:
-                    self.jj=ll
-                
-        #set complimentary resistivity and phase plots together
-        if self.jj ==  0:
-            self.kk=2
-        if self.jj ==  1:
-            self.kk=3
-        if self.jj ==  2:
-            self.kk=0
-        if self.jj ==  3:
-            self.kk=1
+                    self.ax_num = ll
+        self.line = self.line_list[self.fig_num][self.ax_num]
         
     #get the figure number that the mouse is in
     def inFigure(self, event):
@@ -6365,7 +6152,6 @@ class OccamPointPicker(object):
         """
         self.event3 = event
         self.fig_num = self.fndict['{0}'.format(event.canvas.figure.number)]
-        self.line = self.line_list[self.fig_num][0]
     
     #type the q key to quit the figure and disconnect event handling            
     def on_close(self, event):
