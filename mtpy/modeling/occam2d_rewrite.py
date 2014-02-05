@@ -1582,7 +1582,8 @@ class Data(Profile):
 
         self.occam_format = 'OCCAM2MTDATA_1.0'
         self.title = 'MTpy-OccamDatafile'
-        self.edi_type = 'z' 
+        self.edi_type = 'z'
+        self.masked_data = None
         
         self.occam_dict = {'1':'log_te_res',
                            '2':'te_phase',
@@ -2181,7 +2182,7 @@ class Data(Profile):
         
         return pr_obj
     
-    def plot_mask_points(self, **kwargs):
+    def plot_mask_points(self, data_fn=None, **kwargs):
         """
         An interactive plotting tool to mask points an add errorbars
         
@@ -2244,15 +2245,213 @@ class Data(Profile):
             
         """
         
-        pr_obj = self.plot_response(**kwargs)
+        if data_fn is not None:
+            self.data_fn = data_fn
+            
+        self.read_data_file()
+        rp_list = list(self.data)
         
-        mp_obj = OccamPointPicker(pr_obj.ax_list,
-                                  pr_obj.line_list,
-                                  pr_obj.err_list,
-                                  **kwargs)
+        #color  and marker for data
+        cted = kwargs.pop('cted', (0,0,1))
+        ctmd = kwargs.pop('ctmd', (1,0,0))
+        mted = kwargs.pop('mted', 's')
+        mtmd = kwargs.pop('mtmd', 'o')
+        ms = kwargs.pop('ms', 2)
+        lw = kwargs.pop('lw', .75)
+        fig_dpi = kwargs.pop('fig_dpi', 300)
+        fig_size = kwargs.pop('fig_size', None)
+        plot_type = kwargs.pop('plot_type', None)
+        res_err_inc = kwargs.pop('res_err_inc', 20)
+        phase_err_inc = kwargs.pop('phase_err_inc', 5)
+        res_limits = kwargs.pop('res_limits', None)
+        phase_limits = kwargs.pop('phase_limits', (-5, 95))
+        
+        #get periods
+        period = self.period
+     
+        #define some empty lists to put things into
+        pstation_list = []
+        ax_list = []
+        line_list = []
+        err_list = []
+        
+        #get the stations to plot
+        #if none plot all of them
+        if plot_type==None:
+            pstation_list = range(len(self.station_list))
+            
+        #otherwise pick out the stations to plot along with their index number
+        elif type(plot_type) is not list:
+            plot_type = [plot_type]
+            for ii,station in enumerate(self.station_list):
+                for pstation in plot_type:
+                    if station.find(pstation) >= 0:
+                        pstation_list.append(ii) 
+        
+        #set the subplot grid
+        gs = gridspec.GridSpec(2, 2, wspace=.1, left=.1, top=.93, bottom=.07,
+                               height_ratios=[2, 1.5])
+        for jj, ii in enumerate(pstation_list):
+            if fig_size is not None:
+                fig = plt.figure(ii+1, fig_size, dpi=fig_dpi)
+            else:
+                fig = plt.figure(ii+1, dpi=fig_dpi)
+            plt.clf()
+            
+            #make subplots
+            axrte = fig.add_subplot(gs[0,0])
+            axrtm = fig.add_subplot(gs[0,1])
+            axpte = fig.add_subplot(gs[1:,0], sharex=axrte)    
+            axptm = fig.add_subplot(gs[1:,1], sharex=axrtm)    
+            
+            
+            #plot resistivity TE Mode
+            #cut out missing data points first
+            rxy = np.where(rp_list[ii]['te_res'][0] != 0)[0]
+            if len(rxy) > 0:
+                rte = axrte.errorbar(period[rxy], rp_list[ii]['te_res'][0, rxy],
+                                     ls=':',
+                                     marker=mted,
+                                     ms=ms,
+                                     mfc=cted,
+                                     mec=cted,
+                                     color=cted,
+                                     yerr=rp_list[ii]['te_res'][1, rxy]*\
+                                          rp_list[ii]['te_res'][0, rxy],
+                                     ecolor=cted,
+                                     picker=2)
+            else:
+                rte = [None, [None, None, None], [None, None, None]]
+                            
+            #plot Phase TE Mode
+            #cut out missing data points first
+            pxy = np.where(rp_list[ii]['te_phase'][0] != 0)[0]
+            if len(pxy) > 0:
+                pte = axpte.errorbar(period[pxy], rp_list[ii]['te_phase'][0, pxy],
+                                     ls=':',
+                                     marker=mted,
+                                     ms=ms,
+                                     mfc=cted,
+                                     mec=cted,
+                                     color=cted,
+                                     yerr=rp_list[ii]['te_phase'][1, pxy],
+                                     ecolor=cted,
+                                     picker=2)
+            else:
+                pte = [None, [None, None, None], [None, None, None]]
+            
+                           
+            #plot resistivity TM Mode
+            #cut out missing data points first                
+            ryx = np.where(rp_list[ii]['tm_res'][0] != 0)[0]
+            if len(rxy) > 0:
+                rtm = axrtm.errorbar(period[ryx], rp_list[ii]['tm_res'][0, ryx],
+                                     ls=':',
+                                     marker=mtmd,
+                                     ms=ms,
+                                     mfc=ctmd,
+                                     mec=ctmd,
+                                     color=ctmd,
+                                     yerr=rp_list[ii]['tm_res'][1, ryx]*\
+                                          rp_list[ii]['tm_res'][0, ryx],
+                                     ecolor=ctmd,
+                                     picker=2)
+            else:
+                rtm = [None, [None, None, None], [None, None, None]]
+            #plot Phase TM Mode
+            #cut out missing data points first
+            pyx = np.where(rp_list[ii]['tm_phase'][0]!=0)[0]
+            if len(pyx) > 0:
+                ptm = axptm.errorbar(period[pyx], rp_list[ii]['tm_phase'][0, pyx],
+                                     ls=':',
+                                     marker=mtmd,
+                                     ms=ms,
+                                     mfc=ctmd,
+                                     mec=ctmd,
+                                     color=ctmd,
+                                     yerr=rp_list[ii]['tm_phase'][1, pyx],
+                                     ecolor=ctmd,
+                                     picker=2)
+            else:
+                ptm = [None, [None, None, None], [None, None, None]]
+        
+        
+            #make the axis presentable
+            #set the apparent resistivity scales to log and x-axis to log
+            axplist = [axrte, axrtm, axpte, axptm]
+            llist = [rte[0], rtm[0], pte[0], ptm[0]]
+            elist = [[rte[1][0], rte[1][1], rte[2][0]],
+                    [rtm[1][0], rtm[1][1], rtm[2][0]],
+                    [pte[1][0], pte[1][1], pte[2][0]],
+                    [ptm[1][0], ptm[1][1], ptm[2][0]]]
+                
+            ax_list.append(axplist)
+            line_list.append(llist)
+            err_list.append(elist)
+            
+            #set the axes properties for each subplot
+            for nn, xx in enumerate(axplist):
+                #set xscale to logarithmic in period
+                xx.set_xscale('log')
+                xx.set_xlim(10**np.floor(np.log10(period.min())),
+                            10**np.ceil(np.log10(period.max())))
+                
+                #if apparent resistivity 
+                if nn == 0 or nn == 1:
+                    #set x-ticklabels to invisible
+                    plt.setp(xx.xaxis.get_ticklabels(), visible=False)
+                    
+                    #set apparent resistivity scale to logarithmic
+                    try:
+                        xx.set_yscale('log')
+                    except ValueError:
+                        pass
+                    
+                    #if there are resistivity limits set those
+                    if res_limits != None:
+                        xx.set_ylim(res_limits)
+                    
+                #Set the title of the TE plot                 
+                if nn == 0:
+                    xx.set_title(self.station_list[ii]+' Obs$_{xy}$ (TE-Mode)',
+                                 fontdict={'size':9,'weight':'bold'})
+                    xx.yaxis.set_label_coords(-.075,.5)
+                    xx.set_ylabel('App. Res. ($\Omega \cdot m$)',
+                                  fontdict={'size':9,'weight':'bold'})
+                #set the title of the TM plot
+                if nn == 1:
+                    xx.set_title(self.station_list[ii]+' Obs$_{yx}$ (TM-Mode)',
+                                 fontdict={'size':9,'weight':'bold'})
+                
+                #set the phase axes properties
+                if nn == 2 or nn == 3:
+                    #set the phase limits
+                    xx.set_ylim(phase_limits)
+                    
+                    #set label coordinates
+                    xx.yaxis.set_label_coords(-.075,.5)
+                    
+                    #give the y-axis label to the bottom left plot
+                    if nn == 2:
+                        xx.set_ylabel('Phase (deg)',
+                                       fontdict={'size':9, 'weight':'bold'})
+                    #set the x-axis label
+                    xx.set_xlabel('Period (s)',
+                                  fontdict={'size':9, 'weight':'bold'})
+                    
+                    #set tick marks of the y-axis
+                    xx.yaxis.set_major_locator(MultipleLocator(10))
+                    xx.yaxis.set_minor_locator(MultipleLocator(2))
+                    
+                xx.grid(True, alpha=.4, which='both') 
+        
+        #make points an attribute of self which is a data type OccamPointPicker       
+        self.masked_data = OccamPointPicker(ax_list,
+                                            line_list,
+                                            err_list,
+                                            phase_err_inc=phase_err_inc,
+                                            res_err_inc=res_err_inc)
         plt.show()
-                                  
-        return mp_obj
                                   
     def mask_points(self, maskpoints_obj):
         """
@@ -2896,22 +3095,6 @@ class PlotResponse():
                 llistte.append('$Obs_{TE}$')
             else:
                 rte = [None, [None, None, None], [None, None, None]]
-#                rte = axrte.errorbar(period[0],
-#                                     rp_list[jj]['te_res'][0, 0],
-#                                     ls=':',
-#                                     marker=self.mted,
-#                                     ms=.001,
-#                                     mfc=self.cted,
-#                                     mec=self.cted,
-#                                     color=self.cted,
-#                                     yerr=rp_list[jj]['te_res'][1, 0]*\
-#                                          rp_list[jj]['te_res'][0, 0],
-#                                    ecolor=self.cted,
-#                                    picker=2,
-#                                    lw=.01,
-#                                    elinewidth=.01,
-#                                    capsize=.01,
-#                                    capthick=.01)
             
              #--> TM mode data
             if len(ryx) > 0:
@@ -2935,23 +3118,6 @@ class PlotResponse():
                 llisttm.append('$Obs_{TM}$')
             else:
                 rtm = [None, [None, None, None], [None, None, None]]
-#                rtm = axrtm.errorbar(period[0],
-#                                     rp_list[jj]['tm_res'][0, 0],
-#                                     ls=':',
-#                                     marker=self.mtmd,
-#                                     ms=.001,
-#                                     mfc=self.ctmd,
-#                                     mec=self.ctmd,
-#                                     color=self.ctmd,
-#                                     yerr=rp_list[jj]['tm_res'][1, 0]*\
-#                                          rp_list[jj]['tm_res'][0, 0],
-#                                     ecolor=self.ctmd,
-#                                     picker=2,
-#                                     lw=.01,
-#                                    elinewidth=.01,
-#                                    capsize=.01,
-#                                    capthick=.01)
-            
             #--------------------plot phase--------------------------------
             #cut out missing data points first
             #--> data
@@ -2977,21 +3143,6 @@ class PlotResponse():
                                      capthick=self.e_capthick)
             else:
                 pte = [None, [None, None, None], [None, None, None]]
-#                pte = axpte.errorbar(period[0],
-#                                     rp_list[jj]['te_phase'][0, 0],
-#                                     ls=':',
-#                                     marker=self.mted,
-#                                     ms=.001,
-#                                     mfc=self.cted,
-#                                     mec=self.cted,
-#                                     color=self.cted,
-#                                     yerr=rp_list[jj]['te_phase'][1, 0],
-#                                     ecolor=self.cted,
-#                                     picker=1,
-#                                     lw=.01,
-#                                     elinewidth=.01,
-#                                     capsize=.01,
-#                                     capthick=.01)
             
             #--> TM mode data
             if len(pyx)>0:
@@ -3012,21 +3163,6 @@ class PlotResponse():
                                      capthick=self.e_capthick)
             else:
                 ptm = [None, [None, None, None], [None, None, None]]
-#                ptm = axptm.errorbar(period[pyx],
-#                                     rp_list[jj]['tm_phase'][0, pyx],
-#                                     ls=':',
-#                                     marker=self.mtmd,
-#                                     ms=.001,
-#                                     mfc=self.ctmd,
-#                                     mec=self.ctmd,
-#                                     color=self.ctmd,
-#                                     yerr=rp_list[jj]['tm_phase'][1, pyx],
-#                                     ecolor=self.ctmd,
-#                                     picker=1,
-#                                     lw=.01,
-#                                     elinewidth=.01,
-#                                     capsize=.01,
-#                                     capthick=.01)
             
             #append axis properties to lists that can be used by
             #OccamPointPicker            
@@ -5983,8 +6119,10 @@ class OccamPointPicker(object):
         
             #get data from lines and make a dictionary of frequency points for 
             #easy indexing
+            line_find = False
             for ii, line in enumerate(line_list[nn]):
-                if line is not None:
+                print line
+                try:
                     self.data[nn].append(line.get_data()[1])
                     self.fdict[nn].append(dict([('{0:.5g}'.format(kk), ff) 
                                                 for ff,kk in 
@@ -5992,7 +6130,7 @@ class OccamPointPicker(object):
                     self.fndict['{0}'.format(line.figure.number)] = nn
                     
                     #set some events
-                    if ii == 0:
+                    if line_find == False:
                         cid1 = line.figure.canvas.mpl_connect('pick_event',self)
                         cid2 = line.figure.canvas.mpl_connect('axes_enter_event',
                                                                self.inAxes)
@@ -6001,20 +6139,28 @@ class OccamPointPicker(object):
                         cid4 = line.figure.canvas.mpl_connect('figure_enter_event',
                                                                self.inFigure)
                         self.cidlist.append([cid1, cid2, cid3, cid4])
-                else:
+                            
+                        #set the figure number
+                        self.fig_num = self.line.figure.number
+                        
+                        line_find = True
+                    
+                except AttributeError:
                     self.data[nn].append([])
                     self.fdict[nn].append([])
         
             #read in the error in a useful way so that it can be translated to 
             #the data file.  Make the error into an array
             for ee, err in enumerate(err_list[nn]):
-                if err[2] is not None:
+                try:
                     errpath = err[2].get_paths()
                     errarr = np.zeros(len(self.fdict[nn][ee].keys()))
-                    for ff,epath in enumerate(errpath):
+                    for ff, epath in enumerate(errpath):
                         errv = epath.vertices
                         errarr[ff] = abs(errv[0,1]-self.data[nn][ee][ff])
                     self.error[nn].append(errarr)
+                except AttributeError:
+                    self.error[nn].append([])
         
         #set the error bar increment values
         self.res_err_inc = res_err_inc
@@ -6023,8 +6169,7 @@ class OccamPointPicker(object):
         #set the marker
         self.marker = marker
         
-        #set the figure number
-        self.fig_num = self.line.figure.number
+        
         
         #make a list of occam2d lines to write later
         self.data_list = []
