@@ -58,6 +58,7 @@ import mtpy.utils.configfile as MTcf
 import mtpy.analysis.geometry as MTgy
 import mtpy.utils.exceptions as MTex
 import scipy.interpolate as si
+from mtpy.imaging.mtplottools import plot_errorbar
 
 
 reload(MTcv)
@@ -2732,6 +2733,7 @@ class PlotResponse():
         self.plot_type = kwargs.pop('plot_type', '1')
         self.plot_num = kwargs.pop('plot_num', 2)
         self.plot_tipper = kwargs.pop('plot_tipper', 'n')
+        self.plot_model_error = kwargs.pop('plot_model_err', 'y')
         self.plot_yn = kwargs.pop('plot_yn', 'y')
 
         if self.plot_num == 1:        
@@ -2853,22 +2855,20 @@ class PlotResponse():
             
             #--> TE mode Data 
             if len(rxy) > 0:
-                rte = axrte.errorbar(period[rxy],
-                                     rp_list[jj]['te_res'][0, rxy],
-                                     ls=':',
-                                     marker=self.mted,
-                                     ms=self.ms,
-                                     mfc=self.cted,
-                                     mec=self.cted,
-                                     color=self.cted,
-                                     yerr=rp_list[jj]['te_res'][1, rxy]*\
-                                          rp_list[jj]['te_res'][0, rxy],
-                                    ecolor=self.cted,
-                                    picker=2,
+                rte_err = rp_list[jj]['te_res'][1, rxy]*\
+                          rp_list[jj]['te_res'][0, rxy]
+                rte = plot_errorbar(axrte, 
+                                    period[rxy],
+                                    rp_list[jj]['te_res'][0, rxy],
+                                    ls=':',
+                                    marker=self.mted,
+                                    ms=self.ms,
+                                    color=self.cted,
+                                    y_error=rte_err,
                                     lw=self.lw,
-                                    elinewidth=self.lw,
-                                    capsize=self.e_capsize,
-                                    capthick=self.e_capthick)
+                                    e_capsize=self.e_capsize,
+                                    e_capthick=self.e_capthick)
+                                    
                 rlistte.append(rte[0])
                 llistte.append('$Obs_{TE}$')
             else:
@@ -2876,22 +2876,20 @@ class PlotResponse():
             
              #--> TM mode data
             if len(ryx) > 0:
-                rtm = axrtm.errorbar(period[ryx],
-                                     rp_list[jj]['tm_res'][0, ryx],
-                                     ls=':',
-                                     marker=self.mtmd,
-                                     ms=self.ms,
-                                     mfc=self.ctmd,
-                                     mec=self.ctmd,
-                                     color=self.ctmd,
-                                     yerr=rp_list[jj]['tm_res'][1, ryx]*\
-                                          rp_list[jj]['tm_res'][0, ryx],
-                                     ecolor=self.ctmd,
-                                     picker=2,
-                                     lw=self.lw,
-                                     elinewidth=self.lw,
-                                     capsize=self.e_capsize,
-                                     capthick=self.e_capthick)
+                rtm_err = rp_list[jj]['tm_res'][1, ryx]*\
+                          rp_list[jj]['tm_res'][0, ryx] 
+                rtm = plot_errorbar(axrtm, 
+                                    period[ryx],
+                                    rp_list[jj]['tm_res'][0, ryx],
+                                    ls=':',
+                                    marker=self.mtmd,
+                                    ms=self.ms,
+                                    color=self.ctmd,
+                                    y_error=rtm_err,
+                                    lw=self.lw,
+                                    e_capsize=self.e_capsize,
+                                    e_capthick=self.e_capthick)
+                                    
                 rlisttm.append(rtm[0])
                 llisttm.append('$Obs_{TM}$')
             else:
@@ -2904,41 +2902,35 @@ class PlotResponse():
             
             #--> TE mode data
             if len(pxy) > 0:
-                pte = axpte.errorbar(period[pxy],
+                pte = plot_errorbar(axpte, 
+                                    period[pxy],
                                      rp_list[jj]['te_phase'][0, pxy],
                                      ls=':',
                                      marker=self.mted,
                                      ms=self.ms,
-                                     mfc=self.cted,
-                                     mec=self.cted,
                                      color=self.cted,
-                                     yerr=rp_list[jj]['te_phase'][1, pxy],
-                                     ecolor=self.cted,
-                                     picker=1,
+                                     y_error=rp_list[jj]['te_phase'][1, pxy],
                                      lw=self.lw,
-                                     elinewidth=self.lw,
-                                     capsize=self.e_capsize,
-                                     capthick=self.e_capthick)
+                                     e_capsize=self.e_capsize,
+                                     e_capthick=self.e_capthick)
+
             else:
                 pte = [None, [None, None, None], [None, None, None]]
             
             #--> TM mode data
             if len(pyx)>0:
-                ptm = axptm.errorbar(period[pyx],
+                ptm = plot_errorbar(axptm, 
+                                    period[pyx],
                                      rp_list[jj]['tm_phase'][0, pyx],
                                      ls=':',
                                      marker=self.mtmd,
                                      ms=self.ms,
-                                     mfc=self.ctmd,
-                                     mec=self.ctmd,
                                      color=self.ctmd,
-                                     yerr=rp_list[jj]['tm_phase'][1, pyx],
-                                     ecolor=self.ctmd,
-                                     picker=1,
+                                     y_error=rp_list[jj]['tm_phase'][1, pyx],
                                      lw=self.lw,
-                                     elinewidth=self.lw,
-                                     capsize=self.e_capsize,
-                                     capthick=self.e_capthick)
+                                     e_capsize=self.e_capsize,
+                                     e_capthick=self.e_capthick)
+                                     
             else:
                 ptm = [None, [None, None, None], [None, None, None]]
             
@@ -3079,22 +3071,23 @@ class PlotResponse():
     
                     #--> TE mode Model Response
                     if len(mrxy) > 0:
-                        yerrxy = rp[jj]['te_res'][1, mrxy]*\
-                                 rp[jj]['te_res'][0, mrxy]
-                        r3 = axrte.errorbar(period[mrxy],
+                        if self.plot_model_error == 'y':
+                            mte_err = rp[jj]['te_res'][1, mrxy]*\
+                                      rp[jj]['te_res'][0, mrxy]
+                        else:
+                            mte_err = None
+                        r3 = plot_errorbar(axrte,
+                                            period[mrxy],
                                             rp[jj]['te_res'][0, mrxy],
                                             ls='--',
                                             marker=self.mtem,
                                             ms=self.ms,
-                                            mfc=cxy,
-                                            mec=cxy,
                                             color=cxy,
-                                            yerr=yerrxy,
-                                            ecolor=cxy,
+                                            y_error=mte_err,
                                             lw=self.lw,
-                                            elinewidth=self.lw,
-                                            capsize=self.e_capsize,
-                                            capthick=self.e_capthick)
+                                            e_capsize=self.e_capsize,
+                                            e_capthick=self.e_capthick)
+
                         rlistte.append(r3[0])
                         llistte.append('$Mod_{TE}$ '+'{0:.2f}'.format(rmste))
                     else:
@@ -3102,22 +3095,22 @@ class PlotResponse():
     
                     #--> TM mode model response
                     if len(mryx)>0:
-                        yerryx = rp[jj]['tm_res'][1, mryx]*\
-                                 rp[jj]['tm_res'][0, mryx]
-                        r4 = axrtm.errorbar(period[mryx],
+                        if self.plot_model_error == 'y':
+                            mtm_err= rp[jj]['tm_res'][1, mryx]*\
+                                     rp[jj]['tm_res'][0, mryx]
+                        else:
+                            mtm_err = None
+                        r4 = plot_errorbar(axrtm, 
+                                            period[mryx],
                                             rp[jj]['tm_res'][0, mryx],
                                             ls='--',
                                             marker=self.mtmm,
                                             ms=self.ms,
-                                            mfc=cyx,
-                                            mec=cyx,
                                             color=cyx,
-                                            yerr=yerryx,
-                                            ecolor=cyx,
+                                            y_error=mtm_err,
                                             lw=self.lw,
-                                            elinewidth=self.lw,
-                                            capsize=self.e_capsize,
-                                            capthick=self.e_capthick)
+                                            e_capsize=self.e_capsize,
+                                            e_capthick=self.e_capthick)
                         rlisttm.append(r4[0])
                         llisttm.append('$Mod_{TM}$ '+'{0:.2f}'.format(rmstm))
                     else:
@@ -3131,38 +3124,41 @@ class PlotResponse():
                     
                     #--> TE mode response
                     if len(mpxy) > 0:
-                        axpte.errorbar(period[mpxy],
-                                       rp[jj]['te_phase'][0, mpxy],
-                                       ls='--',
-                                        ms=self.ms,
-                                       mfc=cxy,
-                                       mec=cxy,
-                                       color=cxy,
-                                       yerr=rp[jj]['te_phase'][1, mpxy],
-                                       ecolor=cxy,
-                                       lw=self.lw,
-                                       elinewidth=self.lw,
-                                       capsize=self.e_capsize,
-                                       capthick=self.e_capthick)
+                        if self.plot_model_error == 'y':
+                            mte_err = rp[jj]['te_phase'][1, mpxy]
+                        else:
+                            mte_err = None
+                        p3 = plot_errorbar(axpte, 
+                                           period[mpxy],
+                                           rp[jj]['te_phase'][0, mpxy],
+                                           ls='--',
+                                           ms=self.ms,
+                                           color=cxy,
+                                           y_error=mte_err,
+                                           lw=self.lw,
+                                           e_capsize=self.e_capsize,
+                                           e_capthick=self.e_capthick)
+
                     else:
                         pass
     
                     #--> TM mode response
                     if len(mpyx) > 0:
-                        axptm.errorbar(period[mpyx],
-                                       rp[jj]['tm_phase'][0, mpyx],
-                                       ls='--',
-                                       marker=self.mtmm,
-                                       ms=self.ms,
-                                       mfc=cyx,
-                                       mec=cyx,
-                                       color=cyx,
-                                       yerr=rp[jj]['tm_phase'][1, mpyx],
-                                       ecolor=cyx,
-                                       lw=self.lw,
-                                       elinewidth=self.lw,
-                                       capsize=self.e_capsize,
-                                       capthick=self.e_capthick)
+                        if self.plot_model_error == 'y':
+                            mtm_err = rp[jj]['tm_phase'][1, mpyx]
+                        else:
+                            mtm_err = None
+                        p4 = plot_errorbar(axptm,
+                                           period[mpyx],
+                                           rp[jj]['tm_phase'][0, mpyx],
+                                           ls='--',
+                                           marker=self.mtmm,
+                                           ms=self.ms,
+                                           color=cyx,
+                                           y_error=mtm_err,
+                                           lw=self.lw,
+                                           e_capsize=self.e_capsize,
+                                           e_capthick=self.e_capthick)
                     else:
                         pass
                     
