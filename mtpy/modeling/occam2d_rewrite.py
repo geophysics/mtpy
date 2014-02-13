@@ -71,8 +71,112 @@ reload(MTex)
 class Mesh():
     """
     deals only with the finite element mesh.  Builds a finite element mesh 
-    based on given parameters
+    based on given parameters defined below.  The mesh reads in the station 
+    locations, finds the center and makes the relative location of the 
+    furthest left hand station 0.  The mesh increases in depth logarithmically
+    as required by the physics of MT.  Also, the model extends horizontally
+    and vertically with padding cells in order to fullfill the assumption of 
+    the forward operator that at the edges the structure is 1D.  Stations are
+    place on the horizontal nodes as required by Wannamaker's forward 
+    operator.
     
+    Mesh has the ability to create a mesh that incorporates topography given
+    a elevation profile.  It adds more cells to the mesh with thickness 
+    z1_layer.  It then sets the values of the triangular elements according to 
+    the elevation value at that location.  If the elevation covers less than 
+    50% of the triangular cell, then the cell value is set to that of air
+              
+    .. note:: Mesh is inhereted by Regularization, so the mesh can also be 
+              be built from there, same as the example below.
+              
+    Arguments:
+    -----------
+    
+    ======================= ===================================================
+    Key Words/Attributes    Description    
+    ======================= ===================================================
+    air_key                 letter associated with the value of air 
+                            *default* is 0
+    air_value               value given to an air cell, *default* is 1E13
+    cell_width              width of cells with in station area in meters
+                            *default* is 100
+    elevation_profile       elevation profile along the profile line.
+                            given as np.ndarray(nx, 2), where the elements
+                            are x_location, elevation.  If elevation profile
+                            is given add_elevation is called automatically.
+                            *default* is None
+    mesh_fn                 full path to mesh file.
+    mesh_values             letter values of each triangular mesh element
+                            if the cell is free value is ?
+    n_layers                number of vertical layers in mesh
+                            *default* is 90 
+    num_x_pad_cells         number of horizontal padding cells outside the
+                            the station area that will increase in size
+                            by x_pad_multiplier. *default* is 7
+    num_x_pad_small_cells   number of horizonal padding cells just outside 
+                            the station area with width cell_width.  This is 
+                            to extend the station area if needed.  
+                            *default* is 2 
+    num_z_pad_cells         number of vertical padding cells below 
+                            z_target_depth down to z_bottom. *default* is 5
+    rel_station_locations   relative station locations within the mesh.  The
+                            locations are relative to the center of the station
+                            area.  *default* is None, filled later
+    save_path               full path to save mesh file to. 
+                            *default* is current working directory.
+    station_locations       location of stations in meters, can be on a 
+                            relative grid or in UTM.
+    x_grid                  location of horizontal grid nodes in meters
+    x_nodes                 relative spacing between grid nodes
+    x_pad_multiplier        horizontal padding cells will increase by this
+                            multiple out to the edge of the grid.
+                            *default* is 1.5
+    z1_layer                thickness of the first layer in the model.
+                            Should be at least 1/4 of the first skin depth
+                            *default* is 10
+    z_bottom                bottom depth of the model (m).  Needs to be large 
+                            enough to be 1D at the edge. 
+                            *default* is 200000.0 
+    z_grid                  location of vertical nodes in meters
+    z_nodes                 relative distance between vertical nodes in meters
+    z_target_depth          depth to deepest target of interest.  Below this
+                            depth cells will be padded to z_bottom
+    ======================= ===================================================
+
+    ======================= ===================================================
+    Methods                 Description
+    ======================= ===================================================
+    add_elevation           adds elevation to the mesh given elevation
+                            profile.  
+    build_mesh              builds the mesh given the attributes of Mesh.  If
+                            elevation_profile is not None, add_elevation is
+                            called inside build_mesh
+    plot_mesh               plots the built mesh with station location.  
+    read_mesh_file          reads in an existing mesh file and populates the 
+                            appropriate attributes.
+    write_mesh_file         writes a mesh file to save_path
+    ======================= ===================================================
+    
+    
+    :Example: ::
+        
+        >>> import mtpy.modeling.occam2d as occcam2d
+        >>> edipath = r"/home/mt/edi_files"
+        >>> slist = ['mt{0:03}'.format(ss) for ss in range(20)]
+        >>> ocd = occam2d.Data(edi_path=edipath, station_list=slist)
+        >>> ocd.save_path = r"/home/occam/Line1/Inv1"
+        >>> ocd.write_data_file()
+        >>> ocm = occam2d.Mesh(ocd.station_locations)
+        >>> # add in elevation
+        >>> ocm.elevation_profile = ocd.elevation_profile
+        >>> # change number of layers        
+        >>> ocm.n_layers = 110
+        >>> # change cell width in station area
+        >>> ocm.cell_width = 200
+        >>> ocm.build_mesh()
+        >>> ocm.plot_mesh()
+        >>> ocm.save_path = ocd.save_path
+        >>> ocm.write_mesh_file()
     
     """
 
@@ -103,8 +207,42 @@ class Mesh():
         
     def build_mesh(self):
         """
-        build the finite element mesh given the parameters
+        Build the finite element mesh given the parameters defined by the 
+        attributes of Mesh.  Computes relative station locations by finding 
+        the center of the station area and setting the middle to 0.  Mesh 
+        blocks are built by calculating the distance between stations and 
+        putting evenly spaced blocks between the stations being close to 
+        cell_width.  This places a horizontal node at the station location.
+        If the spacing between stations is smaller than 
+        cell_width, a horizontal node is placed between the stations to be 
+        sure the model has room to change between the station.
         
+        If elevation_profile is given, add_elevation is called to add 
+        topography into the mesh.
+        
+        Populates attributes:
+            * mesh_values
+            * rel_station_locations
+            * x_grid
+            * x_nodes
+            * z_grid
+            * z_nodes
+        
+        :Example: ::
+            >>> import mtpy.modeling.occam2d as occcam2d
+            >>> edipath = r"/home/mt/edi_files"
+            >>> slist = ['mt{0:03}'.format(ss) for ss in range(20)]
+            >>> ocd = occam2d.Data(edi_path=edipath, station_list=slist)
+            >>> ocd.save_path = r"/home/occam/Line1/Inv1"
+            >>> ocd.write_data_file()
+            >>> ocm = occam2d.Mesh(ocd.station_locations)
+            >>> # add in elevation
+            >>> ocm.elevation_profile = ocd.elevation_profile
+            >>> # change number of layers        
+            >>> ocm.n_layers = 110
+            >>> # change cell width in station area
+            >>> ocm.cell_width = 200
+            >>> ocm.build_mesh()
         """
         
         if self.station_locations is None:
@@ -360,10 +498,32 @@ class Mesh():
    
     def plot_mesh(self, **kwargs):
         """
-        plot mesh with station locations
+        Plot built mesh with station locations.
+        
+        =================== ===================================================
+        Key Words           Description        
+        =================== ===================================================
+        depth_scale         [ 'km' | 'm' ] scale of mesh plot. 
+                            *default* is 'km'
+        fig_dpi             dots-per-inch resolution of the figure
+                            *default* is 300
+        fig_num             number of the figure instance
+                            *default* is 'Mesh'
+        fig_size            size of figure in inches (width, height)
+                            *default* is [5, 5]
+        fs                  size of font of axis tick labels, axis labels are
+                            fs+2. *default* is 6 
+        ls                  [ '-' | '.' | ':' ] line style of mesh lines
+                            *default* is '-'
+        marker              marker of stations 
+                            *default* is r"$\blacktriangledown$"
+        ms                  size of marker in points. *default* is 5
+        plot_triangles      [ 'y' | 'n' ] to plot mesh triangles.
+                            *default* is 'n'
+        =================== ===================================================
         
         """
-        fig_num = kwargs.pop('fig_num', 'Projected Profile')
+        fig_num = kwargs.pop('fig_num', 'Mesh')
         fig_size = kwargs.pop('fig_size', [5, 5])
         fig_dpi = kwargs.pop('fig_dpi', 300)
         marker = kwargs.pop('marker', r"$\blacktriangledown$")
@@ -500,12 +660,17 @@ class Mesh():
          
     def write_mesh_file(self, save_path=None, basename='Occam2DMesh'):
         """
-        write a finite element mesh file.
+        Write a finite element mesh file.
+        
+        Calls build_mesh if it already has not been called.        
         
         Arguments:
         -----------
             **save_path** : string
                             directory path or full path to save file
+            
+            **basename** : string
+                           basename of mesh file. *default* is 'Occam2DMesh' 
         Returns:
         ----------
             **mesh_fn** : string
@@ -586,13 +751,17 @@ class Mesh():
             **mesh_fn** : string 
                           full path to mesh file
     
-        Returns:
-        --------
-            **x_nodes**: array of horizontal nodes 
-                                    (column locations (m))
+        Populates:
+        -----------
+            **x_grid** : array of horizontal locations of nodes (m)
+            
+            **x_nodes**: array of horizontal node relative distances 
+                        (column locations (m))
+                        
+            **z_grid** : array of vertical node locations (m)
                                     
             **z_nodes** : array of vertical nodes 
-                                      (row locations(m))
+                          (row locations(m))
                                       
             **mesh_values** : np.array of free parameters
             
@@ -744,8 +913,8 @@ class Profile():
     ======================= ===================================================
  
     .. note:: change _rotate_to_strike to False if you want to project the 
-              stations onto a given profile direction.  This does not rotate
-              Z or Tipper
+              stations onto a given profile direction.  This will rotate
+              Z and Tipper to be orthogonal to this direction
    
     ======================= ===================================================
     Methods                 Description
@@ -1025,7 +1194,43 @@ class Profile():
 
     def plot_profile(self, **kwargs):
         """
-        plot the projected profile line
+        Plot the projected profile line along with original station locations
+        to make sure the line projected is correct.
+        
+        ===================== =================================================
+        Key Words             Description          
+        ===================== =================================================
+        fig_dpi               dots-per-inch resolution of figure
+                              *default* is 300
+        fig_num               number if figure instance
+                              *default* is 'Projected Profile'
+        fig_size              size of figure in inches (width, height)
+                              *default* is [5, 5]
+        fs                    [ float ] font size in points of axes tick labels
+                              axes labels are fs+2
+                              *default* is 6
+        lc                    [ string | (r, g, b) ]color of profile line 
+                              (see matplotlib.line for options)
+                              *default* is 'b' -- blue
+        lw                    float, width of profile line in points
+                              *default* is 1
+        marker                [ string ] marker for stations 
+                              (see matplotlib.pyplot.plot) for options  
+        mc                    [ string | (r, g, b) ] color of projected 
+                              stations.  *default* is 'k' -- black
+        ms                    [ float ] size of station marker
+                              *default* is 5
+        station_id            [min, max] index values for station labels
+                              *default* is None
+        ===================== =================================================
+        
+        :Example: ::
+            >>> edipath = r"/home/mt/edi_files"
+            >>> pr = occam2d.Profile(edi_path=edipath)
+            >>> pr.generate_profile()
+            >>> # set station labels to only be from 1st to 4th index 
+            >>> # of station name
+            >>> pr.plot_profile(station_id=[0,4])
         
         """
         
@@ -1096,6 +1301,123 @@ class Regularization(Mesh):
     Creates a regularization grid based on Mesh.  Note that Mesh is inherited
     by Regularization, therefore the intended use is to build a mesh with 
     the Regularization class.
+    
+    The regularization grid is what Occam calculates the inverse model on.
+    Setup is tricky and can be painful, as you can see it is not quite fully
+    functional yet, as it cannot incorporate topography yet.  It seems like 
+    you'd like to have the regularization setup so that your target depth is 
+    covered well, in that the regularization blocks to this depth are 
+    sufficiently small to resolve resistivity structure at that depth.  
+    Finally, you want the regularization to go to a half space at the bottom, 
+    basically one giant block.
+    
+    Arguments:
+    -----------
+        **station_locations** : np.ndarray(n_stations)
+                                array of station locations along a profile
+                                line in meters.
+                                
+    ======================= ===================================================
+    Key Words/Attributes    Description    
+    ======================= ===================================================
+    air_key                 letter associated with the value of air 
+                            *default* is 0
+    air_value               value given to an air cell, *default* is 1E13
+    binding_offset          offset from the right side of the furthest left
+                            hand model block in meters.  The regularization
+                            grid is setup such that this should be 0.
+    cell_width              width of cells with in station area in meters
+                            *default* is 100
+    description             description of the model for the model file.
+                            *default* is 'simple inversion'
+    elevation_profile       elevation profile along the profile line.
+                            given as np.ndarray(nx, 2), where the elements
+                            are x_location, elevation.  If elevation profile
+                            is given add_elevation is called automatically.
+                            *default* is None
+    mesh_fn                 full path to mesh file.
+    mesh_values             letter values of each triangular mesh element
+                            if the cell is free value is ?
+    model_columns
+    model_name
+    model_rows
+    
+    min_block_width         [ float ] minimum model block width in meters, 
+                            *default* is 2*cell_width
+    n_layers                number of vertical layers in mesh
+                            *default* is 90 
+    num_free_param          [ int ] number of free parameters in the model.
+                            this is a tricky number to estimate apparently. 
+    num_layers              [ int ] number of regularization layers.
+    num_x_pad_cells         number of horizontal padding cells outside the
+                            the station area that will increase in size
+                            by x_pad_multiplier. *default* is 7
+    num_x_pad_small_cells   number of horizonal padding cells just outside 
+                            the station area with width cell_width.  This is 
+                            to extend the station area if needed.  
+                            *default* is 2 
+    num_z_pad_cells         number of vertical padding cells below 
+                            z_target_depth down to z_bottom. *default* is 5
+    prejudice_fn            full path to prejudice file 
+                            *default* is 'none'
+    reg_basename            basename of regularization file (model file)
+                            *default* is 'Occam2DModel'
+    reg_fn                  full path to regularization file (model file)
+                            *default* is save_path/reg_basename
+    rel_station_locations   relative station locations within the mesh.  The
+                            locations are relative to the center of the station
+                            area.  *default* is None, filled later
+    save_path               full path to save mesh and model file to. 
+                            *default* is current working directory.
+    statics_fn              full path to static shift file
+                            Static shifts in occam may not work.
+                            *default* is 'none'
+    station_locations       location of stations in meters, can be on a 
+                            relative grid or in UTM.
+    trigger                 [ float ] multiplier to merge model blocks at 
+                            depth.  A higher number increases the number of
+                            model blocks at depth.  *default* is .65
+    x_grid                  location of horizontal grid nodes in meters
+    x_nodes                 relative spacing between grid nodes
+    x_pad_multiplier        horizontal padding cells will increase by this
+                            multiple out to the edge of the grid.
+                            *default* is 1.5
+    z1_layer                thickness of the first layer in the model.
+                            Should be at least 1/4 of the first skin depth
+                            *default* is 10
+    z_bottom                bottom depth of the model (m).  Needs to be large 
+                            enough to be 1D at the edge. 
+                            *default* is 200000.0 
+    z_grid                  location of vertical nodes in meters
+    z_nodes                 relative distance between vertical nodes in meters
+    z_target_depth          depth to deepest target of interest.  Below this
+                            depth cells will be padded to z_bottom
+    ======================= ===================================================
+        
+    .. note:: regularization does not work with topography yet.  Having 
+              problems calculated the number of free parameters.
+    
+    ========================= =================================================
+    Methods                   Description
+    ========================= =================================================
+    add_elevation             adds elevation to the mesh given elevation
+                              profile.  
+    build_mesh                builds the mesh given the attributes of Mesh.  If
+                              elevation_profile is not None, add_elevation is
+                              called inside build_mesh
+    build_regularization      builds the regularization grid from the build mesh
+                              be sure to plot the grids before starting the
+                              inversion to make sure coverage is appropriate.
+    get_num_free_param        estimate the number of free parameters.  
+                              **This is a work in progress**
+    plot_mesh                 plots the built mesh with station location.  
+    read_mesh_file            reads in an existing mesh file and populates the 
+                              appropriate attributes.
+    read_regularization_file  read in existing regularization file, populates
+                              apporopriate attributes  
+    write_mesh_file           writes a mesh file to save_path
+    write_regularization_file writes a regularization file
+    ======================= ===================================================
     
     """
     
@@ -1241,7 +1563,10 @@ class Regularization(Mesh):
                                   statics_fn='none', prejudice_fn='none',
                                   save_path=None):
         """
-        write a regularization file for input into occam.
+        Write a regularization file for input into occam.
+        
+        Calls build_regularization if build_regularization has not already
+        been called.
         
         if reg_fn is None, then file is written to save_path/reg_basename
         
@@ -1253,7 +1578,17 @@ class Regularization(Mesh):
                          
             **reg_basename** : string
                                basename of regularization file
-                               
+            
+            **statics_fn** : string
+                             full path to static shift file
+                             .. note:: static shift does not always work in
+                                       occam2d.exe
+            **prejudice_fn** : string
+                               full path to prejudice file
+            
+            **save_path** : string
+                            path to save regularization file.
+                            *default* is current working directory
                                 
         """
         if save_path is not None:
@@ -1320,7 +1655,13 @@ class Regularization(Mesh):
         
     def read_regularization_file(self, reg_fn):
         """
-        read in a regularization file
+        Read in a regularization file and populate attributes:
+            * binding_offset            
+            * mesh_fn    
+            * model_columns
+            * model_rows
+            * prejudice_fn
+            * statics_fn
         
         """
         self.reg_fn = reg_fn
@@ -6177,6 +6518,8 @@ class Run():
 
     Future plan: implement Occam in Python and call it from here directly.
     """
+
+
 
 
 class Mask(Data):
