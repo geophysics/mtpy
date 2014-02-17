@@ -866,6 +866,20 @@ class Profile():
     Can project the stations onto a profile that is perpendicular to strike
     or a given profile direction.
     
+    If _rotate_to_strike is True, the impedance tensor and tipper are rotated
+    to align with the geoelectric strike angle.
+    
+    If _rotate_to_strike is True and geoelectric_strike is not given, 
+    then it is calculated using the phase tensor.  First, 2D sections are
+    estimated from the impedance tensort hen the strike is esitmated from the
+    phase tensor azimuth + skew.  This angle is then used to project the 
+    stations perpendicular to the strike angle.
+    
+    If you want to project onto an angle not perpendicular to strike, give
+    profile_angle and set _rotate_to_strike to False.  This will project
+    the impedance tensor and tipper to be perpendicular with the 
+    profile_angle.
+
     Arguments:
     -----------
     
@@ -982,13 +996,17 @@ class Profile():
         """
         Generate linear profile by regression of station locations.
 
-        Stations are projected orthogonally onto the profile. Calculate 
-        orientation of profile (azimuth) and position of stations on the 
-        profile.
-
-        Sorting along the profile is always West->East.
-        (In unlikely/synthetic case of azimuth=0, it's North->South)
+        If profile_angle is not None, then station are projected onto that 
+        line.  Else, the a geoelectric strike is calculated from the data
+        and the stations are projected onto an angle perpendicular to the
+        estimated strike direction.  If _rotate_to_strike is True, the 
+        impedance tensor and Tipper data are rotated to align with strike.
+        Else, data is not rotated to strike.
         
+        To project stations onto a given line, set profile_angle and 
+        _rotate_to_strike to False.  This will project the stations onto 
+        profile_angle and rotate the impedance tensor and tipper to be 
+        perpendicular to the profile_angle.  
         """
         
         self._get_edi_list()
@@ -1395,7 +1413,7 @@ class Regularization(Mesh):
     ======================= ===================================================
         
     .. note:: regularization does not work with topography yet.  Having 
-              problems calculated the number of free parameters.
+              problems calculating the number of free parameters.
     
     ========================= =================================================
     Methods                   Description
@@ -1418,6 +1436,17 @@ class Regularization(Mesh):
     write_mesh_file           writes a mesh file to save_path
     write_regularization_file writes a regularization file
     ======================= ===================================================
+    
+    :Example: ::
+
+        >>> edipath = r"/home/mt/edi_files"
+        >>> profile = occam2d.Profile(edi_path=edi_path)
+        >>> profile.generate_profile()
+        >>> reg = occam2d.Regularization(profile.station_locations)
+        >>> reg.build_mesh()
+        >>> reg.build_regularization()
+        >>> reg.save_path = r"/home/occam2d/Line1/Inv1"
+        >>> reg.write_regularization_file()
     
     """
     
@@ -1449,7 +1478,11 @@ class Regularization(Mesh):
             
     def build_regularization(self):
         """
-        builds larger boxes around existing mesh blocks for the regularization
+        Builds larger boxes around existing mesh blocks for the regularization.
+        As the model deepens the regularization boxes get larger.  
+        
+        The regularization boxes are merged mesh cells as prescribed by the
+        Occam method.
     
         """
         # list of the mesh columns to combine
@@ -1529,8 +1562,10 @@ class Regularization(Mesh):
         estimate the number of free parameters in model mesh.
         
         I'm assuming that if there are any fixed parameters in the block, then
-        that model block is assumed to be fixed. Not sure if this is write
+        that model block is assumed to be fixed. Not sure if this is right
         cause there is no documentation.
+        
+        **DOES NOT WORK YET**
         """
         
         self.num_free_param = 0
@@ -1718,8 +1753,66 @@ class Regularization(Mesh):
 
 class Startup(object):
     """
-    deals with startup file for occam2d
+    Reads and writes the startup file for Occam2D.
     
+    .. note:: Be sure to look at the Occam 2D documentation for description
+              of all parameters
+    
+    ========================= =================================================
+    Key Words/Attributes      Description
+    ========================= =================================================
+    data_fn                   full path to data file
+    date_time                 date and time the startup file was written
+    debug_level               [ 0 | 1 | 2 ] see occam documentation
+                              *default* is 1
+    description               brief description of inversion run
+                              *default* is 'startup created by mtpy'  
+    diagonal_penalties        penalties on diagonal terms
+                              *default* is 0
+    format                    Occam file format
+                              *default* is 'OCCAMITER_FLEX'
+    iteration                 current iteration number
+                              *default* is 0
+    iterations_to_run         maximum number of iterations to run
+                              *default* is 20
+    lagrange_value            starting lagrange value
+                              *default* is 5
+    misfit_reached            [ 0 | 1 ] 0 if misfit has been reached, 1 if it
+                              has.  *default* is 0
+    misfit_value              current misfit value.  *default* is 1000
+    model_fn                  full path to model file
+    model_limits              limits on model resistivity values
+                              *default* is None
+    model_value_steps         limits on the step size of model values
+                              *default* is None
+    model_values              np.ndarray(num_free_params) of model values
+    param_count               number of free parameters in model
+    resistivity_start         starting resistivity value.  If model_values is
+                              not given, then all values with in model_values
+                              array will be set to resistivity_start
+    roughness_type            [ 0 | 1 | 2 ] type of roughness
+                              *default* is 1
+    roughness_value           current roughness value.  
+                              *default* is 1E10
+    save_path                 directory path to save startup file to
+                              *default* is current working directory  
+    startup_basename          basename of startup file name. 
+                              *default* is Occam2DStartup
+    startup_fn                full path to startup file.
+                              *default* is save_path/startup_basename  
+    stepsize_count            max number of iterations per step
+                              *default* is 8
+    target_misfit             target misfit value.
+                              *default* is 1.
+    ========================= =================================================
+    
+    :Example: ::
+    
+        >>> startup = occam2d.Startup()
+        >>> startup.data_fn = ocd.data_fn
+        >>> startup.model_fn = profile.reg_fn
+        >>> startup.param_count = profile.num_free_params
+        >>> startup.save_path = r"/home/occam2d/Line1/Inv1"
     """
     
     def __init__(self, **kwargs):
@@ -1751,7 +1844,19 @@ class Startup(object):
     def write_startup_file(self, startup_fn=None, save_path=None, 
                            startup_basename=None):
         """
-        write a startup file based on the parameters of startup class
+        Write a startup file based on the parameters of startup class.  
+        Default file name is save_path/startup_basename
+        
+        Arguments:
+        -----------
+            **startup_fn** : string
+                             full path to startup file. *default* is None
+            
+            **save_path** : string
+                            directory to save startup file. *default* is None
+                            
+            **startup_basename** : string
+                                   basename of starup file. *default* is None
         
         """
         if save_path is not None:
@@ -1896,6 +2001,68 @@ class Data(Profile):
     11 or te              TE mode
     12 or tm              TM mode
     13 or tip             Only Tipper
+    ===================== =====================================================
+    
+    
+    **data** : is a list of dictioinaries containing the data for each station.
+               keys include:
+                   * 'station' -- name of station
+                   * 'offset' -- profile line offset
+                   * 'te_res' -- TE resisitivity in linear scale
+                   * 'tm_res' -- TM resistivity in linear scale
+                   * 'te_phase' -- TE phase in degrees
+                   * 'tm_phase' --  TM phase in degrees in first quadrant
+                   * 're_tip' -- real part of tipper along profile
+                   * 'im_tip' -- imaginary part of tipper along profile
+                   
+               each key is a np.ndarray(2, num_freq)
+               index 0 is for data
+               index 1 is for error
+    
+    ===================== =====================================================
+    Key Words/Attributes  Desctription
+    ===================== =====================================================
+    _data_header          header line in data file
+    _data_string          full data string
+    _profile_generated    [ True | False ] True if profile has already been
+                          generated.
+    _rotate_to_strike     [ True | False ] True to rotate data to strike
+                          angle.  *default* is True
+    data                  list of dictionaries of data for each station.
+                          keys are: 'te_res', 'tm_res', 'te_phase', 'tm_phase'
+    data_fn
+    data_list
+    edi_list
+    edi_path
+    edi_type
+    elevation_model
+    elevation_profile
+    estimate_elevation
+    fn_basename
+    freq
+    freq_max
+    freq_min
+    freq_mode_num
+    freq_num
+    freq_tol
+    geoelectric_strike
+    masked_data
+    mode_dict
+    model_mode
+    num_edi
+    occam_dict
+    occam_format
+    phase_te_err
+    phase_tm_err
+    profile_angle
+    profile_line
+    res_te_err
+    res_tm_err
+    save_path
+    station_list
+    station_locations
+    tipper_err
+    title
     ===================== =====================================================
 
     """
