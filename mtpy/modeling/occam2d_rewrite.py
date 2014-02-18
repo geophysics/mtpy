@@ -5115,43 +5115,15 @@ class PlotPseudoSection(object):
         
     Arguments:
     -------------
-        **rp_list** : list of dictionaries for each station with keywords:
-                
-                * *station* : string
-                             station name
-                
-                * *offset* : float
-                             relative offset
-                
-                * *resxy* : np.array(nf,4)
-                            TE resistivity and error as row 0 and 1 respectively
-                
-                * *resyx* : np.array(fn,4)
-                            TM resistivity and error as row 0 and 1 respectively
-                
-                * *phasexy* : np.array(nf,4)
-                              TE phase and error as row 0 and 1 respectively
-                
-                * *phaseyx* : np.array(nf,4)
-                              Tm phase and error as row 0 and 1 respectively
-                
-                * *realtip* : np.array(nf,4)
-                              Real Tipper and error as row 0 and 1 respectively
-                
-                * *imagtip* : np.array(nf,4)
-                              Imaginary Tipper and error as row 0 and 1 
-                              respectively
-                
-                Note: that the resistivity will be in log10 space.  Also, there
-                are 2 extra rows in the data arrays, this is to put the 
-                response from the inversion.  
+        **data_fn** : string
+                      full path to data file.
         
-        **period** : np.array of periods to plot that correspond to the index
-                     values of each rp_list entry ie. resxy.
+        **resp_fn** : string
+                      full path to response file.
     
-    ==================== ==================================================
+    ==================== ======================================================
     key words            description
-    ==================== ==================================================
+    ==================== ======================================================
     axmpte               matplotlib.axes instance for TE model phase
     axmptm               matplotlib.axes instance for TM model phase
     axmrte               matplotlib.axes instance for TE model app. res 
@@ -5175,8 +5147,8 @@ class PlotPseudoSection(object):
     phase_limits_te      limits for te phase in degrees (min, max)
     phase_limits_tm      limits for tm phase in degrees (min, max)            
     plot_resp            [ 'y' | 'n' ] to plot response
+    plot_tipper          [ 'y' | 'n' ] to plot tipper
     plot_yn              [ 'y' | 'n' ] 'y' to plot on instantiation
-
     res_cmap             color map name for resistivity
     res_limits_te        limits for te resistivity in log scale (min, max)
     res_limits_tm        limits for tm resistivity in log scale (min, max)
@@ -5189,7 +5161,7 @@ class PlotPseudoSection(object):
     subplot_right        subplot spacing from right
     subplot_top          subplot spacing from top
     subplot_wspace       horizontal spacing between subplots
-    ==================== ==================================================
+    ==================== ======================================================
     
     =================== =======================================================
     Methods             Description
@@ -5206,10 +5178,9 @@ class PlotPseudoSection(object):
    :Example: ::
         
         >>> import mtpy.modeling.occam2d as occam2d
-        >>> ocd = occam2d.Occam2DData()
-        >>> rfile = r"/home/Occam2D/Line1/Inv1/Test_15.resp"
-        >>> ocd.data_fn = r"/home/Occam2D/Line1/Inv1/DataRW.dat"
-        >>> ps1 = ocd.plot2PseudoSection(resp_fn=rfile) 
+        >>> r_fn = r"/home/Occam2D/Line1/Inv1/Test_15.resp"
+        >>> d_fn = r"/home/Occam2D/Line1/Inv1/DataRW.dat"
+        >>> ps_plot = occam2d.PlotPseudoSection(d_fn, r_fn) 
     
     """
     
