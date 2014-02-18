@@ -1956,34 +1956,10 @@ class Startup(object):
 #------------------------------------------------------------------------------
 class Data(Profile):
     """
-    Handling input data.
-
-    Generation of suitable Occam data file(s) from Edi files/directories.
-    Reading and writing data files.
-    Allow merging of data files.
+    Reads and writes data files and more.  
     
-    **freq_min** : float (Hz)
-                   minimum frequency to invert for.
-                   *default* is None and will use the data to find min
-    
-    **freq_max** : float (Hz)
-                   maximum frequency to invert for
-                   *default* is None and will use the data to find max
-                   
-    **freq_num** : int
-                   number of frequencies to inver for
-                   *default* is None and will use the data to find num
-                   
-    **freq_tol** : float (decimal percent)
-                   tolerance to find nearby frequencies.
-                   *default* is .05 --> 5 percent.
-                   
-    **mode_num** : float (decimal percent)
-                   percent of stations to have the same frequency to 
-                   add it to the frequency list.  *default* is .5 -->
-                   50 percent.  Meaning if 50% of stations have the 
-                   same frequency within freq_tol it will be its 
-                   individual frequency in frequency list.    
+    Inherets Profile, so the intended use is to use Data to project stations 
+    onto a profile, then write the data file.  
     
     ===================== =====================================================
     Model Modes           Description                     
@@ -2029,41 +2005,74 @@ class Data(Profile):
     _rotate_to_strike     [ True | False ] True to rotate data to strike
                           angle.  *default* is True
     data                  list of dictionaries of data for each station.
-                          keys are: 'te_res', 'tm_res', 'te_phase', 'tm_phase'
-    data_fn
-    data_list
-    edi_list
-    edi_path
-    edi_type
-    elevation_model
-    elevation_profile
-    estimate_elevation
-    fn_basename
-    freq
-    freq_max
-    freq_min
-    freq_mode_num
-    freq_num
-    freq_tol
-    geoelectric_strike
-    masked_data
-    mode_dict
-    model_mode
-    num_edi
-    occam_dict
-    occam_format
-    phase_te_err
-    phase_tm_err
-    profile_angle
-    profile_line
-    res_te_err
-    res_tm_err
-    save_path
-    station_list
-    station_locations
-    tipper_err
-    title
+                          see above
+    data_fn               full path to data file
+    data_list             list of lines to write to data file
+    edi_list              list of mtpy.core.mt instances for each .edi file
+                          read
+    edi_path              directory path where .edi files are
+    edi_type              [ 'z' | 'spectra' ] for .edi format  
+    elevation_model       model elevation np.ndarray(east, north, elevation) 
+                          in meters
+    elevation_profile     elevation along profile np.ndarray (x, elev) (m)
+    fn_basename           data file basename *default* is OccamDataFile.dat
+    freq                  list of frequencies to use for the inversion
+    freq_max              max frequency to use in inversion. *default* is None
+    freq_min              min frequency to use in inversion. *default* is None
+    freq_num              number of frequencies to use in inversion
+    geoelectric_strike    geoelectric strike angle assuming N = 0, E = 90
+    masked_data           similar to data, but any masked points are now 0
+    mode_dict             dictionary of model modes to chose from
+    model_mode            model mode to use for inversion, see above
+    num_edi               number of stations to invert for
+    occam_dict            dictionary of occam parameters to use internally
+    occam_format          occam format of data file.  
+                          *default* is OCCAM2MTDATA_1.0
+    phase_te_err          percent error in phase for TE mode. *default* is 5
+    phase_tm_err          percent error in phase for TM mode. *default* is 5 
+    profile_angle         angle of profile line realtive to N = 0, E = 90
+    profile_line          m, b coefficients for mx+b definition of profile line
+    res_te_err            percent error in resistivity for TE mode. 
+                          *default* is 10
+    res_tm_err            percent error in resistivity for TM mode.
+                          *default* is 10
+    save_path             directory to save files to
+    station_list          list of station for inversion
+    station_locations     station locations along profile line
+    tipper_err            percent error in tipper. *default* is 5
+    title                 title in data file.  
     ===================== =====================================================
+    
+    =========================== ===============================================
+    Methods                     Description
+    =========================== ===============================================
+    _fill_data                  fills the data array that is described above    
+    _get_data_list              gets the lines to write to data file
+    _get_frequencies            gets frequency list to invert for 
+    get_profile_origin          get profile origin in UTM coordinates
+    mask_points                 masks points in data picked from 
+                                plot_mask_points  
+    plot_mask_points            plots data responses to interactively mask
+                                data points.
+    plot_resonse                plots data/model responses, returns 
+                                PlotResponse data type.
+    read_data_file              read in existing data file and fill appropriate
+                                attributes.
+    write_data_file             write a data file according to Data attributes
+    =========================== ===============================================
+    
+    :Example Write Data File: ::
+        >>> import mtpy.modeling.occam2d as occam2d
+        >>> edipath = r"/home/mt/edi_files"
+        >>> slst = ['mt{0:03}'.format(ss) for ss in range(1, 20)]
+        >>> ocd = occam2d.Data(edi_path=edipath, station_list=slst)
+        >>> # model just the tm mode and tipper
+        >>> ocd.model_mode = 3
+        >>> ocd.save_path = r"/home/occam/Line1/Inv1"
+        >>> ocd.write_data_file()
+        >>> # mask points
+        >>> ocd.plot_mask_points()
+        >>> ocd.mask_points()
 
     """
     def __init__(self, edi_path=None, **kwargs):
@@ -2086,8 +2095,6 @@ class Data(Profile):
         self.freq_min = kwargs.pop('freq_min', None)
         self.freq_max = kwargs.pop('freq_max', None)
         self.freq_num = kwargs.pop('freq_num', None)
-        self.freq_tol = kwargs.pop('freq_tol', 0.05)
-        self.freq_mode_num = kwargs.pop('freq_mode_num', .50)
 
         self.occam_format = 'OCCAM2MTDATA_1.0'
         self.title = 'MTpy-OccamDatafile'
@@ -2137,39 +2144,18 @@ class Data(Profile):
 
     def read_data_file(self, data_fn=None):
         """
-        
-        Returns:
-        --------
-            **data** : list of dictionaries for each station 
-                                         with keywords:
-                
-                *'station'* : string
-                              station name
-                
-                *'offset'* : float
-                            relative offset
-                
-                *'te_res'* : np.array(nf,2)
-                          TE resistivity and error as row 0 and 1 ressectively
-                
-                *'tm_res'* : np.array(fn,2)
-                          TM resistivity and error as row 0 and 1 respectively
-                
-                *'te_phase'* : np.array(nf,2)
-                            TE phase and error as row 0 and 1 respectively
-                
-                *'tm_phase'* : np.array(nf,2)
-                            Tm phase and error as row 0 and 1 respectively
-                
-                *'re_tip'* : np.array(nf,2)
-                            Real Tipper and error as row 0 and 1 respectively
-                
-                *'im_tip'* : np.array(nf,2)
-                            Imaginary Tipper and error as row 0 and 1 
-                            respectively
-                
-            .. note:: resistivity is converted to linear if input as log
-                      and data error are converted as dx*ln(10)
+        Read in an existing data file and populate appropriate attributes
+            * data
+            * data_list
+            * freq
+            * station_list
+            * station_locations
+            
+        Arguments:
+        -----------
+            **data_fn** : string
+                          full path to data file
+                          *default* is None and set to save_path/fn_basename
                 
         :Example: ::
             
@@ -2288,7 +2274,7 @@ class Data(Profile):
         """
         from the list of edi's get a frequency list to invert for.
         
-        Arguments:
+        Uses Attributes:
         ------------
             **freq_min** : float (Hz)
                            minimum frequency to invert for.
@@ -2299,19 +2285,8 @@ class Data(Profile):
                            *default* is None and will use the data to find max
                            
             **freq_num** : int
-                           number of frequencies to inver for
+                           number of frequencies to invert for
                            *default* is None and will use the data to find num
-                           
-            **freq_tol** : float (decimal percent)
-                           tolerance to find nearby frequencies.
-                           *default* is .05 --> 5 percent.
-                           
-            **mode_num** : float (decimal percent)
-                           percent of stations to have the same frequency to 
-                           add it to the frequency list.  *default* is .5 -->
-                           50 percent.  Meaning if 50% of stations have the 
-                           same frequency within freq_tol it will be its 
-                           individual frequency in frequency list.
         """
 
         #get all frequencies from all edi files
@@ -2502,7 +2477,8 @@ class Data(Profile):
                            
     def _get_data_list(self):
         """
-        get a list of data to put into data file
+        Get all the data needed to write a data file.
+        
         """
 
         self.data_list = []
@@ -2601,7 +2577,25 @@ class Data(Profile):
 
     def write_data_file(self, data_fn=None):
         """
-        write a data file 
+        Write a data file.
+        
+        Arguments:
+        -----------
+            **data_fn** : string
+                          full path to data file. 
+                          *default* is save_path/fn_basename
+                          
+        If there data is None, then _fill_data is called to create a profile, 
+        rotate data and get all the necessary data.  This way you can use 
+        write_data_file directly without going through the steps of projecting
+        the stations, etc.
+        
+        :Example: ::
+            >>> edipath = r"/home/mt/edi_files"
+            >>> slst = ['mt{0:03}'.format(ss) for ss in range(1, 20)]
+            >>> ocd = occam2d.Data(edi_path=edipath, station_list=slst)
+            >>> ocd.save_path = r"/home/occam/line1/inv1"
+            >>> ocd.write_data_file()
         
         """        
         
@@ -2667,6 +2661,8 @@ class Data(Profile):
         get the origin of the profile in real world coordinates
         
         Author: Alison Kirkby (2013)
+        
+        NEED TO ADAPT THIS TO THE CURRENT SETUP.
         """
 
         x,y = self.easts,self.norths
@@ -2679,11 +2675,14 @@ class Data(Profile):
     def plot_response(self, **kwargs):
         """
         plot data and model responses as apparent resistivity, phase and
-        tipper
+        tipper.  See PlotResponse for key words.
         
         Returns:
         ---------
             **pr_obj** : PlotResponse object 
+            
+        :Example: ::
+            >>> pr_obj = ocd.plot_response()
         
         """
         
@@ -2711,19 +2710,14 @@ class Data(Profile):
             **marker** : string
                          marker that the masked points will be
                          *Default* is 'h' for hexagon
-                        
-                            
-        Returns:
-        ---------
-            data type **OccamPointPicker**  
                            
         
         :Example: ::
 
             >>> import mtpy.modeling.occam2d as occam2d
-            >>> ocd = occam2d.Occam2DData()
+            >>> ocd = occam2d.Data()
             >>> ocd.data_fn = r"/home/Occam2D/Line1/Inv1/Data.dat"
-            >>> ocd.plotMaskPoints()                   
+            >>> ocd.plot_mask_points()                   
             
         """
         
@@ -2743,6 +2737,8 @@ class Data(Profile):
     def mask_points(self, maskpoints_obj):
         """
         mask points and rewrite the data file
+        
+        NEED TO REDO THIS TO FIT THE CURRENT SETUP
         """
            
         mp_obj = maskpoints_obj                              
@@ -2811,7 +2807,36 @@ class Data(Profile):
         
 class Response(object):
     """
-    deals with .resp files
+    Reads .resp file output by Occam.  Similar structure to Data.data.
+    
+    If resp_fn is given in the initialization of Response, read_response_file
+    is called.
+    
+    Arguments:
+    ------------
+        **resp_fn** : string
+                      full path to .resp file
+                      
+    Attributes:
+    -------------
+        **resp** : is a list of dictioinaries containing the data for each
+                   station.  keys include:
+                   
+                   * 'te_res' -- TE resisitivity in linear scale
+                   * 'tm_res' -- TM resistivity in linear scale
+                   * 'te_phase' -- TE phase in degrees
+                   * 'tm_phase' --  TM phase in degrees in first quadrant
+                   * 're_tip' -- real part of tipper along profile
+                   * 'im_tip' -- imaginary part of tipper along profile
+                   
+               each key is a np.ndarray(2, num_freq)
+               index 0 is for model response
+               index 1 is for normalized misfit
+               
+    :Example: ::
+        >>> resp_obj = occam2d.Response(r"/home/occam/line1/inv1/test_01.resp")
+        
+    
     
     """
     
@@ -2827,6 +2852,9 @@ class Response(object):
                            '6':'tm_phase',
                            '9':'te_res',
                            '10':'tm_res'}
+                           
+        if resp_fn is not None:
+            self.read_response_file()
         
     def read_response_file(self, resp_fn=None):
         """
@@ -2886,10 +2914,62 @@ class Response(object):
 
 class Model(Startup):
     """
-    Read .iter file, build model from mesh and regularization grid.
+    Read .iter file output by Occam2d.  Builds the resistivity model from 
+    mesh and regularization files found from the .iter file.  The resistivity
+    model is an array(x_nodes, z_nodes) set on a regular grid, and the values 
+    of the model response are filled in according to the regularization grid.
+    This allows for faster plotting.  
     
-    Inheret Startup because they are basically the same object
+    Inherets Startup because they are basically the same object.
     
+    Argument:
+    ----------
+        **iter_fn** : string
+                      full path to .iter file to read. *default* is None.
+                      
+        **model_fn** : string
+                       full path to regularization file. *default* is None
+                       and found directly from the .iter file.  Only input
+                       if the regularization is different from the file that
+                       is in the .iter file.
+                      
+        **mesh_fn** : string
+                      full path to mesh file. *default* is None
+                      Found directly from the model_fn file.  Only input
+                      if the mesh is different from the file that
+                      is in the model file.
+                      
+    ===================== =====================================================
+    Key Words/Attributes  Description    
+    ===================== =====================================================
+    data_fn               full path to data file
+    iter_fn               full path to .iter file
+    mesh_fn               full path to mesh file
+    mesh_x                np.ndarray(x_nodes, z_nodes) mesh grid for plotting
+    mesh_z                np.ndarray(x_nodes, z_nodes) mesh grid for plotting
+    model_values          model values from startup file
+    plot_x                nodes of mesh in horizontal direction
+    plot_z                nodes of mesh in vertical direction
+    res_model             np.ndarray(x_nodes, z_nodes) resistivity model 
+                          values in linear scale
+    ===================== =====================================================
+    
+    
+    ===================== =====================================================
+    Methods               Description     
+    ===================== =====================================================
+    build_model           get the resistivity model from the .iter file
+                          in a regular grid according to the mesh file
+                          with resistivity values according to the model file
+    read_iter_file        read .iter file and fill appropriate attributes
+    write_iter_file       write an .iter file incase you want to set it as the
+                          starting model or a priori model
+    ===================== =====================================================
+         
+    :Example: ::
+        >>> model = occam2D.Model(r"/home/occam/line1/inv1/test_01.iter")
+        >>> model.build_model()
+                 
     """
     
     def __init__(self, iter_fn=None, model_fn=None, mesh_fn=None, **kwargs):
@@ -2925,7 +3005,7 @@ class Model(Startup):
             >>> import mtpy.modeling.occam2d as occam2d
             >>> itfn = r"/home/Occam2D/Line1/Inv1/Test_15.iter"
             >>> ocm = occam2d.Model(itfn)
-            >>> ocm.read2DIter()
+            >>> ocm.read_iter_file()
             
         """
     
@@ -3086,6 +3166,8 @@ class PlotResponse():
     ==================== ======================================================
     Attributes/key words            description
     ==================== ======================================================
+    ax_list              list of matplotlib.axes instances for use with
+                         OccamPointPicker    
     color_mode           [ 'color' | 'bw' ] plot figures in color or 
                          black and white ('bw')
     cted                 color of Data TE marker and line
@@ -3095,9 +3177,11 @@ class PlotResponse():
     ctmm                 color of Model TM marker and line
     ctmwl                color of Winglink Model TM marker and line
     e_capsize            size of error bar caps in points
-    e_capthick           line thickness of error bar caps in points 
+    e_capthick           line thickness of error bar caps in points
+    err_list             list of line properties of error bars for use with
+                         OccamPointPicker
     fig_dpi              figure resolution in dots-per-inch 
-    fig_list              list of dictionaries with key words
+    fig_list             list of dictionaries with key words
                          station --> station name
                          fig --> matplotlib.figure instance
                          axrte --> matplotlib.axes instance for TE app.res
@@ -3108,6 +3192,8 @@ class PlotResponse():
     fig_num              starting number of figure
     fig_size             size of figure in inches (width, height)
     font_size            size of axes ticklabel font in points
+    line_list            list of matplotlib.Line instances for use with 
+                         OccamPointPicker
     lw                   line width of lines in points
     ms                   marker size in points
     mted                 marker for Data TE mode
@@ -3121,6 +3207,7 @@ class PlotResponse():
     plot_num             [ 1 | 2 ] 
                          1 to plot both modes in a single plot
                          2 to plot modes in separate plots (default)
+    plot_tipper          [ 'y' | 'n' ] plot tipper data if desired
     plot_type            [ '1' | station_list]
                          '1' --> to plot all stations in different figures
                          station_list --> to plot a few stations, give names
@@ -3151,6 +3238,13 @@ class PlotResponse():
     save_figures        save all the matplotlib.figure instances in fig_list
     =================== =======================================================
 
+
+    :Example: ::
+        >>> data_fn = r"/home/occam/line1/inv1/OccamDataFile.dat"
+        >>> resp_list = [r"/home/occam/line1/inv1/test_{0:02}".format(ii) 
+                         for ii in range(2, 8, 2)]
+        >>> pr_obj = occam2d.PlotResponse(data_fn, resp_list, plot_tipper='y')
+        
     """
     
     def __init__(self, data_fn, resp_fn=None, **kwargs):
@@ -4199,10 +4293,17 @@ class PlotModel(Model):
             
             >>> import mtpy.modeling.occam2d as occam2d
             >>> itfn = r"/home/Occam2D/Line1/Inv1/Test_15.iter"
-            >>> ocm = occam2d.Occam2DModel(itfn)
-            >>> ocm.plot2DModel(ms=20,ylimits=(0,.350),yscale='m',spad=.10,\
-                                ypad=.125,xpad=.025,climits=(0,2.5),\
-                                aspect='equal')
+            >>> model_plot = occam2d.PlotModel(itfn)
+            >>> model_plot.ms = 20
+            >>> model_plot.ylimits = (0,.350)
+            >>> model_plot.yscale = 'm'
+            >>> model_plot.spad = .10
+            >>> model_plot.ypad = .125
+            >>> model_plot.xpad = .025
+            >>> model_plot.climits = (0,2.5)
+            >>> model_plot.aspect = 'equal'
+            >>> model_plot.redraw_plot()
+            
         """   
         #--> read in iteration file and build the model
         self.read_iter_file()
@@ -4583,11 +4684,8 @@ class PlotModel(Model):
         :Example: ::
             
             >>> # to save plot as jpg
-            >>> import mtpy.modeling.occam2d as occam2d
-            >>> dfn = r"/home/occam2d/Inv1/data.dat"
-            >>> ocd = occam2d.Occam2DData(dfn)
-            >>> ps1 = ocd.plotPseudoSection()
-            >>> ps1.save_plot(r'/home/MT/figures', file_format='jpg')
+            >>> model_plot.save_figure(r"/home/occam/figures", 
+                                       file_format='jpg')
             
         """
 
@@ -4641,21 +4739,22 @@ class PlotModel(Model):
         rewrite the string builtin to give a useful message
         """
         
-        return ("Plots the resistivity found by Occam2D")
+        return ("Plots the resistivity model found by Occam2D.")
 
 #==============================================================================
 # plot L2 curve of iteration vs rms
 #==============================================================================
 class PlotL2():
     """
-    plot L2 curve of iteration vs rms and roughness
+    Plot L2 curve of iteration vs rms and rms vs roughness.
+    
+    Need to only input an .iter file, will read all similar .iter files
+    to get the rms, iteration number and roughness of all similar .iter files.
     
     Arguments:
     ----------
-        **rms_arr** : structured array with keys:
-                      * 'iteration' --> for iteration number (int)
-                      * 'rms' --> for rms (float)
-                      * 'roughness' --> for roughness (float)
+        **iter_fn** : string
+                      full path to an iteration file output by Occam2D.
                       
     ======================= ===================================================
     Keywords/attributes     Description
