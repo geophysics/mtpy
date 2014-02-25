@@ -444,7 +444,7 @@ class WSData(object):
         self.z_data_err = self.data['z_data_err']*self.data['z_err_map']
 
                     
-    def read_data_file(self, data_fn, wl_sites_fn=None, station_fn=None):
+    def read_data_file(self, data_fn=None, wl_sites_fn=None, station_fn=None):
         """
         read in data file
         
@@ -474,7 +474,8 @@ class WSData(object):
         else:
             zconv = 1
         
-        self.data_fn = data_fn
+        if data_fn is not None:
+            self.data_fn = data_fn
         
         dfid = file(self.data_fn, 'r')
         dlines = dfid.readlines()
@@ -588,6 +589,7 @@ class WSData(object):
                                                         zline[6]-1j*zline[7]]])
                 st += 1
                 
+        
         self.station_east = self.data['east']
         self.station_north = self.data['north']
         self.station_names = self.data['station']
@@ -596,7 +598,18 @@ class WSData(object):
         self.z_data_err = \
                 self.data['z_data_err'].real*self.data['z_err_map'].real+1j*\
                 self.data['z_data_err'].imag*self.data['z_err_map'].imag
-        
+                
+        #make station_locations structure array
+        self.station_locations = np.zeros(len(self.station_east),
+                                          dtype=[('station','|S10'), 
+                                                 ('east', np.float),
+                                                 ('north', np.float), 
+                                                 ('east_c', np.float),
+                                                 ('north_c', np.float)])
+        self.station_locations['east'] = self.data['east']
+        self.station_locations['north'] = self.data['north']
+        self.station_locations['station'] = self.data['station']
+    
 #==============================================================================
 # stations
 #==============================================================================
@@ -890,7 +903,7 @@ class WSMesh(object):
         
         #--> attributes to be calculated
         #station information
-        self.station_locations = None
+        self.station_locations = kwargs.pop('station_locations', None)
        
        #grid nodes
         self.nodes_east = None
@@ -905,6 +918,7 @@ class WSMesh(object):
         #resistivity model
         self.res_model = None
         self.res_list = None
+        self.res_model_int = None
         
         #inital file stuff
         self.initial_fn = None
@@ -936,49 +950,57 @@ class WSMesh(object):
                            stop=3, step=3./pad_east))+west 
         
         """
-        if self.edi_list is None:
-            raise AttributeError('edi_list is None, need to input a list of '
-                                 'edi files to read in.')
-                                 
-        n_stations = len(self.edi_list)
-        
-        #make a structured array to put station location information into
-        self.station_locations = np.zeros(n_stations,
-                                          dtype=[('station','|S10'), 
-                                                 ('east', np.float),
-                                                 ('north', np.float), 
-                                                 ('east_c', np.float),
-                                                 ('north_c', np.float)])
-        #get station locations in meters
-        for ii, edi in enumerate(self.edi_list):
-            zz = mtedi.Edi()
-            zz.readfile(edi)
-            zone, east, north = ll2utm.LLtoUTM(23, zz.lat, zz.lon)
-            self.station_locations[ii]['station'] = zz.station
-            self.station_locations[ii]['east'] = east
-            self.station_locations[ii]['north'] = north
+        #if station locations are not input read from the edi files
+        if self.station_locations is None:
+            if self.edi_list is None:
+                raise AttributeError('edi_list is None, need to input a list of '
+                                     'edi files to read in.')
+                                     
+            n_stations = len(self.edi_list)
+            
+            #make a structured array to put station location information into
+            self.station_locations = np.zeros(n_stations,
+                                              dtype=[('station','|S10'), 
+                                                     ('east', np.float),
+                                                     ('north', np.float), 
+                                                     ('east_c', np.float),
+                                                     ('north_c', np.float)])
+            #get station locations in meters
+            for ii, edi in enumerate(self.edi_list):
+                zz = mtedi.Edi()
+                zz.readfile(edi)
+                zone, east, north = ll2utm.LLtoUTM(23, zz.lat, zz.lon)
+                self.station_locations[ii]['station'] = zz.station
+                self.station_locations[ii]['east'] = east
+                self.station_locations[ii]['north'] = north
+             
+            #remove the average distance to get coordinates in a relative space
+            self.station_locations['east'] -= self.station_locations['east'].mean()
+            self.station_locations['north'] -= self.station_locations['north'].mean()
          
-        #remove the average distance to get coordinates in a relative space
-        self.station_locations['east'] -= self.station_locations['east'].mean()
-        self.station_locations['north'] -= self.station_locations['north'].mean()
-     
-        #translate the stations so they are relative to 0,0
-        east_center = (self.station_locations['east'].max()-
-                        np.abs(self.station_locations['east'].min()))/2
-        north_center = (self.station_locations['north'].max()-
-                        np.abs(self.station_locations['north'].min()))/2
+            #translate the stations so they are relative to 0,0
+            east_center = (self.station_locations['east'].max()-
+                            np.abs(self.station_locations['east'].min()))/2
+            north_center = (self.station_locations['north'].max()-
+                            np.abs(self.station_locations['north'].min()))/2
+            
+            #remove the average distance to get coordinates in a relative space
+            self.station_locations['east'] -= east_center
+            self.station_locations['north'] -= north_center
         
-        #remove the average distance to get coordinates in a relative space
-        self.station_locations['east'] -= east_center
-        self.station_locations['north'] -= north_center
-    
         #pickout the furtherst south and west locations 
         #and put that station as the bottom left corner of the main grid
         west = self.station_locations['east'].min()-self.cell_size_east/2
         east = self.station_locations['east'].max()+self.cell_size_east/2
         south = self.station_locations['north'].min()-self.cell_size_north/2
         north = self.station_locations['north'].max()+self.cell_size_north/2
-    
+
+        #make sure the variable n_stations is initialized        
+        try:
+            n_stations
+        except NameError:
+            n_stations = self.station_locations.shape[0]
+
         #-------make a grid around the stations from the parameters above------
         #--> make grid in east-west direction
         #cells within station area
@@ -1034,16 +1056,6 @@ class WSMesh(object):
                             num=self.pad_z)
         zpadding = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
                                log_zpad])
-#        #cells down to number of z-layers
-#        zgrid1 = self.first_layer_thickness*\
-#                 self.pad_root_z**np.round(np.arange(0,self.pad_pow_z[0],
-#                         self.pad_pow_z[0]/(self.n_layers-float(self.pad_z))))
-#                         
-#        #pad bottom of grid
-#        zgrid2 = self.first_layer_thickness*\
-#                 self.pad_root_z**np.round(np.arange(self.pad_pow_z[0],
-#                                                     self.pad_pow_z[1],
-#                             (self.pad_pow_z[1]-self.pad_pow_z[0]/self.pad_z)))
         
         z_nodes = np.append(ztarget, zpadding)
         z_grid = np.array([z_nodes[:ii+1].sum() for ii in range(z_nodes.shape[0])])
@@ -1295,10 +1307,30 @@ class WSMesh(object):
         ax2.set_xlabel('Easting (m)', fontdict={'size':9, 'weight':'bold'})  
         
         plt.show()
+        
+    def convert_model_to_int(self):
+        """
+        convert the resistivity model that is in ohm-m to integer values
+        corresponding to res_list
+        
+        """
+ 
+        self.res_model_int = np.ones_like(self.res_model)
+        #make a dictionary of values to write to file.
+        self.res_dict = dict([(res, ii) 
+                              for ii, res in enumerate(sorted(self.res_list),
+                                                       1)])
+        
+        for ii, res in enumerate(self.res_list):
+            l_index = max([0, ii-1])
+            h_index = min([len(self.res_list)-1, ii+1])
+            indexes = np.where((self.res_model >= self.res_list[l_index]) &
+                               (self.res_model <= self.res_model[h_index]))
+            self.res_model_int[indexes] = self.res_dict[res]
+                
+        print 'Converted resistivity model to integers.'
     
-    def write_initial_file(self, save_path=None, res_model=None, res_list=100,
-                           title=None, nodes_east=None, nodes_north=None, 
-                           nodes_z=None):
+    def write_initial_file(self, **kwargs):
         """
         will write an initial file for wsinv3d.  At the moment can only make a 
         layered model that can then be manipulated later.  Input for a layered
@@ -1316,8 +1348,8 @@ class WSMesh(object):
         you were to picture it in map view. Confusing, perhaps, but that is the 
         way it is.  
         
-        Arguments:
-        ----------
+        Key Word Arguments:
+        ----------------------
         
             **nodes_north** : np.array(nx)
                         block dimensions (m) in the N-S direction. 
@@ -1346,10 +1378,19 @@ class WSMesh(object):
             **title** : string
                         Title that goes into the first line of savepath/init3d
                         
-            **res_model** : np.array((nx,ny,nz))
+            **res_model_int** : np.array((nx,ny,nz))
                         Starting resistivity model.  Each cell is allocated an
                         integer value that cooresponds to the index value of
-                        **reslist**.  **Note** again that the modeling code 
+                        **res_list**.  **Note** again that the modeling code 
+                        assumes that the first row it reads in is the southern
+                        most row and the first column it reads in is the 
+                        western most column.  Similarly, the first plane it 
+                        reads in is the Earth's surface.
+                        
+            **res_model_int** : np.array((nx,ny,nz))
+                        Starting resistivity model.  Each cell is allocated an
+                        linear resistivity value.
+                        .. note:: again that the modeling code 
                         assumes that the first row it reads in is the southern
                         most row and the first column it reads in is the 
                         western most column.  Similarly, the first plane it 
@@ -1358,22 +1399,15 @@ class WSMesh(object):
                         
                           
         """
-        if nodes_east != None:
-            self.nodes_east = nodes_east
-        if nodes_north != None:
-            self.nodes_north = nodes_north
-        if nodes_z != None:
-            self.nodes_z = nodes_z
-        if title != None:
-            self.title = title
-            
-        self.res_list = res_list
-        if res_model != None:
-            self.res_model = res_model
-        
-        #--> get path to save initial file to
-        if save_path is not None:
-            self.save_path = save_path
+        keys = ['nodes_east', 'nodes_north', 'nodes_z', 'title', 'res_list',
+                'res_model', 'res_model_int', 'save_path', 'initial_fn']
+        for key in keys:
+            try:
+                setattr(self, key, kwargs[key])
+            except KeyError:
+                if self.__dict__[key] is None:
+                    pass
+
         if self.initial_fn is None:
             if self.save_path is None:
                 self.save_path = os.getcwd()
@@ -1382,9 +1416,11 @@ class WSMesh(object):
                 self.initial_fn = os.path.join(self.save_path, "WSInitialModel")
             else:
                 self.save_path = os.path.dirname(self.save_path)
-                self.initial_fn= os.path.join(self.save_path)
+                self.initial_fn= self.save_path
         
-        #check to see what resistivity in input 
+        #check to see what resistivity in input
+        if self.res_list is None:
+            self.res_list = 100
         if type(self.res_list) is not list and \
            type(self.res_list) is not np.ndarray:
             self.res_list = [self.res_list]
@@ -1399,7 +1435,7 @@ class WSMesh(object):
     
         #write S --> N node block
         for ii, nnode in enumerate(self.nodes_north):
-            ifid.write('{0:>12}'.format('{:.1f}'.format(abs(nnode))))
+            ifid.write('{0:>12.1f}'.format(abs(nnode)))
             if ii != 0 and np.remainder(ii+1, 5) == 0:
                 ifid.write('\n')
             elif ii == self.nodes_north.shape[0]-1:
@@ -1407,7 +1443,7 @@ class WSMesh(object):
         
         #write W --> E node block        
         for jj, enode in enumerate(self.nodes_east):
-            ifid.write('{0:>12}'.format('{:.1f}'.format(abs(enode))))
+            ifid.write('{0:>12.1f}'.format(abs(enode)))
             if jj != 0 and np.remainder(jj+1, 5) == 0:
                 ifid.write('\n')
             elif jj == self.nodes_east.shape[0]-1:
@@ -1415,7 +1451,7 @@ class WSMesh(object):
     
         #write top --> bottom node block
         for kk, zz in enumerate(self.nodes_z):
-            ifid.write('{0:>12}'.format('{:.1f}'.format(abs(zz))))
+            ifid.write('{0:>12.1f}'.format(abs(zz)))
             if kk != 0 and np.remainder(kk+1, 5) == 0:
                 ifid.write('\n')
             elif kk == self.nodes_z.shape[0]-1:
@@ -1429,11 +1465,14 @@ class WSMesh(object):
         if self.res_model == None:
             ifid.close()
         else:
+            if self.res_model_int is None:
+                self.convert_model_to_int()
             #get similar layers
             l1 = 0
             layers = []
             for zz in range(self.nodes_z.shape[0]-1):
-                if (self.res_model[:, :, zz] == self.res_model[:, :, zz+1]).all() == False:
+                if (self.res_model_int[:, :, zz] == 
+                    self.res_model_int[:, :, zz+1]).all() == False:
                     layers.append((l1, zz))
                     l1 = zz+1
             #need to add on the bottom layers
@@ -1444,7 +1483,7 @@ class WSMesh(object):
                 ifid.write('{0} {1}\n'.format(ll[0]+1, ll[1]+1))
                 for nn in range(self.nodes_north.shape[0]):
                     for ee in range(self.nodes_east.shape[0]):
-                        ifid.write('{0:.0f} '.format(self.res_model[nn, ee, ll[0]]))
+                        ifid.write('{0:>3.0f} '.format(self.res_model_int[nn, ee, ll[0]]))
                     ifid.write('\n')
             ifid.close()
         
