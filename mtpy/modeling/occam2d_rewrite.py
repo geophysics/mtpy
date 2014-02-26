@@ -1657,6 +1657,9 @@ class Regularization(Mesh):
         self.statics_fn = statics_fn
         self.prejudice_fn = prejudice_fn
         
+        if self.mesh_fn is None:
+            self.write_mesh_file()
+        
         if self.model_columns is None:
             if self.binding_offset is None:
                 self.build_mesh()
