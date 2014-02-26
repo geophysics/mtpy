@@ -515,11 +515,14 @@ class Mesh():
                             fs+2. *default* is 6 
         ls                  [ '-' | '.' | ':' ] line style of mesh lines
                             *default* is '-'
+        lc                  [ string | (r, g, b) ] color of mesh lines
         marker              marker of stations 
                             *default* is r"$\blacktriangledown$"
         ms                  size of marker in points. *default* is 5
         plot_triangles      [ 'y' | 'n' ] to plot mesh triangles.
                             *default* is 'n'
+        plot_meshnum        [ 'y' | 'n' ]
+        meshnum_fs          font size of mesh number
         =================== ===================================================
         
         """
@@ -531,7 +534,10 @@ class Mesh():
         mc = kwargs.pop('mc', 'k')
         lw = kwargs.pop('ls', .35)
         fs = kwargs.pop('fs', 6)
+        lc = kwargs.pop('lc', 'k')
         plot_triangles = kwargs.pop('plot_triangles', 'n')
+        plot_meshnum = kwargs.pop('plot_meshnum', 'n')
+        meshnum_fs = kwargs.pop('meshnum_fs', 4)
         
         depth_scale = kwargs.pop('depth_scale', 'km')
         
@@ -578,7 +584,7 @@ class Mesh():
         #plot column lines (variables are a little bit of a misnomer)
         ax.plot(row_line_xlist, 
                 row_line_ylist, 
-                color='k', 
+                color=lc, 
                 lw=lw)
 
         #--> make list of row lines
@@ -594,7 +600,7 @@ class Mesh():
         #plot row lines (variables are a little bit of a misnomer)
         ax.plot(col_line_xlist, 
                 col_line_ylist,
-                color='k',
+                color=lc,
                 lw=lw)
                     
         if plot_triangles == 'y':
@@ -646,6 +652,14 @@ class Mesh():
                     diag_line_ylist,
                     color='k',
                     lw=lw)
+                ##plot the mesh block numbers
+        if plot_meshnum == 'y':
+            kk = 1
+            for yy in self.z_grid[::-1]/df:
+                for xx in self.x_grid/df:
+                    ax.text(xx, yy, '{0}'.format(kk),
+                            fontdict={'size':meshnum_fs})
+                    kk+=1
                     
         #--> set axes properties
         ax.set_ylim(self.z_target_depth/df, -2000/df)
@@ -656,7 +670,11 @@ class Mesh():
         ax.set_ylabel('Depth ({0})'.format(depth_scale), 
                   fontdict={'size':fs+2, 'weight':'bold'})           
         plt.show()
-                                     
+                  
+        #for now return the figure and axes objects so we can use them in 
+        #regularization.  I think a decorator could be used, but this works
+        #for now
+        return fig, ax                   
          
     def write_mesh_file(self, save_path=None, basename='Occam2DMesh'):
         """
@@ -1540,6 +1558,7 @@ class Regularization(Mesh):
             self.model_columns.append(list(columns))
             self.model_rows.append([num_rows, num_cols])
                 
+        self.model_rows = np.array(self.model_rows)
         #calculate the distance from the right side of the furthest left 
         #model block to the furthest left station which is half the distance
         # from the center of the mesh grid.
@@ -1751,6 +1770,134 @@ class Regularization(Mesh):
             self.prejudice_fn = os.path.join(self.save_path, self.prejudice_fn)
    
 
+    def plot_regularization(self, **kwargs):
+        """
+        plot the regulariztion grid
+        
+        ==================== ==================================================
+        Key Words            Description        
+        ==================== ==================================================
+        plot_blocknum         [ 'y' | 'n' ] plot block numbers
+        blocknum_fs           font size of block numbers
+        mesh_lc               color of mesh lines *default* is light gray
+        
+        ==================== ==================================================
+        """
+        plot_blocknum = kwargs.pop('plot_blocknum', 'n')
+        blocknum_fs = kwargs.pop('blocknum_fs', 4)
+        mesh_lc = kwargs.pop('mesh_lc', (.75, .75, .75))
+        kwargs['lc'] = mesh_lc
+        try:
+            depth_scale = kwargs['depth_scale']
+        except KeyError:
+            depth_scale = 'km'
+        
+        #set the scale of the plot
+        if depth_scale == 'km':
+            df = 1000.
+        elif depth_scale == 'm':
+            df = 1.
+        else:
+            df = 1000.
+        
+        fig, ax = self.plot_mesh(**kwargs)
+        
+        #plot the regularization mesh
+        line_list_x = []
+        line_list_y = []
+        for ii in range(len(self.model_rows)):
+            #get the number of layers to combine
+            #this index will be the first index in the vertical direction
+            ny1 = self.model_rows[:ii, 0].sum()
+            
+            #the second index  in the vertical direction
+            ny2 = ny1+self.model_rows[ii][0]
+            
+            #make the list of amalgamated columns an array for ease
+            lc = np.array(self.model_columns[ii])
+            
+            line_list_x.append([self.x_grid[0]/df, self.x_grid[-1]/df])
+            line_list_x.append(None)
+            line_list_y.append([self.z_grid[-ny1]/df, self.z_grid[-ny1]/df])
+            line_list_y.append(None)
+            
+            ax.plot([self.x_grid[0]/df, self.x_grid[-1]/df],
+                    [self.z_grid[-ny1]/df, self.z_grid[-ny1]/df],
+                    color='b',
+                    lw=.5)
+#                             
+#            line_list.append(yline)
+
+            #loop over the number of amalgamated blocks
+            for jj in range(len(self.model_columns[ii])):
+                #get first in index in the horizontal direction
+                nx1 = lc[:jj].sum()
+                
+                #get second index in horizontal direction
+                nx2 = nx1+lc[jj]
+                try:
+                    if ny1 == 0:
+                        ny1 = 1
+                        
+                    self.z_grid[-ny1]
+                    self.z_grid[-ny2]
+                    
+                    line_list_x.append([self.x_grid[nx1]/df,
+                                        self.x_grid[nx1]/df])
+                    line_list_x.append(None)
+                    line_list_y.append([self.z_grid[-ny1]/df,
+                                     self.z_grid[-ny2]/df])
+                    line_list_y.append(None)
+                    
+                    ax.plot([self.x_grid[nx1]/df, self.x_grid[nx1]/df],
+                            [self.z_grid[ny1]/df, self.z_grid[ny2]/df],
+                            color='b',
+                            lw=.5)
+#                    line_list.append(xline)
+                except IndexError:
+                    pass
+
+        #ax.plot(line_list_x, line_list_y, '-b', lw=.5)
+                    
+        ##plot regularization block numbers
+        if plot_blocknum == 'y':
+            kk=1
+            for ii in range(len(self.model_rows)):
+                #get the number of layers to combine
+                #this index will be the first index in the vertical direction
+                ny1 = self.model_rows[:ii,0].sum()
+                
+                #the second index  in the vertical direction
+                ny2 = ny1+self.model_rows[ii][0]
+                #make the list of amalgamated columns an array for ease
+                lc = np.array(self.model_columns[ii])
+                #loop over the number of amalgamated blocks
+                for jj in range(len(self.model_columns[ii])):
+                    #get first in index in the horizontal direction
+                    nx1 = lc[:jj].sum()
+                    #get second index in horizontal direction
+                    nx2 = nx1+lc[jj]
+                    try:
+                        if ny1 == 0:
+                            ny1 = 1
+                        #get center points of the blocks
+                        yy = self.z_grid[ny1]-(self.z_grid[ny1]-
+                                                self.z_grid[ny2])/2
+                        xx = self.x_grid[nx1]-\
+                             (self.x_grid[nx1]-self.x_grid[nx2])/2
+                        #put the number
+                        ax.text(xx/df, yy/df, '{0}'.format(kk),
+                                fontdict={'size':blocknum_fs},
+                                horizontalalignment='center',
+                                verticalalignment='center')
+                        kk+=1
+                    except IndexError:
+                        pass
+                    
+        #be sure to draw in the regularization grid.
+        fig.canvas.draw()
+        plt.show()
+        
 class Startup(object):
     """
     Reads and writes the startup file for Occam2D.
