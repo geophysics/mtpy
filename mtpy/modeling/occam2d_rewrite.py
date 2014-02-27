@@ -51,7 +51,7 @@ import scipy.interpolate as spi
 
 import mtpy.core.edi as MTedi
 import mtpy.core.mt as mt
-import mtpy.modeling.winglinktools as MTwl
+import mtpy.modeling.winglink as MTwl
 import mtpy.utils.conversions as MTcv
 import mtpy.utils.filehandling as MTfh
 import mtpy.utils.configfile as MTcf
@@ -876,8 +876,7 @@ class Mesh():
         self.z_grid = np.array([self.z_nodes[:ii].sum() 
                                 for ii in range(self.z_nodes.shape[0])])  
                                                     
-
-         
+#------------------------------------------------------------------------------         
 class Profile():
     """
     Takes data from .edi files to create a profile line for 2D modeling.
@@ -1331,7 +1330,8 @@ class Profile():
                   prop={'size':fs})
                   
         plt.show()
-        
+
+#------------------------------------------------------------------------------        
 class Regularization(Mesh):
     """
     Creates a regularization grid based on Mesh.  Note that Mesh is inherited
@@ -1900,7 +1900,8 @@ class Regularization(Mesh):
         #be sure to draw in the regularization grid.
         fig.canvas.draw()
         plt.show()
-        
+
+#------------------------------------------------------------------------------
 class Startup(object):
     """
     Reads and writes the startup file for Occam2D.
@@ -2102,7 +2103,17 @@ class Startup(object):
         sfid.close()
         
         print 'Wrote Occam2D startup file to {0}'.format(self.startup_fn)
-                
+        
+#------------------------------------------------------------------------------
+class Prejudice(Regularization):
+    """
+    read and write a prejudice file
+    
+    * be able to project a well location
+    * be able to project geologic data onto the model
+    * be able to fix cells
+    
+    """
 #------------------------------------------------------------------------------
 class Data(Profile):
     """
@@ -2841,7 +2852,7 @@ class Data(Profile):
         return pr_obj
     
     def plot_mask_points(self, data_fn=None, marker='h', res_err_inc=.25,
-                         phase_err_inc=.05):
+                         phase_err_inc=.05, **kwargs):
         """
         An interactive plotting tool to mask points an add errorbars
         
@@ -2877,34 +2888,33 @@ class Data(Profile):
         pr_obj = self.plot_response(**kwargs)
         
         #make points an attribute of self which is a data type OccamPointPicker       
-        self.masked_data = OccamPointPicker(pr_obj.ax_list,
-                                            pr_obj.line_list,
-                                            pr_obj.err_list,
-                                            phase_err_inc=phase_err_inc,
-                                            res_err_inc=res_err_inc)
+        self.masked_obj = OccamPointPicker(pr_obj.ax_list,
+                                           pr_obj.line_list,
+                                           pr_obj.err_list,
+                                           phase_err_inc=phase_err_inc,
+                                           res_err_inc=res_err_inc)
         plt.show()
                                   
-    def mask_points(self, maskpoints_obj):
+    def mask_points(self):
         """
         mask points and rewrite the data file
         
         NEED TO REDO THIS TO FIT THE CURRENT SETUP
         """
-           
-        mp_obj = maskpoints_obj                              
+                                         
         m_data = list(self.data)
         #rewrite the data file
         #make a reverse dictionary for locating the masked points in the data 
         #file
-        rploc = dict([('{0}'.format(mp_obj.fndict[key]),int(key)-1) 
-                    for key in mp_obj.fndict.keys()])
+        rploc = dict([('{0}'.format(self.masked_obj.fndict[key]),int(key)-1) 
+                    for key in self.masked_obj.fndict.keys()])
                     
         #make a period dictionary to locate points changed
         frpdict = dict([('{0:.5g}'.format(fr),ff) 
                             for ff,fr in enumerate(1./self.freq)])
         
         #loop over the data list
-        for dd, dat in enumerate(mp_obj.data):
+        for dd, dat in enumerate(self.masked_obj.data):
             derror = self.points.error[dd]
             #loop over the 4 main entrie
             for ss, skey in enumerate(['resxy', 'resyx', 'phasexy','phaseyx']):
@@ -3354,6 +3364,7 @@ class PlotResponse():
     mtmwl                marker for Winglink TM mode
     period               np.ndarray of periods to plot 
     phase_limits         limits on phase plots in degrees (min, max)
+    plot_model_error     [ 'y' | 'n' ] *default* is 'y' to plot model errors 
     plot_num             [ 1 | 2 ] 
                          1 to plot both modes in a single plot
                          2 to plot modes in separate plots (default)
@@ -3485,7 +3496,7 @@ class PlotResponse():
         self.plot_type = kwargs.pop('plot_type', '1')
         self.plot_num = kwargs.pop('plot_num', 2)
         self.plot_tipper = kwargs.pop('plot_tipper', 'n')
-        self.plot_model_error = kwargs.pop('plot_model_err', 'y')
+        self.plot_model_error = kwargs.pop('plot_model_error', 'y')
         self.plot_yn = kwargs.pop('plot_yn', 'y')
 
         if self.plot_num == 1:        
@@ -3515,16 +3526,15 @@ class PlotResponse():
         self.station_list = [rp['station'] for rp in rp_list]
         
         #boolean for adding winglink output to the plots 0 for no, 1 for yes
-        addwl = 0
+        add_wl = 0
         #read in winglink data file
         if self.wl_fn != None:
-            addwl = 1
+            add_wl = 1
             self.subplot_hspace+.1
-            wld, wlrp_list, wlplist, wlslist, wltlist = MTwl.readOutputFile(
-                                                                   self.wl_fn)
-            sdict = dict([(ostation, wlistation) for wlistation in wlslist 
+            wl_data = MTwl.read_output_file(self.wl_fn)
+            sdict = dict([(ostation, wls) for wls in wl_data.keys() 
                           for ostation in self.station_list 
-                          if wlistation.find(ostation)>=0])
+                          if wls.find(ostation)>=0])
         
         #set a local parameter period for less typing
         period = data_obj.period
@@ -3997,65 +4007,144 @@ class PlotResponse():
                         else:
                             pass
             #--------------add in winglink responses------------------------
-            if addwl == 1:
+            if add_wl == 1:
                 try:
-                    wlrms = wld[sdict[self.station_list[jj]]]['rms']
-                    axrte.set_title(self.station_list[jj]+
-                                   '\n rms_occ_TE={0:.2f}'.format(rmste)+
-                                   'rms_occ_TM={0:.2f}'.format(rmstm)+
-                                   'rms_wl={0:.2f}'.format(wlrms),
-                                   fontdict={'size':self.font_size,
-                                             'weight':'bold'})
-                    for ww, wlistation in enumerate(wlslist):
-                        if wlistation.find(self.station_list[jj])==0:
-                            print '{0} was Found {0} in winglink file'.format(
-                                              self.station_list[jj], wlistation)
-                            wlrpdict = wlrp_list[ww]
+                    wlrms = wl_data[sdict[self.station_list[jj]]]['rms']
+#                    axrte.set_title(self.station_list[jj]+
+#                                   '\n rms_occ_TE={0:.2f}'.format(rmste)+
+#                                   'rms_occ_TM={0:.2f}'.format(rmstm)+
+#                                   'rms_wl={0:.2f}'.format(wlrms),
+#                                   fontdict={'size':self.font_size,
+#                                             'weight':'bold'})
+                
+                    wl_dict = wl_data[self.station_list[jj]]
                     
-                    zrxy = [np.where(wlrpdict['te_res'][0]!=0)[0]]
-                    zryx = [np.where(wlrpdict['tm_res'][0]!=0)[0]]
-                    
-                     #plot winglink resistivity
-                    r5 = axrte.loglog(wlplist[zrxy],
-                                      wlrpdict['te_res'][1][zrxy],
-                                      ls='-.',
-                                      marker=self.mtewl,
-                                      ms=self.ms,
-                                      color=self.ctewl,
-                                      mfc=self.ctewl,
-                                      lw=self.lw)
-                    r6 = axrtm.loglog(wlplist[zryx],
-                                      wlrpdict['tm_res'][1][zryx],
-                                      ls='-.',
-                                      marker=self.mtmwl,
-                                      ms=self.ms,
-                                      color=self.ctmwl,
-                                      mfc=self.ctmwl,
-                                      lw=self.lw)
-                    
-                    #plot winglink phase
-                    axpte.semilogx(wlplist[zrxy],
-                                   wlrpdict['te_phase'][1][zrxy],
+                    zrxy = np.nonzero(wl_dict['te_res'][0]!=0)[0]
+                    zryx = np.nonzero(wl_dict['tm_res'][0]!=0)[0]
+                
+                    #plot winglink resistivity
+                    if len(zrxy) > 0:
+                        r5 = axrte.loglog(wl_dict['period'][zrxy],
+                                          wl_dict['te_res'][1, zrxy],
+                                          ls='-.',
+                                          marker=self.mtewl,
+                                          ms=self.ms,
+                                          color=self.ctewl,
+                                          mfc=self.ctewl,
+                                          lw=self.lw)
+                        axpte.semilogx(wl_dict['period'][zrxy],
+                                   wl_dict['te_phase'][1, zrxy],
                                    ls='-.',
                                    marker=self.mtewl,
                                    ms=self.ms,
                                    color=self.ctewl,
                                    mfc=self.ctewl,
                                    lw=self.lw)
-                                   
-                    axptm.semilogx(wlplist[zryx],
-                                   wlrpdict['tm_phase'][1][zryx],
-                                   ls='-.',
-                                   marker=self.mtmwl,
-                                   ms=self.ms,
-                                   color=self.ctmwl,
-                                   mfc=self.ctmwl,
-                                   lw=self.lw)
+                        rlistte.append(r5[0])
+                        llistte.append('$WLMod_{TE}$ '+'{0:.2f}'.format(wlrms))
+                    if len(zryx) > 0:
+                        r6 = axrtm.loglog(wl_dict['period'][zryx],
+                                          wl_dict['tm_res'][1, zryx],
+                                          ls='-.',
+                                          marker=self.mtmwl,
+                                          ms=self.ms,
+                                          color=self.ctmwl,
+                                          mfc=self.ctmwl,
+                                          lw=self.lw)
+                        
+                        #plot winglink phase
+                        axptm.semilogx(wl_dict['period'][zryx],
+                                       wl_dict['tm_phase'][1, zryx],
+                                       ls='-.',
+                                       marker=self.mtmwl,
+                                       ms=self.ms,
+                                       color=self.ctmwl,
+                                       mfc=self.ctmwl,
+                                       lw=self.lw)
                     
-                    rlistte.append(r5[0])
-                    rlisttm.append(r6[0])
-                    llistte.append('$WLMod_{TE}$ '+'{0:.2f}'.format(wlrms))
-                    llisttm.append('$WLMod_{TM}$ '+'{0:.2f}'.format(wlrms))
+                        rlisttm.append(r6[0])
+                        llisttm.append('$WLMod_{TM}$ '+'{0:.2f}'.format(wlrms))
+                        
+                    if self.plot_tipper == 'y':
+                        txy = np.nonzero(wl_dict['re_tip'][0])[0]
+                        tyx = np.nonzero(wl_dict['im_tip'][0])[0]
+                        #--> real tipper  data
+                        if len(txy) > 0:
+                            per_list_p =[]
+                            tpr_list_p = []
+                            per_list_n =[]
+                            tpr_list_n = []
+                            for per, tpr in zip(wl_dict['period'][txy],
+                                                wl_dict['re_tip'][1, txy]):
+                                if tpr >= 0:
+                                    per_list_p.append(per)
+                                    tpr_list_p.append(tpr)
+                                else:
+                                    per_list_n.append(per)
+                                    tpr_list_n.append(tpr)
+                            if len(per_list_p) > 0:
+                                m_line, s_line, b_line = axtipre.stem(per_list_p, 
+                                                                      tpr_list_p,
+                                                                      markerfmt='^',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', self.ctewl)
+                                plt.setp(m_line, 'markeredgecolor', self.ctewl)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', self.ctewl)
+                                plt.setp(b_line, 'linewidth', .01)
+                            if len(per_list_n) > 0:
+                                m_line, s_line, b_line = axtipre.stem(per_list_n, 
+                                                                      tpr_list_n,
+                                                                      markerfmt='v',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', self.ctewl)
+                                plt.setp(m_line, 'markeredgecolor', self.ctewl)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', self.ctewl)
+                                plt.setp(b_line, 'linewidth', .01)
+            
+                        else:
+                            pass
+                        if len(tyx) > 0:
+                            per_list_p =[]
+                            tpi_list_p = []
+                            per_list_n =[]
+                            tpi_list_n = []
+                            for per, tpi in zip(wl_dict['period'][tyx],
+                                                wl_dict['im_tip'][1, tyx]):
+                                if tpi >= 0:
+                                    per_list_p.append(per)
+                                    tpi_list_p.append(tpi)
+                                else:
+                                    per_list_n.append(per)
+                                    tpi_list_n.append(tpi)
+                            if len(per_list_p) > 0:
+                                m_line, s_line, b_line = axtipim.stem(per_list_p, 
+                                                                      tpi_list_p,
+                                                                      markerfmt='^',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', self.ctmwl)
+                                plt.setp(m_line, 'markeredgecolor', self.ctmwl)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', self.ctmwl)
+                                plt.setp(b_line, 'linewidth', .01)
+                            if len(per_list_n) > 0:
+                                m_line, s_line, b_line = axtipim.stem(per_list_n, 
+                                                                      tpi_list_n,
+                                                                      markerfmt='v',
+                                                                      basefmt='k')
+                                plt.setp(m_line, 'markerfacecolor', self.ctmwl)
+                                plt.setp(m_line, 'markeredgecolor', self.ctmwl)
+                                plt.setp(m_line, 'markersize', self.ms)
+                                plt.setp(s_line, 'linewidth', self.lw)
+                                plt.setp(s_line, 'color', self.ctmwl)
+                                plt.setp(b_line, 'linewidth', .01)
+                
+                        else:
+                            pass
                 except (IndexError, KeyError):
                     print 'Station not present'
             else:
