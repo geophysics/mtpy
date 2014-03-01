@@ -1,33 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Spin-off from 'occamtools'
-(Created August 2011, re-written August 2013)
-
 Tools for Occam2D
 
-authors: JP/LK
+======================== ======================================================
+**Classes**              Description
+======================== ======================================================
+Data                     Reads/Writes/Plots a data file, inherets Profile
+Mesh                     Reads/Writes/Plots finite element mesh, can add 
+                         topography. 
+Model                    Reads/Plot .iter file output by Occam
+OccamInputError          Local Exception for clarity to user 
+PlotL2                   Plots the L2 (RMS vs. Iteration & RMS vs. Roughness)
+PlotMisfitPseudosection  Plots misfit Pseudosection for apparent resistivity,
+                         Phase and Tipper
+PlotModel                Plots model from .iter file output by occam
+PlotPseudoSection        Plots pseudosections of data and response for 
+                         apparent resistivity, phase and Tipper 
+PlotResponse             Plot observed and model response(s) for apparent
+                         resistivity, phase and Tipper 
+Prejudice                Reads/Writes a prejudice file (IN PROGRESS)
+Profile                  Creates a profile for given stations, default finds 
+                         the strike direction and projects stations onto 
+                         a line perpendicular to this direction.
+Regularization           Reads/Writes regularization grid (does not work
+                         for topography yet.)
+Setup                    Reads/Writes startup file for Occam2D.  
+Run                      Runs Occam2D from a python shell (IN PROGRESS).
+======================== ======================================================
 
+authors JP/LK/AK
 
-Classes:
-    - Data
-    - Model
-    - Setup
-    - Run
-    - Plot
-    - Mask
-
-
-Functions:
-    - getdatetime
-    - makestartfiles
-    - writemeshfile
-    - writemodelfile
-    - writestartupfile
-    - read_datafile
-    - get_model_setup
-    - blocks_elements_setup
-
-
+date: (Created August 2011, re-written from Occam2D December 2013)
 """
 #==============================================================================
 import numpy as np
@@ -4409,12 +4412,12 @@ class PlotModel(Model):
     regmesh                 [ 'on' | 'off' ] plot the regularization mesh
                             plots as blue lines
     station_color           color of station marker
-    station_font_color      color station label
-    station_font_pad        padding between station label and marker
-    station_font_rotation   angle of station label in degrees 0 is 
+    station_text_color      color station label
+    station_text_pad        padding between station label and marker
+    station_text_rotation   angle of station label in degrees 0 is 
                             horizontal
-    station_font_size       font size of station label
-    station_font_weight     font weight of station label
+    station_text_size       font size of station label
+    station_text_weight     font weight of station label
     station_id              index to take station label from station name
     station_marker          station marker.  if inputing a LaTex marker
                             be sure to input as r"LaTexMarker" otherwise
@@ -4478,11 +4481,11 @@ class PlotModel(Model):
         self.station_locations = None
         self.station_list = None
         self.station_id = kwargs.pop('station_id', None)
-        self.station_font_size = kwargs.pop('station_font_size', 8)
-        self.station_font_pad = kwargs.pop('station_font_pad', 1.0)
-        self.station_font_weight = kwargs.pop('station_font_weight', 'bold')
-        self.station_font_rotation = kwargs.pop('station_font_rotation', 60)
-        self.station_font_color = kwargs.pop('station_font_color', 'k')
+        self.station_text_size = kwargs.pop('station_text_size', 8)
+        self.station_text_pad = kwargs.pop('station_text_pad', 1.0)
+        self.station_text_weight = kwargs.pop('station_text_weight', 'bold')
+        self.station_text_rotation = kwargs.pop('station_text_rotation', 60)
+        self.station_text_color = kwargs.pop('station_text_color', 'k')
         self.station_marker = kwargs.pop('station_marker', 
                                          r"$\blacktriangledown$")
         self.station_color = kwargs.pop('station_color', 'k')
@@ -4574,10 +4577,10 @@ class PlotModel(Model):
         plt.rcParams['figure.subplot.top'] = self.subplot_top
         
         #station font dictionary
-        fdict = {'size':self.station_font_size,
-                 'weight':self.station_font_weight,
-                 'rotation':self.station_font_rotation,
-                 'color':self.station_font_color}
+        fdict = {'size':self.station_text_size,
+                 'weight':self.station_text_weight,
+                 'rotation':self.station_text_rotation,
+                 'color':self.station_text_color}
                  
         #plot the model as a mesh
         self.fig = plt.figure(self.fig_num, self.fig_size, dpi=self.fig_dpi)
@@ -4628,7 +4631,7 @@ class PlotModel(Model):
             #if there is a station id index
             if self.station_id != None:
                 ax.text(offset/df,
-                        -self.station_font_pad*pf,
+                        -self.station_text_pad*pf,
                         name[self.station_id[0]:self.station_id[1]],
                         horizontalalignment='center',
                         verticalalignment='baseline',
@@ -4636,7 +4639,7 @@ class PlotModel(Model):
             #otherwise put on the full station name found form data file
             else:
                 ax.text(offset/df,
-                        -self.station_font_pad*pf,
+                        -self.station_text_pad*pf,
                         name,
                         horizontalalignment='center',
                         verticalalignment='baseline',
@@ -5448,7 +5451,7 @@ class PlotPseudoSection(object):
         
         self.phase_cmap = kwargs.pop('phase_cmap', 'jet')
         self.res_cmap = kwargs.pop('res_cmap', 'jet_r')
-        self.tip_cmap = kwargs.pop('res_cmap', 'Spectral')
+        self.tip_cmap = kwargs.pop('res_cmap', 'Spectral_r')
         
         self.ml = kwargs.pop('ml', 2)
         self.station_id = kwargs.pop('station_id', [0,4])
