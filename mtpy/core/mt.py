@@ -399,12 +399,14 @@ class MT(object):
             >>> mt1 = mt.MT(fn=r"/home/mt/edi_files/mt01.edi")
             >>> D, new_z = mt1.remove_distortion()
             >>> mt1.write_edi_file(new_fn=r"/home/mt/edi_files/mt01_dr.edi",\
-            >>> ...                new_Z=new_z)
+                                   new_Z=new_z)
         """
         
         D, new_z_object = MTdistortion.remove_distortion(z_object=self.Z)
         
         return D, new_z_object
+        
+    
         
         
         

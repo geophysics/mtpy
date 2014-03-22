@@ -182,10 +182,7 @@ class Z(object):
         
         #for consistency recalculate resistivity and phase
         if self._z is not None:
-            try:
-                self._compute_res_phase()
-            except IndexError:
-                print 'Need to input frequency array'
+            self._compute_res_phase()
 
     def _get_freq(self):
             if self._freq is None:
@@ -232,10 +229,7 @@ class Z(object):
                                                  
         #for consistency recalculate resistivity and phase
         if self._z is not None:
-            try:
-                self._compute_res_phase()
-            except IndexError:
-                print 'Need to input frequency array'
+            self._compute_res_phase()
 
         
     def _get_z(self):
@@ -264,11 +258,8 @@ class Z(object):
         
         #for consistency recalculate resistivity and phase
         if self._zerr is not None and self._z is not None:
-            try:
-                self._compute_res_phase()
-            except IndexError:
-                print 'Need to input frequency array'
-        
+            self._compute_res_phase()
+
     def _get_zerr(self):
         return self._zerr
     
@@ -387,7 +378,6 @@ class Z(object):
 
         """ 
         if self.freq is None:
-            print 'Need to input frequency list'
             return
             
         if self.z is None:
@@ -537,7 +527,7 @@ class Z(object):
                 return 
 
         else:
-            z_new = np.zeros(reserr_array.shape,'float')
+            zerr_new = np.zeros(reserr_array.shape,'float')
             try:
                 if reserr_array.shape != phaseerr_array.shape:
                     print 'Error - shape of "phase" array does not match'+\
