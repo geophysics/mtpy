@@ -299,7 +299,8 @@ class Data(object):
                                 rel_err = self.error_floor/100.*abs(zz)
                             rel_err = '{0:> 14.6e}'.format(rel_err)
                             
-                            dline = ''.join([per, sta, lat, lon, eas, nor, ele, 
+                            #make sure that x==north, y==east, z==+down
+                            dline = ''.join([per, sta, lat, lon, nor, eas, ele, 
                                              com, rea, ima, rel_err, '\n'])
                             dlines.append(dline)
         
@@ -567,13 +568,13 @@ class Mesh(object):
         self.cell_size_north = kwargs.pop('cell_size_north', 500)
         
         #padding cells on either side
-        self.pad_east = kwargs.pop('pad_east', 5)
-        self.pad_north = kwargs.pop('pad_north', 5)
-        self.pad_z = kwargs.pop('pad_z', 5)
+        self.pad_east = kwargs.pop('pad_east', 7)
+        self.pad_north = kwargs.pop('pad_north', 7)
+        self.pad_z = kwargs.pop('pad_z', 7)
         
         #root of padding cells
-        self.pad_root_east = kwargs.pop('pad_root_east', 5)
-        self.pad_root_north = kwargs.pop('pad_root_north', 5)
+        self.pad_root_east= kwargs.pop('pad_root_east', 7)
+        self.pad_root_north = kwargs.pop('pad_root_north', 7)
         
         self.z1_layer = kwargs.pop('z1_layer', 10)
         self.z_target_depth = kwargs.pop('z_target_depth', 50000)
@@ -1086,10 +1087,11 @@ class Mesh(object):
                 
         #--> make a res_model if there is not one given
         if type(self.res_model) is float or type(self.res_model) is int:
+            start_res = float(self.res_model)
             self.res_model = np.zeros((self.nodes_north.shape[0],
                                        self.nodes_east.shape[0],
                                        self.nodes_z.shape[0]))
-            self.res_model[:, :, :] = self.res_model
+            self.res_model[:, :, :] = start_res
         elif self.res_model is None:
             self.res_model = np.zeros((self.nodes_north.shape[0],
                                        self.nodes_east.shape[0],
