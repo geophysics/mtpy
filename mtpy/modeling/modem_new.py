@@ -472,7 +472,6 @@ class Data(object):
             elif dd[7].find('T') == 0:
                 data_dict[dd[1]].Tipper.tipper[p_index, ii, jj] = dd[8]+1j*dd[9]
                 data_dict[dd[1]].Tipper.tippererr[p_index, ii, jj] = dd[10]
-                print dd[1], p_index, ii, jj, data_dict[dd[1]].Tipper.tipper
         self.mt_dict = data_dict
         
         #Be sure to caclulate invariants and phase tensor
