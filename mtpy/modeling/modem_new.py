@@ -447,11 +447,11 @@ class Data(object):
         tf_dict = {}
         for station in station_list:
             data_dict[station] = mt.MT()
-            data_dict[station].Z = mtz.Z(z_array=z_dummy, 
-                                        zerr_array=z_dummy.real, 
+            data_dict[station].Z = mtz.Z(z_array=z_dummy.copy(), 
+                                        zerr_array=z_dummy.copy().real, 
                                         freq=1./self.period_list)
-            data_dict[station].Tipper = mtz.Tipper(tipper_array=t_dummy, 
-                                                   tippererr_array=t_dummy.real, 
+            data_dict[station].Tipper = mtz.Tipper(tipper_array=t_dummy.copy(), 
+                                                   tippererr_array=t_dummy.copy().real, 
                                                    freq=1./self.period_list)
             tf_dict[station] = False
                                                    
@@ -472,7 +472,13 @@ class Data(object):
             elif dd[7].find('T') == 0:
                 data_dict[dd[1]].Tipper.tipper[p_index, ii, jj] = dd[8]+1j*dd[9]
                 data_dict[dd[1]].Tipper.tippererr[p_index, ii, jj] = dd[10]
+                print dd[1], p_index, ii, jj, data_dict[dd[1]].Tipper.tipper
         self.mt_dict = data_dict
+        
+        #Be sure to caclulate invariants and phase tensor
+        for key in self.mt_dict.keys():
+            self.mt_dict[key].zinv.compute_invariants
+            self.mt_dict[key].pt.set_z_object(self.mt_dict[key].Z)
                 
             
             
