@@ -635,7 +635,8 @@ class WSData(object):
                                                  ('east', np.float),
                                                  ('north', np.float), 
                                                  ('east_c', np.float),
-                                                 ('north_c', np.float)])
+                                                 ('north_c', np.float),
+                                                 ('elev', np.float)])
         self.station_locations['east'] = self.data['east']
         self.station_locations['north'] = self.data['north']
         self.station_locations['station'] = self.data['station']
@@ -1011,7 +1012,8 @@ class WSMesh(object):
                                                      ('east', np.float),
                                                      ('north', np.float), 
                                                      ('east_c', np.float),
-                                                     ('north_c', np.float)])
+                                                     ('north_c', np.float),
+                                                     ('elev', np.float)])
             #get station locations in meters
             for ii, edi in enumerate(self.edi_list):
                 zz = mtedi.Edi()
@@ -1020,6 +1022,7 @@ class WSMesh(object):
                 self.station_locations[ii]['station'] = zz.station
                 self.station_locations[ii]['east'] = east
                 self.station_locations[ii]['north'] = north
+                self.station_locations[ii]['elev'] = zz.elev
              
             #remove the average distance to get coordinates in a relative space
             self.station_locations['east'] -= self.station_locations['east'].mean()
@@ -1190,8 +1193,14 @@ class WSMesh(object):
         
         #write a station location file for later
         stations = WSStation()
+        try: 
+            self.station_locations['elev']
+        except ValueError:
+            self.station_locations['elev'] = np.zeros_like(self.station_locations['east_c'])
+        
         stations.write_station_file(east=self.station_locations['east_c'],
                                     north=self.station_locations['north_c'],
+                                    elev=self.station_locations['elev'],
                                     station_list=self.station_locations['station'],
                                     save_path=self.save_path)
         self.station_fn = stations.station_fn
@@ -1238,7 +1247,7 @@ class WSMesh(object):
         plt.rcParams['figure.subplot.left'] = .08
         plt.rcParams['font.size'] = 7
         
-        fig = plt.figure(fig_num, fig_size=fig_size, dpi=fig_dpi)
+        fig = plt.figure(fig_num, figsize=fig_size, dpi=fig_dpi)
         plt.clf()
         
         #---plot map view    
@@ -1556,10 +1565,125 @@ class WSMesh(object):
                             ifid.write('{0:>3.0f}'.format(
                                           write_res_model[nn, ee, ll[0]]))
                         else:
-                            ifid.write('{0:>8.1f}'.format(
+                            ifid.write('{0:>12.3e}'.format(
                                           write_res_model[nn, ee, ll[0]]))
                     ifid.write('\n')
             ifid.close()
+        
+        print 'Wrote file to: {0}'.format(self.initial_fn)
+        
+        
+    def write_ModEM_model_file(self, **kwargs):
+        """
+        will write an initial file for ModEM.  
+        
+        Note that x is assumed to be S --> N, y is assumed to be W --> E and
+        z is positive downwards.  This means that index [0, 0, 0] is the 
+        southwest corner of the first layer.  Therefore if you build a model
+        by hand the layer block will look as it should in map view. 
+        
+        Also, the xgrid, ygrid and zgrid are assumed to be the relative 
+        distance between neighboring nodes.  This is needed because wsinv3d 
+        builds the  model from the bottom SW corner assuming the cell width
+        from the init file.
+        
+           
+        
+        Key Word Arguments:
+        ----------------------
+        
+            **nodes_north** : np.array(nx)
+                        block dimensions (m) in the N-S direction. 
+                        **Note** that the code reads the grid assuming that
+                        index=0 is the southern most point.
+            
+            **nodes_east** : np.array(ny)
+                        block dimensions (m) in the E-W direction.  
+                        **Note** that the code reads in the grid assuming that
+                        index=0 is the western most point.
+                        
+            **nodes_z** : np.array(nz)
+                        block dimensions (m) in the vertical direction.  
+                        This is positive downwards.
+                        
+            **save_path** : string
+                          Path to where the initial file will be saved
+                          to savepath/init3d
+
+                        
+            **title** : string
+                        Title that goes into the first line of savepath/init3d
+                        
+            **res_model** : np.array((nx,ny,nz))
+                        Starting resistivity model.  Each cell is allocated an
+                        integer value that cooresponds to the index value of
+                        **res_list**.  .. note:: again that the modeling code 
+                        assumes that the first row it reads in is the southern
+                        most row and the first column it reads in is the 
+                        western most column.  Similarly, the first plane it 
+                        reads in is the Earth's surface.
+                        
+                            
+                        
+                          
+        """
+        keys = ['nodes_east', 'nodes_north', 'nodes_z', 'title',
+                'res_model', 'save_path', 'initial_fn']
+        for key in keys:
+            try:
+                setattr(self, key, kwargs[key])
+            except KeyError:
+                if self.__dict__[key] is None:
+                    pass
+
+        if self.initial_fn is None:
+            if self.save_path is None:
+                self.save_path = os.getcwd()
+                self.initial_fn = os.path.join(self.save_path, "ModEMInitialModel")
+            elif os.path.isdir(self.save_path) == True:
+                self.initial_fn = os.path.join(self.save_path, "ModEMInitialModel")
+            else:
+                self.save_path = os.path.dirname(self.save_path)
+                self.initial_fn= self.save_path
+        
+
+        #--> write file
+        ifid = file(self.initial_fn, 'w')
+        ifid.write('# {0}\n'.format(self.title.upper()))
+        ifid.write('{0} {1} {2} {3} {4}\n'.format(self.nodes_north.shape[0],
+                                              self.nodes_east.shape[0],
+                                              self.nodes_z.shape[0],
+                                              0,  
+                                              'LOGE'))
+    
+        #write S --> N node block
+        for ii, nnode in enumerate(self.nodes_north):
+            ifid.write('{0:>12.1f}'.format(abs(nnode)))
+
+        ifid.write('\n')
+        
+        #write W --> E node block        
+        for jj, enode in enumerate(self.nodes_east):
+            ifid.write('{0:>12.1f}'.format(abs(enode)))
+        ifid.write('\n')
+
+    
+        #write top --> bottom node block
+        for kk, zz in enumerate(self.nodes_z):
+            ifid.write('{0:>12.1f}'.format(abs(zz)))
+        ifid.write('\n')
+    
+        #write the resistivity in log e format
+        write_res_model = np.log(self.res_model[::-1, :, :])
+            
+        #write out the layers from resmodel
+        for zz in range(self.nodes_z.shape[0]):
+            ifid.write('\n')
+            for nn in range(self.nodes_north.shape[0]):
+                for ee in range(self.nodes_east.shape[0]):
+                    ifid.write('{0:>12.3e}'.format(write_res_model[nn, ee, zz]))
+                ifid.write('\n')
+        ifid.close()
         
         print 'Wrote file to: {0}'.format(self.initial_fn)
         
@@ -1737,7 +1861,6 @@ class WSModel(object):
     nodes_east              relative distance between nodes in east direction 
     nodes_north             relative distance between nodes in north direction 
     nodes_z                 relative distance between nodes in east direction 
-    res_list                list of resistivity values for starting model
     res_model               starting resistivity model
     rms                     root mean squared error of data and model
     ======================= ===================================================
@@ -1759,7 +1882,6 @@ class WSModel(object):
         self.rms = None
         self.lagrange = None
         self.res_model = None
-        self.res_list = None
         
         self.nodes_north = None
         self.nodes_east = None
@@ -1965,6 +2087,8 @@ class WSModelManipulator(object):
         self.initial_fn = initial_fn
         self.data_fn = data_fn
         self.new_initial_fn = None
+        self.initial_fn_basename = kwargs.pop('initial_fn_basename', 
+                                              'WSInitialModel_mm')
         
         if self.model_fn is not None:
             self.save_path = os.path.dirname(self.model_fn)
@@ -2024,6 +2148,12 @@ class WSModelManipulator(object):
                                       dtype=np.float))
         
         else:
+            try:
+                if len(self.res_list) > 10:
+                    print ('!! Warning -- ws3dinv can only deal with 10 '
+                           'resistivity values for the initial model')
+            except TypeError:
+                self.res_list = [self.res_list]   
             self.set_res_list(self.res_list) 
         
         
@@ -2248,7 +2378,7 @@ class WSModelManipulator(object):
                       color='k')
         
         #plot the colorbar
-        self.ax2 = mcb.make_axes(self.ax1, orientation='vertical', shrink=.5)
+        self.ax2 = mcb.make_axes(self.ax1, orientation='vertical', shrink=.35)
         seg_cmap = cmap_discretize(self.cmap, len(self.res_list))
         self.cb = mcb.ColorbarBase(self.ax2[0],cmap=seg_cmap,
                                    norm=colors.Normalize(vmin=self.cmin,
@@ -2262,7 +2392,7 @@ class WSModelManipulator(object):
                                 for cc in np.arange(self.cmin, self.cmax+1)])
                             
         #make a resistivity radio button
-        resrb = self.fig.add_axes([.85,.1,.1,.15])
+        resrb = self.fig.add_axes([.85,.1,.1,.2])
         reslabels = ['{0:.4g}'.format(res) for res in self.res_list]
         self.radio_res = widgets.RadioButtons(resrb, reslabels, 
                                         active=self.res_dict[self.res_value])
@@ -2572,7 +2702,8 @@ class WSModelManipulator(object):
         if save_path is not None:
             self.save_path = save_path
         
-        self.new_initial_fn = os.path.join(self.save_path, 'WSInitialFile_RW_mm')
+        self.new_initial_fn = os.path.join(self.save_path, 
+                                           self.initial_fn_basename)
         wsmesh = WSMesh()
         #pass attribute to wsmesh
         att_names = ['nodes_north', 'nodes_east', 'nodes_z', 'grid_east', 
@@ -4301,7 +4432,7 @@ class PlotDepthSlice(object):
         for ii in zrange: 
             depth = '{0:.3f} ({1})'.format(self.grid_z[ii], 
                                      self.map_scale)
-            fig = plt.figure(depth, fig_size=self.fig_size, dpi=self.fig_dpi)
+            fig = plt.figure(depth, figsize=self.fig_size, dpi=self.fig_dpi)
             plt.clf()
             ax1 = fig.add_subplot(1, 1, 1, aspect=self.fig_aspect)
             plot_res = np.log10(self.res_model[:, :, ii].T)
@@ -4625,7 +4756,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
         self.cb_tick_step = kwargs.pop('cb_tick_step', 45)
         self.cb_residual_tick_step = kwargs.pop('cb_residual_tick_step', 3)
         self.cb_pt_pad = kwargs.pop('cb_pt_pad', .90)
-        self.cb_res_pad = kwargs.pop('cb_pt_pad', 1.22)
+        self.cb_res_pad = kwargs.pop('cb_res_pad', 1.22)
         
         
         self.res_limits = kwargs.pop('res_limits', (0,4))
@@ -4787,7 +4918,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
                                
         for ff, per in enumerate(self.plot_period_list):
             print 'Plotting Period: {0:.5g}'.format(per)
-            fig = plt.figure('{0:.5g}'.format(per), fig_size=self.fig_size,
+            fig = plt.figure('{0:.5g}'.format(per), figsize=self.fig_size,
                              dpi=self.fig_dpi)
             fig.clf()
                              
@@ -5512,7 +5643,7 @@ class PlotSlices(object):
                                  self.grid_z[-5])
             
         
-        self.fig = plt.figure(self.fig_num, fig_size=self.fig_size,
+        self.fig = plt.figure(self.fig_num, figsize=self.fig_size,
                               dpi=self.fig_dpi)
         plt.clf()
         gs = gridspec.GridSpec(2, 2,
