@@ -1003,7 +1003,7 @@ class Mesh(object):
     
     def write_initial_file(self, log_E=True, **kwargs):
         """
-        will write an initial file for wsinv3d.  
+        will write an initial file for ModEM.  
         
         Note that x is assumed to be S --> N, y is assumed to be W --> E and
         z is positive downwards.  This means that index [0, 0, 0] is the 
@@ -1037,15 +1037,7 @@ class Mesh(object):
             **save_path** : string
                           Path to where the initial file will be saved
                           to savepath/init3d
-                          
-            **res_list** : float or list
-                        The start resistivity as a float or a list of
-                        resistivities that coorespond to the starting
-                        resistivity model **res_model_int**.  
-                        This must be input if you input **res_model_int**
-                        If res_list is None, then Nr = 0 and the real 
-                        resistivity values are used from **res_model**.
-                        *default* is 100
+
                         
             **title** : string
                         Title that goes into the first line of savepath/init3d
@@ -1054,19 +1046,11 @@ class Mesh(object):
                         Starting resistivity model.  Each cell is allocated an
                         integer value that cooresponds to the index value of
                         **res_list**.  .. note:: again that the modeling code 
-                        assumes that the first row it reads in is the northern
+                        assumes that the first row it reads in is the southern
                         most row and the first column it reads in is the 
                         western most column.  Similarly, the first plane it 
                         reads in is the Earth's surface.
                         
-            **res_model_int** : np.array((nx,ny,nz))
-                        Starting resistivity model.  Each cell is allocated an
-                        linear resistivity value.
-                        .. note:: again that the modeling code 
-                        assumes that the first row it reads in is the northern
-                        most row and the first column it reads in is the 
-                        western most column.  Similarly, the first plane it 
-                        reads in is the Earth's surface.
                             
                         
                           
@@ -1083,67 +1067,53 @@ class Mesh(object):
         if self.initial_fn is None:
             if self.save_path is None:
                 self.save_path = os.getcwd()
-                self.initial_fn = os.path.join(self.save_path, "ModEM_Mesh")
+                self.initial_fn = os.path.join(self.save_path, "ModEMInitialModel")
             elif os.path.isdir(self.save_path) == True:
-                self.initial_fn = os.path.join(self.save_path, "ModEM_Mesh")
+                self.initial_fn = os.path.join(self.save_path, "ModEMInitialModel")
             else:
                 self.save_path = os.path.dirname(self.save_path)
                 self.initial_fn= self.save_path
-                
-        #--> make a res_model if there is not one given
-        if type(self.res_model) is float or type(self.res_model) is int:
-            start_res = float(self.res_model)
-            self.res_model = np.zeros((self.nodes_north.shape[0],
-                                       self.nodes_east.shape[0],
-                                       self.nodes_z.shape[0]))
-            self.res_model[:, :, :] = start_res
-        elif self.res_model is None:
-            self.res_model = np.zeros((self.nodes_north.shape[0],
-                                       self.nodes_east.shape[0],
-                                       self.nodes_z.shape[0]))
-            self.res_model[:, :, :] = 100.00
+        
 
         #--> write file
         ifid = file(self.initial_fn, 'w')
         ifid.write('# {0}\n'.format(self.title.upper()))
-        ifid.write('{0} {1} {2} {3} LOGE\n'.format(self.nodes_north.shape[0],
-                                                   self.nodes_east.shape[0],
-                                                   self.nodes_z.shape[0],
-                                                   0))
+        ifid.write('{0:>5}{1:>5}{2:>5}{3:>5} {4}\n'.format(self.nodes_north.shape[0],
+                                              self.nodes_east.shape[0],
+                                              self.nodes_z.shape[0],
+                                              0,  
+                                              'LOGE'))
     
         #write S --> N node block
         for ii, nnode in enumerate(self.nodes_north):
-            ifid.write('{0:.1f} '.format(abs(nnode)))
+            ifid.write('{0:>12.3f}'.format(abs(nnode)))
+
         ifid.write('\n')
         
         #write W --> E node block        
         for jj, enode in enumerate(self.nodes_east):
-            ifid.write('{0:.1f} '.format(abs(enode)))
+            ifid.write('{0:>12.3f}'.format(abs(enode)))
         ifid.write('\n')
+
     
         #write top --> bottom node block
         for kk, zz in enumerate(self.nodes_z):
-            ifid.write('{0:.1f} '.format(abs(zz)))
+            ifid.write('{0:>12.3f}'.format(abs(zz)))
         ifid.write('\n')
-        
-        ifid.write('\n')
-        #write the resistivity list
-        write_res_model = self.res_model[::-1, :, :]
+    
+        #write the resistivity in log e format
+        write_res_model = np.log(self.res_model[::-1, :, :])
+            
+        #write out the layers from resmodel
         for zz in range(self.nodes_z.shape[0]):
-            for nn in range(self.nodes_north.shape[0]):
-                for ee in range(self.nodes_east.shape[0]):
-                    if log_E == True:
-                        ifid.write('{0: >8.4f}'.format(
-                                          np.log(write_res_model[nn, ee, zz])))
-                    else:
-                        ifid.write('{0: >8.4f}'.format(
-                                          write_res_model[nn, ee, zz]))
-                ifid.write('\n')
             ifid.write('\n')
-        ifid.write('{0:<8.3f} {1:<8.3f} {2:<8.3f}\n'.format(self.grid_center[0],
-                                                          self.grid_center[1],
-                                                          0. ))
-        ifid.write('0\n')
+            for ee in range(self.nodes_east.shape[0]):
+                for nn in range(self.nodes_north.shape[0]):
+                    ifid.write('{0:>13.5E}'.format(write_res_model[nn, ee, zz]))
+                ifid.write('\n')
+        
+        ifid.write('\n{0:>16.3f}{1:>16.3f}{2:>16.3f}\n'.format(0, 0, 0))
+        ifid.write('{0:>9.3f}\n'.format(0))
         ifid.close()
         
         print 'Wrote file to: {0}'.format(self.initial_fn)
@@ -1281,18 +1251,19 @@ class Mesh(object):
 #==============================================================================
 class PlotResponse(object):
     """
-    plot data and response
+    plot data and response 
+    
+    Plots the real and imaginary impedance and induction vector if present.
     
     :Example: ::
     
-        >>> import mtpy.modeling.ws3dinv as ws
-        >>> dfn = r"/home/MT/ws3dinv/Inv1/WSDataFile.dat"
-        >>> rfn = r"/home/MT/ws3dinv/Inv1/Test_resp.00"
-        >>> sfn = r"/home/MT/ws3dinv/Inv1/WSStationLocations.txt"
-        >>> wsrp = ws.PlotResponse(data_fn=dfn, resp_fn=rfn, station_fn=sfn)
+        >>> import mtpy.modeling.new_modem as modem
+        >>> dfn = r"/home/MT/ModEM/Inv1/DataFile.dat"
+        >>> rfn = r"/home/MT/ModEM/Inv1/Test_resp_000.res"
+        >>> mrp = modem.PlotResponse(data_fn=dfn, resp_fn=rfn)
         >>> # plot only the TE and TM modes
-        >>> wsrp.plot_component = 2
-        >>> wsrp.redraw_plot()
+        >>> mrp.plot_component = 2
+        >>> mrp.redraw_plot()
     
     ======================== ==================================================
     Attributes               Description    
