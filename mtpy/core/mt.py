@@ -241,6 +241,7 @@ class MT(object):
         """
         
         self._Z = z_object
+        self._Z._compute_res_phase()
         
         #--> compute phase tensor
         self.pt = MTpt.PhaseTensor(z_object=self._Z, freq=self._Z.freq)
