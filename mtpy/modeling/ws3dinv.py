@@ -1544,32 +1544,35 @@ class WSMesh(object):
                 #northern most value
                 write_res_model = self.res_model_int[::-1, :, :]
                 #get similar layers
-            else:
-                write_res_model = self.res_model[::-1, :, :]
-            l1 = 0
-            layers = []
-            for zz in range(self.nodes_z.shape[0]-1):
-                if (write_res_model[:, :, zz] == 
-                    write_res_model[:, :, zz+1]).all() == False:
-                    layers.append((l1, zz))
-                    l1 = zz+1
-            #need to add on the bottom layers
-            layers.append((l1, self.nodes_z.shape[0]-1))
-            
-            #write out the layers from resmodel
-            for ll in layers:
-                ifid.write('{0} {1}\n'.format(ll[0]+1, ll[1]+1))
-                for nn in range(self.nodes_north.shape[0]):
-                    for ee in range(self.nodes_east.shape[0]):
-                        if nr > 0:
+                l1 = 0
+                layers = []
+                for zz in range(self.nodes_z.shape[0]-1):
+                    if (write_res_model[:, :, zz] == 
+                        write_res_model[:, :, zz+1]).all() == False:
+                        layers.append((l1, zz))
+                        l1 = zz+1
+                #need to add on the bottom layers
+                layers.append((l1, self.nodes_z.shape[0]-1))
+                
+                #write out the layers from resmodel
+                for ll in layers:
+                    ifid.write('{0} {1}\n'.format(ll[0]+1, ll[1]+1))
+                    for nn in range(self.nodes_north.shape[0]):
+                        for ee in range(self.nodes_east.shape[0]):
                             ifid.write('{0:>3.0f}'.format(
                                           write_res_model[nn, ee, ll[0]]))
-                        else:
-                            ifid.write('{0:>12.3e}'.format(
-                                          write_res_model[nn, ee, ll[0]]))
-                    ifid.write('\n')
-            ifid.close()
-        
+                        ifid.write('\n')
+                ifid.close()
+                
+            else:
+                write_res_model = self.res_model[::-1, :, :]
+                for zz in range(self.nodes_z.shape[0]):
+                    for ee in range(self.nodes_east.shape[0]):
+                        for nn in range(self.nodes_north.shape[0]):
+                            ifid.write('{0:>12.5E} \n'.format(
+                                              write_res_model[nn, ee, zz]))
+                
+            
         print 'Wrote file to: {0}'.format(self.initial_fn)
         
         
@@ -1650,7 +1653,7 @@ class WSMesh(object):
         #--> write file
         ifid = file(self.initial_fn, 'w')
         ifid.write('# {0}\n'.format(self.title.upper()))
-        ifid.write('{0} {1} {2} {3} {4}\n'.format(self.nodes_north.shape[0],
+        ifid.write('{0:>5}{1:>5}{2:>5}{3:>5} {4}\n'.format(self.nodes_north.shape[0],
                                               self.nodes_east.shape[0],
                                               self.nodes_z.shape[0],
                                               0,  
@@ -1658,19 +1661,19 @@ class WSMesh(object):
     
         #write S --> N node block
         for ii, nnode in enumerate(self.nodes_north):
-            ifid.write('{0:>12.1f}'.format(abs(nnode)))
+            ifid.write('{0:>12.3f}'.format(abs(nnode)))
 
         ifid.write('\n')
         
         #write W --> E node block        
         for jj, enode in enumerate(self.nodes_east):
-            ifid.write('{0:>12.1f}'.format(abs(enode)))
+            ifid.write('{0:>12.3f}'.format(abs(enode)))
         ifid.write('\n')
 
     
         #write top --> bottom node block
         for kk, zz in enumerate(self.nodes_z):
-            ifid.write('{0:>12.1f}'.format(abs(zz)))
+            ifid.write('{0:>12.3f}'.format(abs(zz)))
         ifid.write('\n')
     
         #write the resistivity in log e format
@@ -1679,10 +1682,13 @@ class WSMesh(object):
         #write out the layers from resmodel
         for zz in range(self.nodes_z.shape[0]):
             ifid.write('\n')
-            for nn in range(self.nodes_north.shape[0]):
-                for ee in range(self.nodes_east.shape[0]):
-                    ifid.write('{0:>12.3e}'.format(write_res_model[nn, ee, zz]))
+            for ee in range(self.nodes_east.shape[0]):
+                for nn in range(self.nodes_north.shape[0]):
+                    ifid.write('{0:>13.5E}'.format(write_res_model[nn, ee, zz]))
                 ifid.write('\n')
+        
+        ifid.write('\n{0:>16.3f}{1:>16.3f}{2:>16.3f}\n'.format(0, 0, 0))
+        ifid.write('{0:>9.3f}\n'.format(0))
         ifid.close()
         
         print 'Wrote file to: {0}'.format(self.initial_fn)

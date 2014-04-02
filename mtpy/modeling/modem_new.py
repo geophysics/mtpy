@@ -2187,10 +2187,10 @@ class PlotResponse(object):
                         cxy = (1-1.25/(rr+2.),1-1.25/(rr+2.),1-1.25/(rr+2.))                    
                         cyx = (1-1.25/(rr+2.),1-1.25/(rr+2.),1-1.25/(rr+2.))
                     
-                    resp_z_obj = self.resp_object[jj].mt_dict[station].Z
+                    resp_z_obj = self.resp_object[rr].mt_dict[station].Z
                     resp_z_err = (z_obj.z-resp_z_obj.z)/z_obj.zerr
     
-                    resp_t_obj = self.resp_object[jj].mt_dict[station].Tipper
+                    resp_t_obj = self.resp_object[rr].mt_dict[station].Tipper
                     
                     rrp = mtplottools.ResPhase(resp_z_obj)
     
@@ -2279,7 +2279,7 @@ class PlotResponse(object):
                                              **kw_xx)
                                 rerty = mtplottools.plot_errorbar(axti, 
                                              period,
-                                             t_obj.tipper[nty, 0, 1].imag,
+                                             resp_t_obj.tipper[nty, 0, 1].imag,
                                              **kw_yy)
                             if plot_tipper == False:
                                 line_list[0] += [rerxy[0]]
@@ -2384,7 +2384,7 @@ class PlotResponse(object):
                                              **kw_xx)
                                 rerty = mtplottools.plot_errorbar(axtyi, 
                                              period,
-                                             t_obj.tipper[nty, 0, 1].imag,
+                                             resp_t_obj.tipper[nty, 0, 1].imag,
                                              **kw_yy)
                                              
                             if plot_tipper == False:
@@ -2474,7 +2474,7 @@ class PlotResponse(object):
                                              **kw_xx)
                                 rerty = mtplottools.plot_errorbar(axti, 
                                              period,
-                                             t_obj.tipper[nty, 0, 1].imag,
+                                             resp_t_obj.tipper[nty, 0, 1].imag,
                                              **kw_yy)
                                 
                             if plot_tipper == False:
@@ -2580,7 +2580,7 @@ class PlotResponse(object):
                                              **kw_xx)
                                 rerty = mtplottools.plot_errorbar(axti, 
                                              period,
-                                             t_obj.tipper[nty, 0, 1].imag,
+                                             resp_t_obj.tipper[nty, 0, 1].imag,
                                              **kw_yy)
                                              
                             if plot_tipper == False:
