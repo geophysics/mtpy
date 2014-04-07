@@ -2721,6 +2721,31 @@ class WSModelManipulator(object):
                 setattr(wsmesh, name, value)            
         
         wsmesh.write_initial_file(initial_fn=self.new_initial_fn)
+        
+    def rewrite_initial_file_modem(self, save_path=None):
+        """
+        write an initial file for modem from the model created.
+        """
+        #need to flip the resistivity model so that the first index is the 
+        #northern most block in N-S
+        #self.res_model = self.res_model[::-1, :, :]
+        
+        if save_path is not None:
+            self.save_path = save_path
+        
+        self.new_initial_fn = os.path.join(self.save_path, 
+                                           self.initial_fn_basename)
+        wsmesh = WSMesh()
+        #pass attribute to wsmesh
+        att_names = ['nodes_north', 'nodes_east', 'nodes_z', 'grid_east', 
+                     'grid_north', 'grid_z', 'res_model', 'res_list',
+                     'res_dict', 'res_model' ]
+        for name in att_names:
+            if hasattr(self, name):
+                value = getattr(self, name)
+                setattr(wsmesh, name, value)            
+        
+        wsmesh.write_ModEM_model_file(initial_fn=self.new_initial_fn)
                                               
             
 def cmap_discretize(cmap, N):
