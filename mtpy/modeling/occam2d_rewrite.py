@@ -24,7 +24,7 @@ Profile                  Creates a profile for given stations, default finds
                          a line perpendicular to this direction.
 Regularization           Reads/Writes regularization grid (does not work
                          for topography yet.)
-Setup                    Reads/Writes startup file for Occam2D.  
+Startup                    Reads/Writes startup file for Occam2D.  
 Run                      Runs Occam2D from a python shell (IN PROGRESS).
 ======================== ======================================================
 
