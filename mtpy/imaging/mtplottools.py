@@ -33,7 +33,8 @@ ckdict = {'phiminang' : r'$\Phi_{min}$ (deg)',
           'phidet' : r'Det{$\Phi$} (deg)',
           'skew' : r'Skew (deg)',
           'ellipticity' : r'Ellipticity',
-          'skew_seg' : r'Skew (deg)'}
+          'skew_seg' : r'Skew (deg)',
+          'geometric_mean' : r'$\sqrt{\Phi_{min} \cdot \Phi_{max}}$' }
           
 
             

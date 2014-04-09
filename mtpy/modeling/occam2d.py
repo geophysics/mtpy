@@ -1714,7 +1714,7 @@ class Data():
                             raw_phi_value = phi[idx_f][0,1]
                             if raw_phi_value >=180:
                                 raw_phi_value -= 180
-                            value = raw_phi_value
+                            value = raw_phi_value %180
                             if self.phase_errorfloor is not None:
                                 if self.phase_errorfloor/100. > relative_rho_error:
                                     relative_rho_error = self.phase_errorfloor/100.
@@ -1722,7 +1722,7 @@ class Data():
                                 error = 180.
                             else:
                                 error = np.degrees(np.arcsin(0.5*relative_rho_error))#relative_error*100.*0.285
-
+                            
                     if mode in [10,6] :
                         raw_rho_value = rho[idx_f][1,0]
                         value = raw_rho_value
@@ -1745,7 +1745,7 @@ class Data():
                             raw_phi_value = phi[idx_f][1,0]
                             if raw_phi_value >=180:
                                 raw_phi_value -= 180
-                            value = raw_phi_value
+                            value = raw_phi_value %180
                             if self.phase_errorfloor is not None:
                                 if self.phase_errorfloor/100. > relative_rho_error:
                                     relative_rho_error = self.phase_errorfloor/100.
@@ -1753,7 +1753,7 @@ class Data():
                                 error = 180.
                             else:
                                 error = np.degrees(np.arcsin(0.5*relative_rho_error))#relative_error*100.*0.285
-                 
+
                     elif mode in [3,4] :
                         if T.tipper is None:
                             #print 'no Tipper data for {0} Hz at station {1}'.format(freq, station_number) 
@@ -1874,7 +1874,7 @@ class Data():
         for idx, zone in enumerate(utmzones):
             if zone == main_utmzone:
                 continue
-            utm = MTcv.LLtoUTM(23,edi.lat,edi.lon,main_utmzone)
+            utm = MTcv.LLtoUTM(23,self.station_coords[idx][0],self.station_coords[idx][1],main_utmzone)
 
             lo_easts[idx] = utm[1]
             lo_norths[idx] = utm[2]
