@@ -4094,9 +4094,9 @@ class PlotPTMaps(mtplottools.MTEllipse):
             #plot model below the phase tensors
             if self.model_fn is not None:
                 approx_depth, d_index = ws.estimate_skin_depth(self.model_obj.res_model,
-                                                            self.model_obj.grid_z, 
+                                                            self.model_obj.grid_z/self.dscale, 
                                                             per, 
-                                                            dscale=self.dscale)  
+                                                            dscale=self.map_scale)  
                 #need to add an extra row and column to east and north to make sure 
                 #all is plotted see pcolor for details.
                 plot_east = np.append(self.model_obj.grid_east, 
