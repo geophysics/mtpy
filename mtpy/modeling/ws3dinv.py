@@ -5363,6 +5363,7 @@ def estimate_skin_depth(res_model, grid_z, period, dscale=1000):
     skin_depth_period = np.array([(zz/(500./dscale))**2*(1/rho_a) 
                                 for zz, rho_a in zip(grid_z, apparent_res_xy)])
                                       
+    print period, skin_depth_period 
     #match the period
     try:
         period_index = np.where(skin_depth_period >= period)[0][0]
