@@ -4095,7 +4095,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
             if self.model_fn is not None:
                 approx_depth, d_index = ws.estimate_skin_depth(self.model_obj.res_model,
                                                             self.model_obj.grid_z, 
-                                                            per, 
+                                                            self.data_obj.period_list, 
                                                             dscale=self.dscale)  
                 #need to add an extra row and column to east and north to make sure 
                 #all is plotted see pcolor for details.
