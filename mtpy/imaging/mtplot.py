@@ -33,6 +33,11 @@ plot_strike                   plots strike angle estimated from the
                               by Weaver et al. [2000,2003], strike angle
                               from the phase tensor and option to plot
                               strike estimated from the induction arrows.                              
+plot_strike_2d                plots strike angle estimated from the 
+                              phase tensor and option to plot
+                              strike estimated from the induction arrows, for
+                              points estimated to be 2D as set by a threshold
+                              on the skew value. See Booker, 2014
 plot_residual_pt_maps         plots the residual phase tensor between two 
                               surveys in map view.
 plot_residual_pt_ps           plots the residual phase tensor between two 
@@ -99,7 +104,7 @@ import mtpy.imaging.plotstrike as plotstrike
 import mtpy.imaging.plotstations as plotstations
 import mtpy.imaging.plotresidualptmaps as plotresidualptmaps
 import mtpy.imaging.plotresidualptps as plotresidualptps
-reload(plotpt)
+import mtpy.imaging.plotstrike2d as plotstrike2d
 
 #==============================================================================
 
@@ -153,6 +158,14 @@ def plot_strike(**kwargs):
     """
                            
     return plotstrike.PlotStrike(**kwargs)
+    
+def plot_strike_2d(**kwargs):
+    """
+    plots the strike angle for only 2d points.    
+    
+    """
+                           
+    return plotstrike2d.PlotStrike2D(**kwargs)
 
 def plot_resphase_pseudosection(**kwargs):
     """
@@ -197,6 +210,7 @@ plot_pt.__doc__ = plotpt.PlotPhaseTensor.__doc__
 plot_pt_pseudosection.__doc__ = plotptps.PlotPhaseTensorPseudoSection.__doc__
 plot_pt_map.__doc__ = plotptmaps.PlotPhaseTensorMaps.__doc__
 plot_strike.__doc__ = plotstrike.PlotStrike.__doc__
+plot_strike_2d.__doc__ = plotstrike2d.PlotStrike2D.__doc__
 plot_resphase_pseudosection.__doc__ = \
                                     plotrpps.PlotResPhasePseudoSection.__doc__
 plot_station_locations.__doc__ = plotstations.PlotStations.__doc__
