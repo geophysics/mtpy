@@ -25,7 +25,8 @@ import time
 import ConfigParser
 import fnmatch
 import shutil
-
+import copy
+import StringIO
 import mtpy.utils.calculator as MTcc
 import mtpy.processing.general as MTgn
 import mtpy.utils.exceptions as MTex
@@ -34,6 +35,60 @@ import mtpy.utils.format as MTft
 reload(MTgn)
 reload(MTcc)
 reload(MTex)
+reload(ConfigParser)
+#=================================================================
+
+list_of_required_keywords = ['latitude',
+                            'longitude',
+                            'elevation',
+                            'sampling_interval',
+                            'station_type'
+                            ]
+
+list_of_keyword_defaults_general = [0.,
+                                    0.,
+                                    0.,
+                                    1.,
+                                    'mt'
+                                    ]
+
+
+list_of_efield_keywords = [ 'E_logger_type',
+                            'E_logger_gain',
+                            'E_instrument_type',
+                            'E_instrument_amplification',
+                            'E_Xaxis_azimuth',
+                            'E_Xaxis_length',
+                            'E_Yaxis_azimuth',
+                            'E_Yaxis_length'
+                            ]
+
+list_of_keyword_defaults_efield = ['edl',
+                                    1,
+                                    'electrodes',
+                                    1.,
+                                    0.,
+                                    50.,
+                                    90.,
+                                    50.
+                                    ]
+
+list_of_bfield_keywords = [ 'B_logger_type',
+                            'B_logger_gain',
+                            'B_instrument_type',
+                            'B_instrument_amplification',
+                            'B_Xaxis_azimuth',
+                            'B_Yaxis_azimuth'
+                          ]
+
+
+list_of_keyword_defaults_bfield = ['edl',
+                                    1,
+                                    'coil',
+                                    1.,
+                                    0.,
+                                    90.
+                                    ]
 
 #=================================================================
 
@@ -48,11 +103,9 @@ def read_configfile(filename):
         -> return nested dictionary (main level keys are section heads)
         
         Config files with sections as well as section-less entries 
-        -> return nested dictionary, which includes a 'DEFAULT' key
+        -> return nested dictionary, which includes a top level 'DEFAULT' key
     """
 
-    #generate config parser instance
-    configobject = ConfigParser.ConfigParser()
     
     #check, if file is present
     if not op.isfile(filename):
@@ -60,21 +113,32 @@ def read_configfile(filename):
 
     # try to parse file - exit, if not a config file
     try:
-        configobject.read(filename)
+        #generate config parser instance
+        configobject = ConfigParser.SafeConfigParser()
+        #do NOT ask, why it does not work with reading from filename directly...:
+        with open(filename) as F:
+            d = F.read()
+        FH = StringIO.StringIO(d)
+        configobject.readfp(d)#filename)
     except:
-        raise MTex.MTpyError_inputarguments( 'File is not a proper '
-                        'configuration file: {0}'.format(filename) )
+        try:
+            dummy_String = '[DEFAULT]\n' + open(filename, 'r').read()
+            FH = StringIO.StringIO(dummy_String)
+            #generate config parser instance
+            configobject = ConfigParser.SafeConfigParser()
+            configobject.readfp(FH)
+        except:
+            raise MTex.MTpyError_inputarguments( 'File is not a proper '
+                                    'configuration file: {0}'.format(filename) )
 
+    config_dict = configobject._sections      
 
-    #if 0:#len(configobject.sections()) != 0:
-    config_dict = configobject._sections
-        
     if len (config_dict.keys()) != 0:
-
-        config_dict['DEFAULT'] = configobject.defaults()
+        defaults = configobject.defaults()
+        if len(defaults.keys()) != 0:
+            config_dict['DEFAULT'] = configobject.defaults()
     else:
         config_dict = configobject.defaults()
-
 
     return config_dict
 
@@ -122,30 +186,6 @@ def read_survey_configfile(filename):
 
     """
 
-    list_of_required_keywords = ['latitude',
-                                'longitude',
-                                'elevation',
-                                'sampling_interval',
-                                'station_type'
-                                ]
-
-    list_of_efield_keywords = [ 'E_logger_type',
-                                'E_logger_gain',
-                                'E_instrument_type',
-                                'E_instrument_amplification',
-                                'E_Xaxis_azimuth',
-                                'E_Xaxis_length',
-                                'E_Yaxis_azimuth',
-                                'E_Yaxis_length'
-                                ]
-
-    list_of_bfield_keywords = [ 'B_logger_type',
-                                'B_logger_gain',
-                                'B_instrument_type',
-                                'B_instrument_amplification',
-                                'B_Xaxis_azimuth',
-                                'B_Yaxis_azimuth'
-                              ]
 
 
     dict_of_allowed_values_efield = {'E_logger_type':['edl','elogger', 'zen'] ,
@@ -153,7 +193,9 @@ def read_survey_configfile(filename):
                                                       0.4, 1, 10, 11, 2, 4, 
                                                       8, 16, 32, 64],
                                     'E_instrument_type':['electrodes', 
-                                                         'cu-cuso4 electrodes'],
+                                                         'cu-cuso4 electrodes',
+                                                         'cuso4_electrodes',
+                                                         'pbcl2_electrodes'],
                                     'E_instrument_amplification':[1,10]
                                     }
     
@@ -271,7 +313,7 @@ def read_survey_configfile(filename):
 
     #re-loop for setting up correct remote reference station information :
     #if rem.ref. station key is present, its information must be contained 
-    #in the config file!
+    #in the same config file!
     for station in config_dict.iterkeys():
         stationdict = config_dict[station]
 
@@ -410,7 +452,7 @@ def _validate_dictionary(dict2validate,referencedict):
                 ' key {0}, value {1} not valid'.format(key, value2validate) )
 
 #==============================================================================
-def read_survey_txt_file(survey_file, delimiter='\t'):
+def read_survey_txt_file(survey_file, delimiter=None):
     """
     read survey file and return a dictionary of dictionaries where the first
     nested dictionary is keyed by the station name.  Each station dictionarly
@@ -480,19 +522,167 @@ def read_survey_txt_file(survey_file, delimiter='\t'):
         
     with open(survey_file, 'r') as sfid:
         slines = sfid.readlines()
+    
+    slines = [i.replace('"','') for i in slines]
 
+    
     skeys = slines[0].rstrip()
-    skeys = skeys.split(delimiter)
+    if delimiter is not None:
+        skeys = skeys.split(delimiter)
+    else:
+        skeys = skeys.split()
+
+    skeys = [i.strip().replace(' ','_') for i in skeys]
+       
     survey_dict = {}
     
     for ss, sline in enumerate(slines[1:]):
-        sstr = sline.rstrip()
-        sstr = sstr.split(delimiter)
-        if len(sstr)>1:
-            sdict={}
-            for kk, skey in enumerate(skeys):
-                sstr[kk] = sstr[kk].replace('"','')
+
+        sstr = sline.strip()
+        if sstr[0]=='#':
+            continue
+
+        if delimiter is not None:
+            sstr = sstr.split(delimiter)
+        else:
+            sstr = sstr.split()
+        
+        #get rid of quotations
+        sstr = [i.replace('"','') for i in sstr]  
+        #get rid of spaces
+        sstr = [i.replace(' ','_') for i in sstr]  
+       
+        if len(sstr) != len(skeys):
+            print 'cannot read line {0} - wrong number of entries - need {2}\
+                                                    '.format(ss+2,len(skeys))
+            continue
+
+        
+        sdict={}
+        #set default values for mandatory entries:
+        sdict['E_Xaxis_azimuth'] = 0
+        sdict['E_Yaxis_azimuth'] = 90
+        sdict['B_Xaxis_azimuth'] = 0
+        sdict['B_Yaxis_azimuth'] = 90
+        sdict['station_type'] = 'MT'
+        sdict['declination'] = 0.
+        sdict['sampling_interval'] = 0
+        sdict['E_instrument_amplification'] = 1.
+        sdict['B_instrument_amplification'] = 1.
+        sdict['E_logger_gain'] = 1.
+        sdict['B_logger_gain'] = 1.
+        sdict['B_instrument_type'] = 'coil'
+        sdict['E_instrument_type'] = 'electrodes'
+        sdict['E_logger_type'] = 'edl'
+        sdict['B_logger_type'] = 'edl'
+
+
+        #fill dictionary with given values
+        for kk, skey in enumerate(skeys):
+            #get rid of quotations
+            skey.replace('"','')
+            #get rid of blank spaces in keys
+            skey.replace(' ','_')
+
+            #do not include empty entries
+            if len(sstr[kk])>0:
+                #sstr[kk] = sstr[kk].replace('"','')
                 sdict[skey.lower()] = sstr[kk]
+        
+        #print sorted(sdict)
+        # print sdict['sampling_interval']
+        #sys.exit()
+        #assigne values to the standard keys
+        for key in sdict.keys():
+
+            if key.lower() in ['ex','e_xaxis_length'] :
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['E_Xaxis_length'] = val
+            if key.lower() in ['ey','e_yaxis_length'] :
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['E_Yaxis_length'] = val
+
+            if key.lower() == 'station':
+                sdict[key] = sdict[key].upper()
+
+            if key.lower() in ['df', 'sampling_rate','sampling']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['sampling_interval'] = 1./float(val)
+
+            if key.lower() in ['dt', 'sampling_interval']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['sampling_interval'] = float(val)
+
+            if key.lower() == 'dlgain':
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['B_logger_gain'] = val
+                sdict['E_logger_gain'] = val
+                
+
+            if key.lower() in ['b_logger_gain']:
+                sdict['B_logger_gain'] = sdict[key]
+
+            if key.lower() in ['e_logger_gain']:
+                sdict['E_logger_gain'] = sdict[key]
+
+            if key.lower() in ['e_logger_type']:
+                sdict['E_logger_type'] = sdict[key]
+            if key.lower() in ['b_logger_type']:
+                sdict['B_logger_type'] = sdict[key]
+
+
+            if key.lower() in ['egain', 'e_instrument_amplification']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['E_instrument_amplification'] = val
+            
+            if key.lower() in ['bgain', 'b_instrument_amplification']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['B_instrument_amplification'] = val
+
+
+            if key.lower() in ['magtype','b_instrument_type']:
+                if sdict[key].lower() in ['bb','coil','coils']: 
+                    sdict['B_instrument_type'] = 'coil'
+                if sdict[key].lower() in ['lp','fluxgate','fg']: 
+                    sdict['B_instrument_type'] = 'fluxgate'
+                sdict.pop(key)
+
+            if key.lower() in ['e_instrument_type']:
+                if sdict[key].lower() in ['electrode','electrodes']: 
+                    sdict['E_instrument_type'] = 'electrodes'
+                if (sdict[key].lower().find('lead') >= 0) or (sdict[key].lower().find('pb') >= 0): 
+                    sdict['E_instrument_type'] = 'pbcl_electrodes'
+                sdict.pop(key)
+
+            if key.lower() in ['declination','decl']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['declination'] = val
+
+
+            if key.lower() in ['lat','latitude']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['latitude'] = val
+
+            if key.lower() in ['lon','long','longitude']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['longitude'] = val
+
+            if key.lower() in ['ele','elev','elevation','height']:
+                val = copy.copy(sdict[key])
+                sdict.pop(key)
+                sdict['elevation'] = val
+
+
         try:
             survey_dict[sdict['station']] = sdict
         except KeyError:
@@ -500,13 +690,11 @@ def read_survey_txt_file(survey_file, delimiter='\t'):
                 survey_dict[sdict['station_name']] = sdict
             except KeyError:
                 survey_dict['MT{0:03}'.format(ss)] = sdict
-        
-    sfid.close()
-    
+
     return survey_dict
     
 #==============================================================================
-def write_config_from_survey_txt_file(survey_file, save_path=None, 
+def write_config_from_survey_txt_file(survey_file, save_name=None, 
                                       delimiter='\t'):
     """
     write a survey configuration file from a survey txt file 
@@ -518,9 +706,9 @@ def write_config_from_survey_txt_file(survey_file, save_path=None,
                           See read_survey_txt_file for the assumed header 
                           information.
                           
-        **save_path** : string
-                        directory or full path to save file to.  
-                        If save_path = None, then file saved as 
+        **save_name** : string
+                        name to save file to.  
+                        If save_name = None, then file saved as 
                         os.path.join(os.path.dirname(survey_file,
                                             os.path.basename(survey_file).cfg)
                                             
@@ -533,20 +721,24 @@ def write_config_from_survey_txt_file(survey_file, save_path=None,
     survey_dict = read_survey_txt_file(survey_file, delimiter=delimiter)
     
     #get the filename to save to
-    if save_path is None:
+    if save_name is None:
         save_dir = os.path.dirname(survey_file)
         save_fn = os.path.splitext(os.path.basename(survey_file))[0]+'.cfg'
-        save_path = os.path.join(save_dir, save_fn)
-    elif os.path.isfile(save_path):
+        save_name = os.path.join(save_dir, save_fn)
+    elif os.path.isfile(save_name):
         pass
-    elif os.path.isdir(save_path):
+    elif os.path.isdir(save_name):
         save_fn = os.path.splitext(os.path.basename(survey_file))[0]+'.cfg'
-        save_path = os.path.join(save_path, save_fn)
+        save_name = os.path.join(save_name, save_fn)
+
+    if not save_name.lower().endswith('.cfg'):
+        save_name += '.cfg'
+
     
     #write the config file
-    write_dict_to_configfile(survey_dict, save_path)
+    write_dict_to_configfile(survey_dict, save_name)
     
-    return save_path
+    return save_name
 
 
 

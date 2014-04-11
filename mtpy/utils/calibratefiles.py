@@ -37,6 +37,7 @@ reload(MTfh)
 reload(MTcb)
 reload(MTcf)
 
+# accuracy to which angles are determined
 angleaccuracy = 1.
 
 
@@ -169,7 +170,6 @@ def main():
             sys.exit('Re-orientation directory cannot be generated:'
                 ' {0}'.format(ori_outdir))
         
-        #print configfile, lo_allstations,ori_outdir,cal_outdir
         
         MTfh.reorient_files(lo_allfiles, configfile, lo_stations = lo_allstations,
                              outdir = ori_outdir)

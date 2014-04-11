@@ -5784,7 +5784,10 @@ class Occam2DModel(Occam2DData):
         
         hnodes=np.zeros(nh)
         vnodes=np.zeros(nv)
-        mdata=np.zeros((nh,nv,4),dtype=str)    
+        mdata=np.zeros((nh,nv,4),dtype=str) 
+        
+        if int(mlines[jj-1].strip().split()[3])>0:
+            jj += 1
         
         #get horizontal nodes
         ii=0
@@ -5804,16 +5807,17 @@ class Occam2DModel(Occam2DData):
                 ii+=1
             jj+=1    
         
-        #get free parameters        
-        for ii,mm in enumerate(mlines[jj+1:]):
+        #get free parameters           
+        for ii in range(jj+1,len(mlines[jj+1:]),4):            
             kk=0
-            while kk<4:        
+            while kk<4:
+                mm = mlines[ii+kk]
                 mline=mm.rstrip()
                 if mline.lower().find('exception')>0:
                     break
-                for jj in range(nh):
+                for jjj in range(nh):
                     try:
-                        mdata[jj,ii,kk]=mline[jj]
+                        mdata[jjj,ii/4,kk]=mline[jjj]
                     except IndexError:
                         pass
                 kk+=1
@@ -5923,7 +5927,7 @@ class Occam2DModel(Occam2DData):
                         for ii in range(len(self.vnodes))])
         
         #center the grid onto the station coordinates
-        x0=bndgoff-plotx[self.cols[0][0]]
+        x0=bndgoff-plotx[self.cols[0][0]-1]
         plotx=plotx+x0
         
         #flip the arrays around for plotting purposes
@@ -6302,6 +6306,7 @@ class Occam2DModel(Occam2DData):
                     except IndexError:
                         pass
         self.model_axes=ax
+        #return ax
         plt.show()
     
     def plotL2Curve(self,fnstem=None,fignum=1,dpi=300):
@@ -6331,7 +6336,7 @@ class Occam2DModel(Occam2DData):
             >>> ocm.plotL2Curve(fignum=2)
         """ 
 
-        invpath=os.path.dirname(self.iterfn)        
+        invpath=os.path.dirname(self.iterfn)
         
         if fnstem==None:
             iterlst=[os.path.join(invpath,itfile) 
@@ -6411,7 +6416,8 @@ class Occam2DModel(Occam2DData):
         plt.show()
                 
     def plotDepthModel(self,dpi=300,depthmm=(1,10000),plottype='1',
-                       yscale='log',plotdimensions=(3,6),plotnum=1,fignum=1):
+                       yscale='log',plotdimensions=(3,6),plotnum=1,fignum=1,
+                       fig=None):
         """
         Plots a depth section profile for a given set of stations.
         
@@ -6503,7 +6509,8 @@ class Occam2DModel(Occam2DData):
             plt.rcParams['figure.subplot.top']=.90
             plt.rcParams['figure.subplot.wspace']=.1
             
-            fig=plt.figure(fignum,plotdimensions,dpi=dpi)
+            if fig is None:
+                fig=plt.figure(fignum,plotdimensions,dpi=dpi)
             plt.clf()
             ns=len(slst)
             #plot the depth section for each station        

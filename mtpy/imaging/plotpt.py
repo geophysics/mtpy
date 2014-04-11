@@ -16,7 +16,7 @@ import matplotlib.patches as patches
 import matplotlib.colorbar as mcb
 import mtpy.imaging.mtcolors as mtcl
 import mtpy.imaging.mtplottools as mtpl
-
+reload(mtpl)
 #==============================================================================
 
 class PlotPhaseTensor(mtpl.MTEllipse):
@@ -28,9 +28,9 @@ class PlotPhaseTensor(mtpl.MTEllipse):
     Arguments:
     ----------
     
-        **filename** : string
-                       filename containing impedance (.edi) is the only 
-                       format supported at the moment
+        **fn** : string
+               filename containing impedance (.edi) is the only 
+               format supported at the moment
                  
         **z_object** : class mtpy.core.z.Z
                       object of mtpy.core.z.  If this is input be sure the
@@ -105,8 +105,8 @@ class PlotPhaseTensor(mtpl.MTEllipse):
     :Example: ::
         
         #To plot just the phase tensor components
-        >>> import mtpy.imaging.mtpl.MTplot as mtpl.MTplot
-        >>> pt1 = mtpl.MTplot.PlotPhaseTensor(r"/home/MT/edifiles/MT01.edi")
+        >>> import mtpy.imaging.mtplot as mtplot
+        >>> pt1 = mtplot.plot_pt(fn=r"/home/MT/edifiles/MT01.edi")
         
     Attributes:
     -----------
@@ -300,12 +300,30 @@ class PlotPhaseTensor(mtpl.MTEllipse):
      
         #-------------plotPhaseTensor-----------------------------------
         self.ax1 = self.fig.add_subplot(3, 1, 1, aspect='equal')
+        self._mt._period = 1./self._mt.freq
+        
         for ii, ff in enumerate(self._mt.period):
             #make sure the ellipses will be visable
-            eheight = self.pt.phimin[0][ii]/self.pt.phimax[0][ii]*\
+            if self.pt.phimax[0][ii] != 0:
+              eheight = self.pt.phimin[0][ii]/self.pt.phimax[0][ii]*\
                                                               self.ellipse_size
-            ewidth = self.pt.phimax[0][ii]/self.pt.phimax[0][ii]*\
-                                                              self.ellipse_size
+
+              ewidth =  self.ellipse_size
+
+            else:
+              #tiny instead of nothing
+              eheight = 0.01*self.ellipse_size
+              ewidth = 0.01*self.ellipse_size 
+
+            #ewidth = self.pt.phimax[0][ii]/self.pt.phimax[0][ii]*\
+            #                                                  self.ellipse_size
+
+            #alternative scaling
+            # eheight = self.pt.phimin[0][ii]/max(np.abs(self.pt.phimax[0]))*\
+            #                                                   self.ellipse_size
+            # ewidth = self.pt.phimax[0][ii]/max(np.abs(self.pt.phimax[0]))*\
+            #                                                   self.ellipse_size
+
         
             #create an ellipse scaled by phimin and phimax and oriented along
             #the azimuth which is calculated as clockwise but needs to 
@@ -366,11 +384,11 @@ class PlotPhaseTensor(mtpl.MTEllipse):
         self.cbax = self.fig.add_axes(self.cb_position)
         if cmap == 'mt_seg_bl2wh2rd':
             #make a color list
-            clst = [(cc, cc, 1) for cc in np.arange(0,1+1./(nseg),1./(nseg))]+\
+            clist = [(cc, cc, 1) for cc in np.arange(0,1+1./(nseg),1./(nseg))]+\
                    [(1, cc, cc) for cc in np.arange(1,-1./(nseg),-1./(nseg))]
             
             #make segmented colormap
-            mt_seg_bl2wh2rd = colors.ListedColormap(clst)
+            mt_seg_bl2wh2rd = colors.ListedColormap(clist)
 
             #make bounds so that the middle is white
             bounds = np.arange(ckmin-ckstep, ckmax+2*ckstep, ckstep)
@@ -409,7 +427,7 @@ class PlotPhaseTensor(mtpl.MTEllipse):
         az[np.where(az > 90)] -= 180
         az[np.where(az < -90)] += 180
         
-        stlst = []
+        stlist = []
         stlabel = []
         
         #plot phase tensor strike
@@ -426,7 +444,7 @@ class PlotPhaseTensor(mtpl.MTEllipse):
                                 capsize=self.marker_size,
                                 elinewidth=self.marker_lw)
                                 
-        stlst.append(ps2[0])
+        stlist.append(ps2[0])
         stlabel.append('PT')
         try:
             strike = self.zinv.strike
@@ -449,7 +467,7 @@ class PlotPhaseTensor(mtpl.MTEllipse):
                                     capsize=self.marker_size,
                                     elinewidth=self.marker_lw)
                               
-            stlst.append(erxy[0])
+            stlist.append(erxy[0])
             stlabel.append('Z_inv')
         except AttributeError:
             print 'Could not get z_invariants from pt, input z if desired.'
@@ -477,18 +495,18 @@ class PlotPhaseTensor(mtpl.MTEllipse):
                                     capsize=self.marker_size,
                                     elinewidth=self.marker_lw)
                                     
-            stlst.append(ps3[0])
+            stlist.append(ps3[0])
             stlabel.append('Tipper')
         
              
-        self.ax2.legend(stlst,
+        self.ax2.legend(stlist,
                         stlabel,
                         loc='lower left',
                         markerscale=.5*self.marker_size,
                         borderaxespad=.01,
                         labelspacing=.1,
                         handletextpad=.2,
-                        ncol=len(stlst),
+                        ncol=len(stlist),
                         borderpad=.1,
                         columnspacing=.1)
                    
@@ -665,9 +683,13 @@ class PlotPhaseTensor(mtpl.MTEllipse):
                             fontdict=font_dict)
         self.ax5.set_title('Ellipticity',fontdict=font_dictt)
         
-        self.fig.suptitle('Phase Tensor Elements for: '+self._mt.station,
+        try:
+          self.fig.suptitle('Phase Tensor Elements for: '+self._mt.station,
                           fontdict={'size':self.font_size+3, 'weight':'bold'})
-                          
+        except:
+          self.fig.suptitle('Phase Tensor Elements for Station "unknown"',
+                fontdict={'size':self.font_size+3, 'weight':'bold'})
+                  
     
     def save_plot(self, save_fn, file_format='pdf', orientation='portrait', 
                   fig_dpi=None, close_plot='y'):

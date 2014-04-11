@@ -1,0 +1,2146 @@
+# -*- coding: utf-8 -*-
+"""
+==================
+Occam1D
+==================
+
+    * Wrapper class to interact with Occam1D written by Kerry Keys at Scripps 
+      adapted from the method of Constable et al., [1987].
+      
+    * This class only deals with the MT functionality of the Fortran code, so 
+      it can make the input files for computing the 1D MT response of an input
+      model and or data.  It can also read the output and plot them in a 
+      useful way.
+      
+    * Note that when you run the inversion code, the convergence is quite 
+      quick, within the first few iterations, so have a look at the L2 cure 
+      to decide which iteration to plot, otherwise if you look at iterations
+      long after convergence the models will be unreliable.
+      
+      
+      
+    * Key, K., 2009, 1D inversion of multicomponent, multi-frequency marine
+      CSEM data: Methodology and synthetic studies for resolving thin 
+      resistive layers: Geophysics, 74, F9–F20.
+
+    * The original paper describing the Occam's inversion approach is:
+
+    * Constable, S. C., R. L. Parker, and C. G. Constable, 1987, 
+      Occam’s inversion –– A practical algorithm for generating smooth 
+      models from electromagnetic sounding data, Geophysics, 52 (03), 289–300.
+      
+
+    :Intended Use: ::
+    
+        >>> import mtpy.modeling.occam1d as occam1d
+        >>> #--> make a data file
+        >>> d1 = occam1d.Data()
+        >>> d1.write_data_file(r'/home/MT/mt01.edi', res_err=10, phase_err=2.5,
+        >>> ...                save_path=r"/home/occam1d/mt01/TE", mode='TE')
+        >>> #--> make a model file
+        >>> m1 = occam1d.Model()
+        >>> m1.write_model_file(save_path=d1.save_path, target_depth=15000)
+        >>> #--> make a startup file
+        >>> s1 = occam1d.Startup()
+        >>> s1.data_fn = d1.data_fn
+        >>> s1.model_fn = m1.model_fn
+        >>> s1.save_path = m1.save_path
+        >>> s1.write_startup_file()
+        >>> #--> run occam1d from python
+        >>> occam_path = r"/home/occam1d/Occam1D_executable"
+        >>> occam1d.Run(s1.startup_fn, occam_path, mode='TE')
+        >>> #--plot the L2 curve
+        >>> l2 = occam1d.PlotL2(d1.save_path, m1.model_fn)
+        >>> #--> see that iteration 7 is the optimum model to plot
+        >>> p1 = occam1d.Plot1DResponse()
+        >>> p1.data_te_fn = d1.data_fn
+        >>> p1.model_fn = m1.model_fn
+        >>> p1.iter_te_fn = r"/home/occam1d/mt01/TE/TE_7.iter"
+        >>> p1.resp_te_fn = r"/home/occam1d/mt01/TE/TE_7.resp"
+        >>> p1.plot()
+
+@author: J. Peacock (Oct. 2013)
+"""
+#------------------------------------------------------------------------------
+import numpy as np
+import os
+import time
+from matplotlib.ticker import MultipleLocator
+import matplotlib.gridspec as gridspec
+import mtpy.core.edi as mtedi
+import matplotlib.pyplot as plt
+import subprocess
+#------------------------------------------------------------------------------
+
+class Data(object):
+    """
+    reads and writes occam 1D data files
+    
+    ===================== =====================================================
+    Attributes             Description    
+    ===================== =====================================================
+    _data_fn              basename of data file *default* is Occam1DDataFile
+    _header_line          header line for description of data columns
+    _ss                   string spacing *default* is 6*' '  
+    _string_fmt           format of data *default* is '+.6e'
+    data                  array of data 
+    data_fn               full path to data file
+    freq                  frequency array of data
+    mode                  mode to invert for [ 'TE' | 'TM' ]
+    phase_te              array of TE phase
+    phase_tm              array of TM phase 
+    res_te                array of TE apparent resistivity
+    res_tm                array of TM apparent resistivity
+    resp_fn               full path to response file
+    save_path             path to save files to
+    ===================== =====================================================
+    
+    
+    ===================== =====================================================
+    Methods               Description
+    ===================== =====================================================
+    write_data_file       write an Occam1D data file
+    read_data_file        read an Occam1D data file
+    read_resp_file        read a .resp file output by Occam1D
+    ===================== =====================================================
+    
+    :Example: ::
+        
+        >>> import mtpy.modeling.occam1d as occam1d
+        >>> #--> make a data file for TE mode
+        >>> d1 = occam1d.Data()
+        >>> d1.write_data_file(r'/home/MT/mt01.edi', res_err=10, phase_err=2.5,
+        >>> ...                save_path=r"/home/occam1d/mt01/TE", mode='TE')
+    
+    """
+    
+    def __init__(self, data_fn=None, **kwargs):
+        self.data_fn = data_fn
+        
+        if self.data_fn is not None:
+            self.save_path = os.path.dirname(self.data_fn)
+        else:
+            self.save_path = os.getcwd()
+            
+        self._string_fmt = '+.6e'
+        self._ss = 6*' '
+        self._data_fn = 'Occam1d_DataFile'
+        self._header_line = '!{0}\n'.format('      '.join(['Type','Freq#',
+                                                           'TX#', 'Rx#','Data',
+                                                           'Std_Error']))
+        self.mode = 'TE'
+        self.data = None
+                                
+        self.freq = None
+        self.res_te = None
+        self.res_tm = None
+        self.phase_te = None
+        self.phase_tm = None
+        self.resp_fn = None
+        
+    def write_data_file(self, rp_tuple=None, edi_file=None, save_path=None,
+                        mode='TE', res_err='data', phase_err='data', thetar=0):
+        """
+        make1Ddatafile will write a data file for Occam1D
+    
+        Arguments:
+        ---------    
+            **rp_tuple** : np.ndarray (freq, res, res_err, phase, phase_err) 
+                            with res, phase having shape (num_freq, 2, 2).
+                           
+            **edi_file** : string
+                          full path to edi file to be modeled.
+                      
+            **save_path** : string
+                           path to save the file, if None set to dirname of 
+                           station if edipath = None.  Otherwise set to 
+                           dirname of edipath.
+            
+            **thetar** : float
+                         rotation angle to rotate Z. Clockwise positive and N=0
+                         *default* = 0
+            
+            **mode** : [ 'TE' | 'TM' | 'det']
+                              mode to model can be (*default*='both'):
+                                - 'TE' for just TE mode
+                                - 'TM' for just TM mode
+                                - 'det' for the determinant of Z.
+                                
+                            
+            **res_err** : float
+                        errorbar for resistivity values.  Can be set to (
+                        *default* = 'data'): 
+                
+                        - 'data' for errorbars from the data
+                        - percent number ex. 10 for ten percent
+                    
+            **phase_err** : float
+                          errorbar for phase values.  Can be set to (
+                          *default* = 'data'):
+                
+                            - 'data' for errorbars from the data
+                            - percent number ex. 10 for ten percent
+                
+        :Example: ::
+            
+            >>> import mtpy.modeling.occam1d as occam1d
+            >>> #--> make a data file
+            >>> d1 = occam1d.Data()
+            >>> d1.write_data_file(r'/home/MT/mt01.edi', res_err=10, 
+            >>> ...                phase_err=2.5, mode='TE',
+            >>> ...                save_path=r"/home/occam1d/mt01/TE") 
+        """    
+        self.mode = mode
+        
+        if edi_file is None and rp_tuple is None:
+            raise IOError('Need to input either an edi file or rp_array')
+
+        if edi_file is not None:
+            #raise an error if can't find the edifile        
+            if os.path.isfile(edi_file) == False:
+                raise IOError('No edi file {0} exists, check path'.format(edi_file))
+    
+            #read in edifile
+            e1 = mtedi.Edi(edi_file)    
+            impz = e1.Z
+            
+            #rotate if necessary
+            if thetar != 0:
+                impz.rotate(thetar)
+            
+            #get resistivity and phase
+            rho = impz.resistivity
+            rho_err = impz.resistivity_err
+            phi = impz.phase
+            phi_err = impz.phase_err
+            
+            freq = impz.freq
+            nf = len(freq)
+        
+        if rp_tuple is not None:
+            if len(rp_tuple) != 5:
+                raise IOError('Be sure rp_array is correctly formated\n'
+                              'should be freq, res, res_err, phase, phase_err')
+            freq, rho, rho_err, phi, phi_err = rp_tuple
+            nf = len(freq)
+            
+        #make sure the savepath exists, if not create it
+        if save_path is not None:
+            self.save_path = save_path
+        if self.save_path == None:
+            try:
+                self.save_path = os.path.dirname(edi_file)
+            except TypeError:
+                pass
+        elif os.path.basename(self.save_path).find('.') > 0:
+            self.save_path = os.path.dirname(self.save_path)
+            self._data_fn = os.path.basename(self.save_path)
+        if not os.path.exists(self.save_path):
+            os.mkdir(self.save_path)
+        
+        
+        
+        #get determinant resistivity and phase
+        if mode.lower() == 'det':
+            zdet, zdet_err = impz.det
+            rho = .2/freq*abs(zdet)**2
+            phi = np.rad2deg(np.arctan2(zdet.imag, zdet.real))
+        
+        
+        self.data_fn = os.path.join(self.save_path, 
+                                '{0}_{1}.dat'.format(self._data_fn, mode.upper()))
+        
+        dlines = []        
+        
+        dlines.append('Format:  EMData_1.1 \n')
+        dlines.append('!mode:   {0}\n'.format(mode.upper()))
+        dlines.append('!rotation_angle = {0:.2f}\n'.format(thetar))
+
+        #needs a transmitter to work so put in a dummy one
+        dlines.append('# Transmitters: 1\n')
+        dlines.append('0 0 0 0 0 \n')
+        
+        #write frequencies
+        dlines.append('# Frequencies:   {0}\n'.format(nf))
+        if freq[0] < freq[1]:
+            freq = freq[::-1]
+            rho = rho[::-1]
+            phi = phi[::-1]
+            rho_err = rho_err[::-1]
+            phi_err = phi_err[::-1]
+        for ff in freq:
+            dlines.append('   {0:{1}}\n'.format(ff, self._string_fmt))
+        
+        #needs a receiver to work so put in a dummy one
+        dlines.append('# Receivers: 1 \n')
+        dlines.append('0 0 0 0 0 0 \n')
+        
+        #write data
+        dlines.append('# Data:{0}{1}\n'.format(self._ss, 2*nf))
+        num_data_line = len(dlines)
+        
+        dlines.append(self._header_line)
+        data_count = 0
+        for ii in range(nf):
+            if mode.lower() == 'te':
+                pol = 'xy'
+                if res_err == 'data':
+                    rerr = rho_err[ii, 0, 1] 
+                else:
+                    rerr = rho[ii, 0, 1]*res_err/100.
+                    
+                if phase_err == 'data':
+                    perr = phi_err[ii, 0, 1]
+                else:
+                    perr = phase_err/100*(180/np.pi) 
+                if rho[ii, 0, 1] != 0.0:
+                    dlines.append(self._ss.join(['RhoZ'+pol, str(ii+1), '0', '1', 
+                                '{0:{1}}'.format(rho[ii, 0, 1], self._string_fmt),
+                                '{0:{1}}\n'.format(rerr, self._string_fmt)]))
+                    dlines.append(self._ss.join(['PhsZ'+pol, str(ii+1), '0', '1', 
+                                '{0:{1}}'.format(phi[ii, 0, 1]%90,self._string_fmt),
+                                '{0:{1}}\n'.format(perr, self._string_fmt)]))
+                    data_count += 2
+                            
+            elif mode.lower() == 'tm':
+                pol = 'yx'
+                if res_err == 'data':
+                    rerr = rho_err[ii, 1, 0] 
+                else:
+                    rerr = rho[ii, 1, 0]*res_err/100.
+                    
+                if phase_err == 'data':
+                    perr = phi_err[ii, 1, 0]
+                else:
+                    perr = phase_err/100*(180/np.pi)
+                if rho[ii, 1, 0] != 0.0:    
+                    dlines.append(self._ss.join(['RhoZ'+pol, str(ii+1), '0', '1', 
+                                '{0:{1}}'.format(rho[ii, 1, 0],self._string_fmt),
+                                '{0:{1}}\n'.format(rerr, self._string_fmt)]))
+                    dlines.append(self._ss.join(['PhsZ'+pol, str(ii+1), '0', '1', 
+                                '{0:{1}}'.format(phi[ii, 1, 0]%90,self._string_fmt),
+                                '{0:{1}}\n'.format(perr, self._string_fmt)]))
+                    data_count += 2
+            elif mode.lower() == 'det':
+                pol = 'det'
+                if res_err == 'data':
+                    rerr, perr = mtedi.MTcc.zerror2r_phi_error(zdet[ii].real, 
+                                                               zdet_err[ii],
+                                                               zdet[ii].imag,
+                                                               zdet_err[ii]) 
+                else:
+                    rerr = rho[ii, 1, 0]*res_err/100.
+                    
+                if phase_err == 'data':
+                    rerr, perr = mtedi.MTcc.zerror2r_phi_error(zdet[ii].real, 
+                                                               zdet_err[ii],
+                                                               zdet[ii].imag,
+                                                               zdet_err[ii])
+                else:
+                    perr = phase_err/100*(180/np.pi)
+                if rho[ii, 1, 0] != 0.0:    
+                    dlines.append(self._ss.join(['RhoZ'+pol, str(ii+1), '0', '1', 
+                                '{0:{1}}'.format(rho[ii, 1, 0],self._string_fmt),
+                                '{0:{1}}\n'.format(rerr, self._string_fmt)]))
+                    dlines.append(self._ss.join(['PhsZ'+pol, str(ii+1), '0', '1', 
+                                '{0:{1}}'.format(phi[ii, 1, 0]%90,self._string_fmt),
+                                '{0:{1}}\n'.format(perr, self._string_fmt)]))
+                    data_count += 2
+        #--> write file
+        dlines[num_data_line-1] = '# Data:{0}{1}\n'.format(self._ss, data_count)
+        dfid = open(self.data_fn, 'w')
+        dfid.writelines(dlines)
+        dfid.close()
+        print 'Wrote Data File to : {0}'.format(self.data_fn)
+    
+    def read_data_file(self, data_fn=None):
+        """
+        reads a 1D data file
+        
+        Arguments:
+        ----------
+            **data_fn** : full path to data file
+        
+        Returns:
+        --------
+            **Occam1D.rpdict** : dictionary with keys:
+                
+                *'freq'* : an array of frequencies with length nf
+                
+                *'resxy'* : TE resistivity array with shape (nf,4) for (0) data,
+                          (1) dataerr, (2) model, (3) modelerr
+                         
+                *'resyx'* : TM resistivity array with shape (nf,4) for (0) data,
+                          (1) dataerr, (2) model, (3) modelerr
+                         
+                *'phasexy'* : TE phase array with shape (nf,4) for (0) data,
+                            (1) dataerr, (2) model, (3) modelerr
+                
+                *'phaseyx'* : TM phase array with shape (nf,4) for (0) data,
+                            (1) dataerr, (2) model, (3) modelerr
+                            
+        :Example: ::
+            
+            >>> old = occam1d.Data()
+            >>> old.data_fn = r"/home/Occam1D/Line1/Inv1_TE/MT01TE.dat"
+            >>> old.read_data_file()
+        """            
+        
+        if data_fn is not None:
+            self.data_fn = data_fn
+        if self.data_fn is None:
+            raise IOError('Need to input a data file')
+        elif os.path.isfile(self.data_fn) == False:
+            raise IOError('Could not find {0}, check path'.format(self.data_fn))
+        
+        self._data_fn = os.path.basename(self.data_fn)
+        self.save_path = os.path.dirname(self.data_fn)
+        
+        dfid = open(self.data_fn, 'r')
+        
+        #read in lines
+        dlines = dfid.readlines()
+        dfid.close()
+        
+        #make a dictionary of all the fields found so can put them into arrays
+        finddict = {}
+        for ii, dline in enumerate(dlines):
+            if dline.find('#')<=3:
+                fkey = dline[2:].strip().split(':')[0]
+                fvalue = ii
+                finddict[fkey] = fvalue
+                
+        #get number of frequencies
+        nfreq = int(dlines[finddict['Frequencies']][2:].strip().split(':')[1].strip())
+        
+        #frequency list
+        freq = np.array([float(ff) for ff in dlines[finddict['Frequencies']+1:
+                                                    finddict['Receivers']]])
+                
+        #data dictionary to put things into
+        #check to see if there is alread one, if not make a new one
+        if self.data is None:
+            self.data = {'freq':freq,
+                          'resxy':np.zeros((4,nfreq)),
+                          'resyx':np.zeros((4,nfreq)),
+                          'phasexy':np.zeros((4,nfreq)),
+                          'phaseyx':np.zeros((4,nfreq))}
+            
+        
+        #get data        
+        for dline in dlines[finddict['Data']+1:]:
+            if dline.find('!') == 0:
+                pass
+            else:
+                dlst = dline.strip().split()
+                dlst = [dd.strip() for dd in dlst]
+                if len(dlst) > 4:
+                    jj = int(dlst[1])-1
+                    dvalue = float(dlst[4])
+                    derr = float(dlst[5])
+                    if dlst[0] == 'RhoZxy' or dlst[0] == '103':
+                        self.data['resxy'][0, jj] = dvalue
+                        self.data['resxy'][1, jj] = derr
+                    if dlst[0] == 'PhsZxy' or dlst[0] == '104':
+                        self.data['phasexy'][0, jj] = dvalue
+                        self.data['phasexy'][1, jj] = derr
+                    if dlst[0] == 'RhoZyx' or dlst[0] == '105':
+                        self.data['resyx'][0, jj] = dvalue
+                        self.data['resyx'][1, jj] = derr
+                    if dlst[0] == 'PhsZyx' or dlst[0] == '106':
+                        self.data['phaseyx'][0, jj] = dvalue
+                        self.data['phaseyx'][1, jj] = derr
+                        
+        self.freq = freq
+        self.res_te = self.data['resxy']
+        self.res_tm = self.data['resyx']
+        self.phase_te = self.data['phasexy']
+        self.phase_tm = self.data['phaseyx']
+        
+    def read_resp_file(self, resp_fn=None, data_fn=None):
+        """
+        read response file
+        
+        Arguments:
+        ---------
+            **resp_fn** : full path to response file
+            
+            **data_fn** : full path to data file
+        
+        Fills:
+        --------
+            
+            *freq* : an array of frequencies with length nf
+            
+            *res_te* : TE resistivity array with shape (nf,4) for (0) data,
+                      (1) dataerr, (2) model, (3) modelerr
+                     
+            *res_tm* : TM resistivity array with shape (nf,4) for (0) data,
+                      (1) dataerr, (2) model, (3) modelerr
+                     
+            *phase_te* : TE phase array with shape (nf,4) for (0) data,
+                        (1) dataerr, (2) model, (3) modelerr
+            
+            *phase_tm* : TM phase array with shape (nf,4) for (0) data,
+                        (1) dataerr, (2) model, (3) modelerr
+       
+       :Example: ::
+            >>> o1d = occam1d.Data()
+            >>> o1d.data_fn = r"/home/occam1d/mt01/TE/Occam1D_DataFile_TE.dat"
+            >>> o1d.read_resp_file(r"/home/occam1d/mt01/TE/TE_7.resp")
+            
+        """
+        
+        if resp_fn is not None:
+            self.resp_fn = resp_fn
+        if self.resp_fn is None:
+            raise IOError('Need to input response file')
+        
+        if data_fn is not None:
+            self.data_fn = data_fn
+        if self.data_fn is None:
+            raise IOError('Need to input data file')
+        #--> read in data file
+        self.read_data_file()
+        
+        #--> read response file
+        dfid = open(self.resp_fn, 'r')
+        
+        dlines = dfid.readlines()
+        dfid.close()
+    
+        finddict = {}
+        for ii, dline in enumerate(dlines):
+            if dline.find('#')<=3:
+                fkey = dline[2:].strip().split(':')[0]
+                fvalue = ii
+                finddict[fkey] = fvalue
+                
+                
+        for dline in dlines[finddict['Data']+1:]:
+            if dline.find('!') == 0:
+                pass
+            else:
+                dlst=dline.strip().split()
+                if len(dlst) > 4:
+                    jj = int(dlst[1])-1
+                    dvalue = float(dlst[4])
+                    derr = float(dlst[5])
+                    rvalue = float(dlst[6])
+                    try:
+                        rerr = float(dlst[7])
+                    except ValueError:
+                        rerr = 1000.
+                    if dlst[0]=='RhoZxy' or dlst[0]=='103':
+                        self.res_te[0,jj] = dvalue
+                        self.res_te[1,jj] = derr
+                        self.res_te[2,jj] = rvalue
+                        self.res_te[3,jj] = rerr
+                    if dlst[0]=='PhsZxy' or dlst[0]=='104':
+                        self.phase_te[0,jj] = dvalue
+                        self.phase_te[1,jj] = derr
+                        self.phase_te[2,jj] = rvalue
+                        self.phase_te[3,jj] = rerr
+                    if dlst[0]=='RhoZyx' or dlst[0]=='105':
+                        self.res_tm[0,jj] = dvalue
+                        self.res_tm[1,jj] = derr
+                        self.res_tm[2,jj] = rvalue
+                        self.res_tm[3,jj] = rerr
+                    if dlst[0]=='PhsZyx' or dlst[0]=='106':
+                        self.phase_tm[0,jj] = dvalue
+                        self.phase_tm[1,jj] = derr
+                        self.phase_tm[2,jj] = rvalue
+                        self.phase_tm[3,jj] = rerr
+                        
+class Model(object):
+    """
+    read and write the model file fo Occam1D
+    
+    All depth measurements are in meters.
+    
+    ======================== ==================================================
+    Attributes               Description    
+    ======================== ==================================================
+    _model_fn                basename for model file *default* is Model1D 
+    _ss                      string spacing in model file *default* is 3*' '
+    _string_fmt              format of model layers *default* is '.0f'
+    air_layer_height         height of air layer *default* is 10000
+    bottom_layer             bottom of the model *default* is 50000
+    itdict                   dictionary of values from iteration file
+    iter_fn                  full path to iteration file
+    model_depth              array of model depths
+    model_fn                 full path to model file
+    model_penalty            array of penalties for each model layer
+    model_preference_penalty array of model preference penalties for each layer
+    model_prefernce          array of preferences for each layer
+    model_res                array of resistivities for each layer
+    n_layers                 number of layers in the model
+    num_params               number of parameters to invert for (n_layers+2)
+    pad_z                    padding of model at depth *default* is 5 blocks 
+    save_path                path to save files
+    target_depth             depth of target to investigate 
+    z1_layer                 depth of first layer *default* is 10  
+    ======================== ==================================================
+    
+    ======================== ==================================================
+    Methods                  Description
+    ======================== ==================================================
+    write_model_file         write an Occam1D model file, where depth increases
+                             on a logarithmic scale       
+    read_model_file          read an Occam1D model file
+    read_iter_file           read an .iter file output by Occam1D
+    ======================== ==================================================
+   
+    :Example: ::
+    
+        >>> #--> make a model file
+        >>> m1 = occam1d.Model()
+        >>> m1.write_model_file(save_path=r"/home/occam1d/mt01/TE")
+   """
+    
+    def __init__(self, model_fn=None, **kwargs):
+        self.model_fn = model_fn
+        self.iter_fn = None
+        
+        self.n_layers = kwargs.pop('n_layers', 100)
+        self.bottom_layer = kwargs.pop('bottom_layer', 50000)
+        self.target_depth = kwargs.pop('target_layer', 10000)
+        self.pad_z = kwargs.pop('pad_z', 5)
+        self.z1_layer = kwargs.pop('z1_layer', 10)
+        self.air_layer_height = kwargs.pop('zir_layer_height', 10000)
+        
+        self.save_path = kwargs.pop('save_path', None)
+        if self.model_fn is not None and self.save_path is None:
+            self.save_path = os.path.dirname(self.model_fn)
+            
+        self._ss = ' '*3
+        self._string_fmt = '.0f'
+        self._model_fn = 'Model1D'
+        self.model_res = None
+        self.model_depth = None
+        self.model_penalty = None
+        self.model_prefernce = None
+        self.model_preference_penalty = None
+        self.num_params = None
+    
+    def write_model_file(self,save_path=None, **kwargs):
+        """
+        Makes a 1D model file for Occam1D.  
+        
+        Arguments:
+        ----------
+        
+            **save_path** :path to save file to, if just path saved as 
+                          savepath\model.mod, if None defaults to dirpath
+                          
+            **n_layers** : number of layers
+            
+            **bottom_layer** : depth of bottom layer in meters
+            
+            **target_depth** : depth to target under investigation
+            
+            **pad_z** : padding on bottom of model past target_depth
+                          
+            **z1_layer** : depth of first layer in meters
+            
+            **air_layer_height** : height of air layers in meters
+              
+        Returns:
+        --------
+        
+            **Occam1D.modelfn** = full path to model file
+            
+        ..Note: This needs to be redone.
+        
+        :Example: ::
+            
+            >>> old = occam.Occam1D()
+            >>> old.make1DModelFile(savepath=r"/home/Occam1D/Line1/Inv1_TE",
+            >>>                     nlayers=50,bottomlayer=10000,z1layer=50)
+            >>> Wrote Model file: /home/Occam1D/Line1/Inv1_TE/Model1D 
+        """
+        if save_path is not None:
+            self.save_path = save_path
+            if os.path.isdir == False:
+                os.mkdir(self.save_path)
+                
+        self.model_fn = os.path.join(self.save_path, self._model_fn)
+        
+        for key in kwargs.keys():
+            setattr(self, key, kwargs[key])
+        
+        #---------create depth layers--------------------                
+        log_z = np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.target_depth-
+                                     np.logspace(np.log10(self.z1_layer), 
+                            np.log10(self.target_depth), 
+                            num=self.n_layers)[-2]), 
+                            num=self.n_layers-self.pad_z)
+        ztarget = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+                           log_z])
+        log_zpad = np.logspace(np.log10(self.target_depth), 
+                            np.log10(self.bottom_layer-
+                                    np.logspace(np.log10(self.target_depth), 
+                            np.log10(self.bottom_layer), 
+                            num=self.pad_z)[-2]), 
+                            num=self.pad_z)
+        zpadding = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+                               log_zpad])
+        z_nodes = np.append(ztarget, zpadding)
+        self.model_depth = np.array([z_nodes[:ii+1].sum() 
+                                     for ii in range(z_nodes.shape[0])])
+        self.num_params = self.n_layers+2
+        #make the model file
+        modfid=open(self.model_fn,'w')
+        modfid.write('Format: Resistivity1DMod_1.0'+'\n')
+        modfid.write('#LAYERS:    {0}\n'.format(self.num_params))
+        modfid.write('!Set free values to -1 or ? \n')
+        modfid.write('!penalize between 1 and 0,'+
+                     '0 allowing jump between layers and 1 smooth. \n' )
+        modfid.write('!preference is the assumed resistivity on linear scale. \n')
+        modfid.write('!pref_penalty needs to be put if preference is not 0 [0,1]. \n')
+        modfid.write('! {0}\n'.format(self._ss.join(['top_depth', 'resistivity',
+                                                    'penalty','preference',
+                                                    'pref_penalty'])))
+        modfid.write(self._ss.join([str(-self.air_layer_height),
+                                    '1d12', '0', '0', '0', '!air layer','\n']))
+        modfid.write(self._ss.join([ '0', '-1', '0', '0', '0',
+                                    '!first ground layer', '\n']))
+        for ll in self.model_depth:
+            modfid.write(self._ss.join(['{0:{1}}'.format(np.ceil(ll), 
+                                        self._string_fmt),
+                                        '-1','1','0','0','\n']))
+        
+        modfid.close()
+        
+        print 'Wrote Model file: {0}'.format(self.model_fn)
+            
+    def read_model_file(self, model_fn=None):
+        """
+        
+        will read in model 1D file
+        
+        Arguments:
+        ----------
+            **modelfn** : full path to model file
+            
+        Fills attributes:
+        --------
+                
+            * model_depth' : depth of model in meters
+            
+            * model_res : value of resisitivity
+            
+            * model_penalty : penalty
+            
+            * model_preference : preference
+            
+            * model_penalty_preference : preference penalty
+                
+        :Example: ::
+            
+            >>> m1 = occam1d.Model()
+            >>> m1.savepath = r"/home/Occam1D/Line1/Inv1_TE"
+            >>> m1.read_model_file()
+        """
+        if model_fn is not None:
+            self.model_fn = model_fn
+        if self.model_fn is None:
+            raise IOError('Need to input a model file')
+        elif os.path.isfile(self.model_fn) == False:
+            raise IOError('Could not find{0}, check path'.format(self.model_fn))
+            
+        self._model_fn = os.path.basename(self.model_fn)   
+        self.save_path = os.path.dirname(self.model_fn)
+        mfid = open(self.model_fn, 'r')
+        mlines = mfid.readlines()
+        mfid.close()
+        mdict = {}
+        mdict['nparam'] = 0
+        for key in ['depth', 'res', 'pen', 'pref', 'prefpen']:
+            mdict[key] = []
+        
+        for mm, mline in enumerate(mlines):
+            if mline.find('!') == 0:
+                pass
+            elif mline.find(':') >= 0:
+                mlst = mline.strip().split(':')
+                mdict[mlst[0]] = mlst[1]
+            else:
+                mlst = mline.strip().split()
+                mdict['depth'].append(float(mlst[0]))
+                if mlst[1] == '?':
+                    mdict['res'].append(-1)
+                elif mlst[1] == '1d12':
+                    mdict['res'].append(1.0E12)
+                else:
+                    try:
+                        mdict['res'].append(float(mlst[1]))
+                    except ValueError:
+                        mdict['res'].append(-1)
+                mdict['pen'].append(float(mlst[2]))
+                mdict['pref'].append(float(mlst[3]))
+                mdict['prefpen'].append(float(mlst[4]))
+                if mlst[1] == '-1' or mlst[1] == '?':
+                    mdict['nparam'] += 1
+                    
+        #make everything an array
+        for key in ['depth', 'res', 'pen', 'pref', 'prefpen']:
+                mdict[key] = np.array(mdict[key])
+                
+        #create an array with empty columns to put the TE and TM models into
+        mres = np.zeros((len(mdict['res']),2))
+        mres[:,0] = mdict['res']
+        mdict['res'] = mres
+        
+        #make attributes            
+        self.model_res = mdict['res']
+        self.model_depth = mdict['depth']
+        self.model_penalty = mdict['pen']
+        self.model_prefernce = mdict['pref']
+        self.model_preference_penalty = mdict['prefpen']
+        self.num_params = mdict['nparam']
+        
+    def read_iter_file(self, iter_fn=None, model_fn=None):
+        """
+        read an 1D iteration file
+        
+        Arguments:
+        ----------
+            **imode** : mode to read from 
+        
+        Returns:
+        --------
+            **Occam1D.itdict** : dictionary with keys of the header:
+                
+            **model_res** : fills this array with the appropriate 
+                            values (0) for data, (1) for model
+                                        
+        :Example: ::
+            
+            >>> m1 = occam1d.Model()
+            >>> m1.model_fn = r"/home/occam1d/mt01/TE/Model1D"
+            >>> m1.read_iter_file(r"/home/Occam1D/Inv1_TE/M01TE_15.iter")
+                
+        """
+        
+        if iter_fn is not None:
+            self.iter_fn = iter_fn
+            
+        if self.iter_fn is None:
+            raise IOError('Need to input iteration file')
+        
+        if model_fn is not None:
+            self.model_fn = model_fn
+        if self.model_fn is None:
+            raise IOError('Need to input a model file')
+        else:
+            self.read_model_file()
+        
+        freeparams = np.where(self.model_res == -1)[0]
+        
+        ifid = file(self.iter_fn, 'r')
+        ilines = ifid.readlines()
+        ifid.close()
+        
+        self.itdict={}
+        model=[]    
+        for ii,iline in enumerate(ilines):
+            if iline.find(':')>=0:
+                ikey=iline[0:20].strip()
+                ivalue=iline[20:].split('!')[0].strip()
+                self.itdict[ikey[:-1]]=ivalue
+            else:
+                try:
+                    ilst=iline.strip().split()
+                    for kk in ilst:
+                        model.append(float(kk))
+                except ValueError:
+                    pass
+        
+        #put the model values into the model dictionary into the res array
+        #for easy manipulation and access.       
+        model=np.array(model)
+        self.model_res[freeparams, 1] = model
+
+
+        
+class Startup(object):
+    """
+    read and write input files for Occam1D
+    
+    ====================== ====================================================
+    Attributes             Description    
+    ====================== ====================================================
+    _ss                    string spacing
+    _startup_fn            basename of startup file *default* is OccamStartup1D
+    data_fn                full path to data file
+    debug_level            debug level *default* is 1
+    description            description of inversion for your self
+                           *default* is 1D_Occam_Inv
+    max_iter               maximum number of iterations *default* is 20
+    model_fn               full path to model file
+    rough_type             roughness type *default* is 1
+    save_path              full path to save files to
+    start_iter             first iteration number *default* is 0
+    start_lagrange         starting lagrange number on log scale 
+                           *default* is 5
+    start_misfit           starting misfit value *default* is 100
+    start_rho              starting resistivity value (halfspace) in log scale
+                           *default* is 100
+    start_rough            starting roughness (ignored by Occam1D)
+                           *default* is 1E7
+    startup_fn             full path to startup file
+    target_rms             target rms *default* is 1.0
+    ====================== ====================================================
+    """
+    def __init__(self, data_fn=None, model_fn=None, **kwargs):
+        self.data_fn = data_fn
+        self.model_fn = model_fn
+        
+        if self.data_fn is not None:
+            self.save_path = os.path.dirname(self.data_fn)
+        elif self.model_fn is not None:
+            self.save_path = os.path.dirname(self.model_fn)
+        
+        self.startup_fn = None
+        self.rough_type = kwargs.pop('rough_type', 1)
+        self.max_iter = kwargs.pop('max_iter', 20)
+        self.target_rms = kwargs.pop('target_rms', 1)
+        self.start_rho = kwargs.pop('start_rho', 100)
+        self.description = kwargs.pop('description', '1D_Occam_Inv')
+        self.start_lagrange = kwargs.pop('start_lagrange', 5.0)
+        self.start_rough = kwargs.pop('start_rough', 1.0E7)
+        self.debug_level = kwargs.pop('debug_level', 1)
+        self.start_iter = kwargs.pop('start_iter', 0)
+        self.start_misfit = kwargs.pop('start_misfit', 100)
+        self.min_max_bounds = kwargs.pop('min_max_bounds', None)
+        self.model_step = kwargs.pop('model_step', None)
+        self._startup_fn = 'OccamStartup1D'
+        self._ss = ' '*3
+        
+    def write_startup_file(self, save_path=None, **kwargs):
+        """
+        Make a 1D input file for Occam 1D
+        
+        Arguments:
+        ---------
+            **savepath** : full path to save input file to, if just path then 
+                           saved as savepath/input
+                           
+            **model_fn** : full path to model file, if None then assumed to be in 
+                            savepath/model.mod
+                            
+            **data_fn** : full path to data file, if None then assumed to be 
+                            in savepath/TE.dat or TM.dat
+                            
+            **rough_type** : roughness type. *default* = 0
+            
+            **max_iter** : maximum number of iterations. *default* = 20 
+            
+            **target_rms** : target rms value. *default* = 1.0
+            
+            **start_rho** : starting resistivity value on linear scale. 
+                            *default* = 100
+            
+            **description** : description of the inversion. 
+            
+            **start_lagrange** : starting Lagrange multiplier for smoothness.
+                           *default* = 5
+            
+            **start_rough** : starting roughness value. *default* = 1E7
+            
+            **debuglevel** : something to do with how Fortran debuggs the code
+                             Almost always leave at *default* = 1
+                    
+            **start_iter** : the starting iteration number, handy if the
+                            starting model is from a previous run.
+                            *default* = 0
+            
+            **start_misfit** : starting misfit value. *default* = 100
+                             
+        Returns:
+        --------
+            **Occam1D.inputfn** : full path to input file. 
+            
+        :Example: ::
+            
+            >>> old = occam.Occam1D()
+            >>> old.make1DdataFile('MT01',edipath=r"/home/Line1",
+            >>>                    savepath=r"/home/Occam1D/Line1/Inv1_TE",
+            >>>                    mode='TE')
+            >>> Wrote Data File: /home/Occam1D/Line1/Inv1_TE/MT01TE.dat
+            >>>            
+            >>> old.make1DModelFile(savepath=r"/home/Occam1D/Line1/Inv1_TE",
+            >>>                     nlayers=50,bottomlayer=10000,z1layer=50)
+            >>> Wrote Model file: /home/Occam1D/Line1/Inv1_TE/Model1D
+            >>>
+            >>> old.make1DInputFile(rhostart=10,targetrms=1.5,maxiter=15)
+            >>> Wrote Input File: /home/Occam1D/Line1/Inv1_TE/Input1D  
+        """
+        
+        if save_path is not None:
+            self.save_path = save_path
+        if os.path.isdir(self.save_path) == False:
+            os.mkdir(self.save_path)
+            
+        self.startup_fn = os.path.join(self.save_path, self._startup_fn)
+        
+        #--> read data file
+        if self.data_fn is None:
+            raise IOError('Need to input data file name.')
+        else:
+            data = Data()
+            data.read_data_file(self.data_fn)
+            
+        #--> read model file
+        if self.model_fn is None:
+            raise IOError('Need to input model file name.')
+        else:
+            model = Model()
+            model.read_model_file(self.model_fn) 
+        
+        #--> get any keywords
+        for key in kwargs.keys():
+            setattr(self, key, kwargs[key])                 
+        
+        #--> write input file
+        infid=open(self.startup_fn,'w')
+        infid.write('{0:<21}{1}\n'.format('Format:', 'OCCAMITER_FLEX'))
+        infid.write('{0:<21}{1}\n'.format('Description:', self.description))
+        infid.write('{0:<21}{1}\n'.format('Model File:', 
+                                          os.path.basename(self.model_fn)))
+        infid.write('{0:<21}{1}\n'.format('Data File:', 
+                                          os.path.basename(self.data_fn)))
+        infid.write('{0:<21}{1}\n'.format('Date/Time:', time.ctime()))
+        infid.write('{0:<21}{1}\n'.format('Max Iter:', self.max_iter))
+        infid.write('{0:<21}{1}\n'.format('Target Misfit:', self.target_rms))
+        infid.write('{0:<21}{1}\n'.format('Roughness Type:', self.rough_type))
+        if self.min_max_bounds == None:
+            infid.write('{0:<21}{1}\n'.format('!Model Bounds:', 'min,max'))
+        else:
+            infid.write('{0:<21}{1},{2}\n'.format('Model Bounds:', 
+                                              self.min_max_bounds[0],
+                                              self.min_max_bounds[1]))
+        if self.model_step == None:
+            infid.write('{0:<21}{1}\n'.format('!Model Value Steps:', 
+                                              'stepsize'))
+        else:
+            infid.write('{0:<21}{1}\n'.format('Model Value Steps:', 
+                                              self.model_step))
+        infid.write('{0:<21}{1}\n'.format('Debug Level:', self.debug_level))
+        infid.write('{0:<21}{1}\n'.format('Iteration:', self.start_iter))
+        infid.write('{0:<21}{1}\n'.format('Lagrange Value:', self.start_lagrange))
+        infid.write('{0:<21}{1}\n'.format('Roughness Value:', self.start_rough))
+        infid.write('{0:<21}{1}\n'.format('Misfit Value:', self.start_misfit))
+        infid.write('{0:<21}{1}\n'.format('Misfit Reached:', 0))
+        infid.write('{0:<21}{1}\n'.format('Param Count:', model.num_params))
+
+        for ii in range(model.num_params):
+            infid.write('{0}{1:.2f}\n'.format(self._ss, 
+                                              np.log10(self.start_rho)))
+        
+        infid.close()
+        print 'Wrote Input File: {0}'.format(self.startup_fn)
+        
+    def read_startup_file(self, startup_fn):
+        """
+        reads in a 1D input file
+        
+        Arguments:
+        ---------
+            **inputfn** : full path to input file
+               
+        Returns:
+        --------
+            **Occam1D.indict** : dictionary with keys following the header and
+            
+                *'res'* : an array of resistivity values
+                
+        :Example: ::
+            
+            >>> old = occam.Occam1d()
+            >>> old.savepath = r"/home/Occam1D/Line1/Inv1_TE"
+            >>> old.read1DInputFile()
+        """
+        if startup_fn is not None:
+            self.startup_fn = startup_fn
+            
+        if self.startup_fn is None:
+            raise IOError('Need to input a startup file.')
+        
+        self._startup_fn = os.path.basename(self.startup_fn)
+        self.save_path = os.path.dirname(self.startup_fn)
+            
+        infid = open(self.inputfn,'r')
+        ilines = infid.readlines()
+        infid.close()
+    
+        self.indict = {}
+        res = []
+        
+        #split the keys and values from the header information
+        for iline in ilines:
+            if iline.find(':') >= 0:
+                ikey = iline[0:20].strip()
+                ivalue = iline[20:].split('!')[0].strip()
+                if ikey.find('!') == 0:
+                    pass
+                else:
+                    setattr(self, ikey.lower().replace(' ', '_'), ivalue)
+                self.indict[ikey[:-1]] = ivalue
+            else:
+                try:
+                    res.append(float(iline.strip()))
+                except ValueError:
+                    pass
+                
+        #make the resistivity array ready for models to be input
+        self.indict['res']=np.zeros((len(res),3))
+        self.indict['res'][:,0]=res
+        
+class Plot1DResponse(object):
+    """
+    plot the 1D response and model.  Plots apparent resisitivity and phase
+    in different subplots with the model on the far right.  You can plot both
+    TE and TM modes together along with different iterations of the model.  
+    These will be plotted in different colors or shades of gray depneng on 
+    color_scale.
+    
+    :Example: ::
+    
+        >>> import mtpy.modeling.occam1d as occam1d
+        >>> p1 = occam1d.Plot1DResponse(plot_yn='n')
+        >>> p1.data_te_fn = r"/home/occam1d/mt01/TE/Occam_DataFile_TE.dat"
+        >>> p1.data_tm_fn = r"/home/occam1d/mt01/TM/Occam_DataFile_TM.dat"
+        >>> p1.model_fn = r"/home/occam1d/mt01/TE/Model1D"
+        >>> p1.iter_te_fn = [r"/home/occam1d/mt01/TE/TE_{0}.iter".format(ii)
+        >>> ...              for ii in range(5,10)]
+        >>> p1.iter_tm_fn = [r"/home/occam1d/mt01/TM/TM_{0}.iter".format(ii)
+        >>> ...              for ii in range(5,10)]
+        >>> p1.resp_te_fn = [r"/home/occam1d/mt01/TE/TE_{0}.resp".format(ii)
+        >>> ...              for ii in range(5,10)]
+        >>> p1.resp_tm_fn = [r"/home/occam1d/mt01/TM/TM_{0}.resp".format(ii)
+        >>> ...              for ii in range(5,10)]
+        >>> p1.plot()
+    
+    ==================== ======================================================
+    Attributes           Description
+    ==================== ======================================================
+    axm                  matplotlib.axes instance for model subplot
+    axp                  matplotlib.axes instance for phase subplot
+    axr                  matplotlib.axes instance for app. res subplot 
+    color_mode           [ 'color' | 'bw' ]
+    cted                 color of TE data markers
+    ctem                 color of TM data markers
+    ctmd                 color of TE model markers 
+    ctmm                 color of TM model markers
+    data_te_fn           full path to data file for TE mode
+    data_tm_fn           full path to data file for TM mode
+    depth_limits         (min, max) limits for depth plot in depth_units
+    depth_scale          [ 'log' | 'linear' ] *default* is linear
+    depth_units          [ 'm' | 'km' ] *default is 'km'
+    e_capsize            capsize of error bars
+    e_capthick           cap thickness of error bars
+    fig                  matplotlib.figure instance for plot
+    fig_dpi              resolution in dots-per-inch for figure
+    fig_num              number of figure instance
+    fig_size             size of figure in inches [width, height]  
+    font_size            size of axes tick labels, axes labels are +2
+    grid_alpha           transparency of grid
+    grid_color           color of grid 
+    iter_te_fn           full path or list of .iter files for TE mode
+    iter_tm_fn           full path or list of .iter files for TM mode
+    lw                   width of lines for model
+    model_fn             full path to model file
+    ms                   marker size
+    mted                 marker for TE data
+    mtem                 marker for TM data
+    mtmd                 marker for TE model 
+    mtmm                 marker for TM model
+    phase_limits         (min, max) limits on phase in degrees
+    phase_major_ticks    spacing for major ticks in phase
+    phase_minor_ticks    spacing for minor ticks in phase
+    plot_yn              [ 'y' | 'n' ] plot on instantiation
+    res_limits           limits of resistivity in linear scale
+    resp_te_fn           full path or list of .resp files for TE mode
+    resp_tm_fn           full path or list of .iter files for TM mode
+    subplot_bottom       spacing of subplots from bottom of figure
+    subplot_hspace       height spacing between subplots
+    subplot_left         spacing of subplots from left of figure
+    subplot_right        spacing of subplots from right of figure 
+    subplot_top          spacing of subplots from top of figure
+    subplot_wspace       width spacing between subplots
+    title_str            title of plot
+    ==================== ======================================================
+
+    """
+    
+    def __init__(self, data_te_fn=None, data_tm_fn=None, model_fn=None,
+                 resp_te_fn=None, resp_tm_fn=None, iter_te_fn=None, 
+                 iter_tm_fn=None, **kwargs):
+        self.data_te_fn = data_te_fn
+        self.data_tm_fn = data_tm_fn
+            
+        self.model_fn = model_fn
+        
+        self.resp_te_fn = resp_te_fn
+        if type(self.resp_te_fn) is not list:
+            self.resp_te_fn = [self.resp_te_fn]
+        
+        self.resp_tm_fn = resp_tm_fn
+        if type(self.resp_tm_fn) is not list:
+            self.resp_tm_fn = [self.resp_tm_fn]
+        
+        self.iter_te_fn = iter_te_fn
+        if type(self.iter_te_fn) is not list:
+            self.iter_te_fn = [self.iter_te_fn]
+            
+        self.iter_tm_fn = iter_tm_fn
+        if type(self.iter_tm_fn) is not list:
+            self.iter_tm_fn = [self.iter_tm_fn]
+            
+        self.color_mode = kwargs.pop('color_mode', 'color')
+        
+        self.ms = kwargs.pop('ms', 1.5)
+        self.lw = kwargs.pop('lw', .5)
+        self.ls = kwargs.pop('ls', ':')
+        self.e_capthick = kwargs.pop('e_capthick', .5)
+        self.e_capsize = kwargs.pop('e_capsize', 2)
+        
+        self.phase_major_ticks = kwargs.pop('phase_major_ticks', 10)
+        self.phase_minor_ticks = kwargs.pop('phase_minor_ticks', 5)
+        
+        self.grid_color = kwargs.pop('grid_color', (.25, .25, .25))
+        self.grid_alpha = kwargs.pop('grid_alpha', .3)
+
+        #color mode
+        if self.color_mode == 'color':
+            #color for data
+            self.cted = kwargs.pop('cted', (0, 0, 1))
+            self.ctmd = kwargs.pop('ctmd', (1, 0, 0))
+            self.mted = kwargs.pop('mted', 's')
+            self.mtmd = kwargs.pop('mtmd', 'o')
+            
+            #color for occam2d model
+            self.ctem = kwargs.pop('ctem', (0, .6, .3))
+            self.ctmm = kwargs.pop('ctmm', (.9, 0, .8))
+            self.mtem = kwargs.pop('mtem', '+')
+            self.mtmm = kwargs.pop('mtmm', '+')
+            
+         
+        #black and white mode
+        elif self.color_mode == 'bw':
+            #color for data
+            self.cted = kwargs.pop('cted', (0, 0, 0))
+            self.ctmd = kwargs.pop('ctmd', (0, 0, 0))
+            self.mted = kwargs.pop('mted', '*')
+            self.mtmd = kwargs.pop('mtmd', 'v')
+            
+            #color for occam2d model
+            self.ctem = kwargs.pop('ctem', (0.6, 0.6, 0.6))
+            self.ctmm = kwargs.pop('ctmm', (0.6, 0.6, 0.6))
+            self.mtem = kwargs.pop('mtem', '+')
+            self.mtmm = kwargs.pop('mtmm', 'x')
+
+        self.phase_limits = kwargs.pop('phase_limits', (-5, 95))
+        self.res_limits = kwargs.pop('res_limits', None)
+        self.depth_limits = kwargs.pop('depth_limits', None)
+        self.depth_scale = kwargs.pop('depth_scale', 'linear')
+        self.depth_units = kwargs.pop('depth_units', 'km')
+
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        self.fig = None
+        self.axr = None
+        self.axp = None
+        self.axm = None
+        
+        self.subplot_wspace = .25
+        self.subplot_hspace = .15
+        self.subplot_right = .92
+        self.subplot_left = .085
+        self.subplot_top = .93
+        self.subplot_bottom = .1
+
+        self.font_size = kwargs.pop('font_size', 6)
+        
+        self.title_str = kwargs.pop('title_str', '')
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+
+        if self.plot_yn == 'y':
+            self.plot()
+            
+    def plot(self):
+        """
+        plot data, response and model
+        
+        """
+        if type(self.resp_te_fn) is not list:
+            self.resp_te_fn = [self.resp_te_fn]
+        
+        if type(self.resp_tm_fn) is not list:
+            self.resp_tm_fn = [self.resp_tm_fn]
+        
+        if type(self.iter_te_fn) is not list:
+            self.iter_te_fn = [self.iter_te_fn]
+            
+        if type(self.iter_tm_fn) is not list:
+            self.iter_tm_fn = [self.iter_tm_fn]
+            
+        #make a grid of subplots
+        gs=gridspec.GridSpec(6, 5, hspace=self.subplot_hspace, 
+                             wspace=self.subplot_wspace)
+        
+        #make a figure
+        self.fig = plt.figure(self.fig_num, self.fig_size, dpi=self.fig_dpi)
+        plt.clf()
+        
+        #set some plot parameters
+        plt.rcParams['font.size'] = self.font_size
+        plt.rcParams['figure.subplot.left'] = self.subplot_left
+        plt.rcParams['figure.subplot.right'] = self.subplot_right
+        plt.rcParams['figure.subplot.bottom'] = self.subplot_bottom
+        plt.rcParams['figure.subplot.top'] = self.subplot_top
+        
+        #subplot resistivity
+        self.axr = self.fig.add_subplot(gs[:4, :4])
+        
+        #subplot for phase
+        self.axp = self.fig.add_subplot(gs[4:,:4], sharex=self.axr)
+
+        #subplot for model
+        self.axm = self.fig.add_subplot(gs[:, 4])
+        
+        legend_marker_list_te = []
+        legend_label_list_te = []
+        legend_marker_list_tm = []
+        legend_label_list_tm = []
+        #--> plot data apparent resistivity and phase-------------------------
+        if self.data_te_fn is not None:
+            d1 = Data()
+            d1.read_data_file(self.data_te_fn)
+            
+            #--> cut out missing data
+            rxy = np.where(d1.res_te[0] != 0)[0]
+            
+            #--> TE mode Data 
+            if len(rxy) > 0:
+                rte = self.axr.errorbar(1./d1.freq[rxy],
+                                        d1.res_te[0][rxy],
+                                        ls=self.ls,
+                                        marker=self.mted,
+                                        ms=self.ms,
+                                        mfc=self.cted,
+                                        mec=self.cted,
+                                        color=self.cted,
+                                        yerr=d1.res_te[1][rxy],
+                                        ecolor=self.cted,
+                                        picker=2,
+                                        lw=self.lw,
+                                        elinewidth=self.lw,
+                                        capsize=self.e_capsize,
+                                        capthick=self.e_capthick)
+                legend_marker_list_te.append(rte[0])
+                legend_label_list_te.append('$Obs_{TE}$')
+            else:
+                pass
+            #--------------------plot phase--------------------------------
+            #cut out missing data points first
+            pxy = np.where(d1.phase_te[0]!=0)[0]
+            
+            #--> TE mode data
+            if len(pxy) > 0:
+                self.axp.errorbar(1./d1.freq[pxy],
+                                   d1.phase_te[0][pxy],
+                                   ls=self.ls,
+                                   marker=self.mted,
+                                   ms=self.ms,
+                                   mfc=self.cted,
+                                   mec=self.cted,
+                                   color=self.cted,
+                                   yerr=d1.phase_te[1][pxy],
+                                   ecolor=self.cted,
+                                   picker=1,
+                                   lw=self.lw,
+                                   elinewidth=self.lw,
+                                   capsize=self.e_capsize,
+                                   capthick=self.e_capthick)
+            else:
+                pass
+        #--> plot tm data------------------------------------------------------    
+        if self.data_tm_fn is not None:
+            d1 = Data()
+            d1.read_data_file(self.data_tm_fn)
+            
+            ryx = np.where(d1.res_tm[0] != 0)[0]
+            
+            #--> TM mode data
+            if len(ryx) > 0:
+                rtm = self.axr.errorbar(1./d1.freq[ryx],
+                                        d1.res_tm[0][ryx] ,
+                                        ls=self.ls,
+                                        marker=self.mtmd,
+                                        ms=self.ms,
+                                        mfc=self.ctmd,
+                                        mec=self.ctmd,
+                                        color=self.ctmd,
+                                        yerr=d1.res_tm[1][ryx],
+                                        ecolor=self.ctmd,
+                                        picker=2,
+                                        lw=self.lw,
+                                        elinewidth=self.lw,
+                                        capsize=self.e_capsize,
+                                        capthick=self.e_capthick)
+                legend_marker_list_tm.append(rtm[0])
+                legend_label_list_tm.append('$Obs_{TM}$')
+            else:
+                pass 
+        
+            #--------------------plot phase--------------------------------
+            #cut out missing data points first
+            pyx = np.where(d1.phase_tm[0]!=0)[0]
+            
+            #--> TM mode data
+            if len(pyx)>0:
+                self.axp.errorbar(1./d1.freq[pyx],
+                                   d1.phase_tm[0][pyx],
+                                   ls=self.ls,
+                                   marker=self.mtmd,
+                                   ms=self.ms,
+                                   mfc=self.ctmd,
+                                   mec=self.ctmd,
+                                   color=self.ctmd,
+                                   yerr=d1.phase_tm[1][pyx],
+                                   ecolor=self.ctmd,
+                                   picker=1,
+                                   lw=self.lw,
+                                   elinewidth=self.lw,
+                                   capsize=self.e_capsize,
+                                   capthick=self.e_capthick)
+            else:
+                pass
+            
+        #--> plot model apparent resistivity and phase-------------------------
+        nr = len(self.resp_te_fn)
+        for rr, rfn in enumerate(self.resp_te_fn):
+            if rfn == None:
+                break
+            itnum = rfn[-7:-5]
+            if self.color_mode == 'color':   
+                cxy = (0,.4+float(rr)/(3*nr),0)
+            elif self.color_mode == 'bw':
+                cxy = (1-1.25/(rr+2.),1-1.25/(rr+2.),1-1.25/(rr+2.))                    
+            
+            d1 = Data()
+            
+            d1.read_resp_file(rfn, data_fn=self.data_te_fn)
+            
+            #get non zero data
+            rxy = np.where(d1.res_te[2] != 0)[0]
+
+            #--> TE mode Data 
+            if len(rxy) > 0:
+                rte = self.axr.errorbar(1./d1.freq[rxy],
+                                        d1.res_te[2][rxy],
+                                        ls=self.ls,
+                                        marker=self.mtem,
+                                        ms=self.ms,
+                                        mfc=cxy,
+                                        mec=cxy,
+                                        color=cxy,
+                                        yerr=d1.res_te[3][rxy],
+                                        ecolor=cxy,
+                                        picker=2,
+                                        lw=self.lw,
+                                        elinewidth=self.lw,
+                                        capsize=self.e_capsize,
+                                        capthick=self.e_capthick)
+                legend_marker_list_te.append(rte[0])
+                legend_label_list_te.append('$Mod_{TE}$'+itnum)
+            else:
+                pass
+            
+            #--------------------plot phase--------------------------------
+            #cut out missing data points first
+            #--> data
+            pxy = np.where(d1.phase_te[2]!=0)[0]
+
+            #--> TE mode phase 
+            if len(pxy) > 0:
+                self.axp.errorbar(1./d1.freq[pxy],
+                                   d1.phase_te[2][pxy],
+                                   ls=self.ls,
+                                   marker=self.mtem,
+                                   ms=self.ms,
+                                   mfc=cxy,
+                                   mec=cxy,
+                                   color=cxy,
+                                   yerr=d1.phase_te[3][pxy],
+                                   ecolor=cxy,
+                                   picker=1,
+                                   lw=self.lw,
+                                   elinewidth=self.lw,
+                                   capsize=self.e_capsize,
+                                   capthick=self.e_capthick)
+            else:
+                pass
+        #---------------plot TM model response---------------------------------
+        nr = len(self.resp_tm_fn)
+        for rr, rfn in enumerate(self.resp_tm_fn):
+            if rfn == None:
+                break
+            itnum = rfn[-7:-5]
+            if self.color_mode == 'color':   
+                cyx = (.7+float(rr)/(4*nr),.13,.63-float(rr)/(4*nr))
+            elif self.color_mode == 'bw':                  
+                cyx = (1-1.25/(rr+2.),1-1.25/(rr+2.),1-1.25/(rr+2.))
+            d1 = Data()
+            
+            d1.read_resp_file(rfn, data_fn=self.data_tm_fn)
+            ryx = np.where(d1.res_tm[2] != 0)[0]
+            #--> TM mode model
+            if len(ryx) > 0:
+                rtm = self.axr.errorbar(1./d1.freq[ryx],
+                                        d1.res_tm[2][ryx] ,
+                                        ls=self.ls,
+                                        marker=self.mtmm,
+                                        ms=self.ms,
+                                        mfc=cyx,
+                                        mec=cyx,
+                                        color=cyx,
+                                        yerr=d1.res_tm[3][ryx],
+                                        ecolor=cyx,
+                                        picker=2,
+                                        lw=self.lw,
+                                        elinewidth=self.lw,
+                                        capsize=self.e_capsize,
+                                        capthick=self.e_capthick)
+                legend_marker_list_tm.append(rtm[0])
+                legend_label_list_tm.append('$Mod_{TM}$'+itnum)
+            else:
+                pass 
+        
+            pyx = np.where(d1.phase_tm[2]!=0)[0]
+            
+            #--> TM mode model
+            if len(pyx)>0:
+                self.axp.errorbar(1./d1.freq[pyx],
+                                   d1.phase_tm[0][pyx],
+                                   ls=self.ls,
+                                   marker=self.mtmm,
+                                   ms=self.ms,
+                                   mfc=cyx,
+                                   mec=cyx,
+                                   color=cyx,
+                                   yerr=d1.phase_tm[3][pyx],
+                                   ecolor=cyx,
+                                   picker=1,
+                                   lw=self.lw,
+                                   elinewidth=self.lw,
+                                   capsize=self.e_capsize,
+                                   capthick=self.e_capthick)
+            else:
+                pass
+        
+        #--> set axis properties-----------------------------------------------
+        self.axr.set_xscale('log')
+        self.axp.set_xscale('log')
+        self.axr.set_yscale('log')        
+        self.axr.grid(True, alpha=self.grid_alpha, which='both', 
+                      color=self.grid_color)
+        plt.setp(self.axr.xaxis.get_ticklabels(),visible=False)
+        self.axp.grid(True, alpha=self.grid_alpha, which='both', 
+                      color=self.grid_color)
+        self.axp.yaxis.set_major_locator(MultipleLocator(self.phase_major_ticks))
+        self.axp.yaxis.set_minor_locator(MultipleLocator(self.phase_minor_ticks))
+        
+        if self.res_limits is not None:
+            self.axr.set_ylim(self.res_limits)
+            
+        self.axp.set_ylim(self.phase_limits)
+        self.axr.set_ylabel('App. Res. ($\Omega \cdot m$)',
+                       fontdict={'size':self.font_size,'weight':'bold'})
+        self.axp.set_ylabel('Phase (deg)',
+                       fontdict={'size':self.font_size,'weight':'bold'})
+        self.axp.set_xlabel('Period (s)',
+                            fontdict={'size':self.font_size,'weight':'bold'})
+        plt.suptitle(self.title_str,fontsize=self.font_size+2,fontweight='bold')
+        if legend_marker_list_te == [] or legend_marker_list_tm == []:
+            num_col = 1
+        else:
+            num_col = 2
+        self.axr.legend(legend_marker_list_te+legend_marker_list_tm,
+                        legend_label_list_te+legend_label_list_tm,
+                        loc=2,markerscale=1,
+                        borderaxespad=.05,
+                        labelspacing=.08,
+                        handletextpad=.15,
+                        borderpad=.05,
+                        ncol=num_col,
+                        prop={'size':self.font_size+1}) 
+       
+        #--> plot depth model--------------------------------------------------     
+        if self.model_fn is not None:
+            #put axis labels on the right side for clarity
+            self.axm.yaxis.set_label_position('right')
+            self.axm.yaxis.set_tick_params(left='off', right='on', 
+                                           labelright='on')
+            self.axm.yaxis.tick_right()
+            
+            if self.depth_units == 'km':
+                dscale = 1000.
+            else:
+                dscale = 1.
+            
+            #--> plot te models
+            nr = len(self.iter_te_fn)
+            for ii, ifn in enumerate(self.iter_te_fn):
+                if ifn == None:
+                    break
+                if self.color_mode == 'color':   
+                    cxy = (0,.4+float(ii)/(3*nr),0)
+                elif self.color_mode == 'bw':
+                    cxy = (1-1.25/(ii+2.),1-1.25/(ii+2.),1-1.25/(ii+2.))
+                m1 = Model()
+                m1.read_iter_file(ifn, self.model_fn)
+                plot_depth = m1.model_depth[1:]/dscale
+                plot_model = abs(10**m1.model_res[1:,1])
+                self.axm.semilogx(plot_model[::-1],
+                                  plot_depth[::-1],
+                                  ls='steps-',
+                                  color=cxy, 
+                                  lw=self.lw)
+            
+            #--> plot TM models
+            nr = len(self.iter_tm_fn)                        
+            for ii, ifn in enumerate(self.iter_tm_fn):
+                if ifn == None:
+                    break
+                if self.color_mode == 'color':   
+                    cyx = (.7+float(ii)/(4*nr),.13,.63-float(ii)/(4*nr))
+                elif self.color_mode == 'bw':                  
+                    cyx = (1-1.25/(ii+2.),1-1.25/(ii+2.),1-1.25/(ii+2.))
+                m1 = Model()
+                m1.read_iter_file(ifn, self.model_fn)
+                plot_depth = m1.model_depth[1:]/dscale
+                plot_model = abs(10**m1.model_res[1:,1])
+                self.axm.semilogx(plot_model[::-1],
+                                  plot_depth[::-1],
+                                  ls='steps-',
+                                  color=cyx, 
+                                  lw=self.lw)
+    
+            m1 = Model()
+            m1.read_model_file(self.model_fn)                       
+            if self.depth_limits == None:
+                dmin = min(plot_depth)
+                if dmin == 0:
+                    dmin = 1
+                dmax = max(plot_depth)
+                self.depth_limits = (dmin, dmax)
+
+            self.axm.set_ylim(ymin=max(self.depth_limits), 
+                              ymax=min(self.depth_limits))
+            if self.depth_scale == 'log':
+                self.axm.set_yscale('log')
+            self.axm.set_ylabel('Depth ({0})'.format(self.depth_units),
+                                fontdict={'size':self.font_size,'weight':'bold'})
+            self.axm.set_xlabel('Resistivity ($\Omega \cdot m$)',
+                           fontdict={'size':self.font_size,'weight':'bold'})
+            self.axm.grid(True, which='both', alpha=.25)
+            
+        
+        plt.show()
+        
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plotAllResponses()
+            >>> #change line width
+            >>> p1.lw = 2
+            >>> p1.redraw_plot()
+        """
+        plt.close(self.fig)
+        self.plot()
+        
+    def update_plot(self, fig):
+        """
+        update any parameters that where changed using the built-in draw from
+        canvas.  
+        
+        Use this if you change an of the .fig or axes properties
+        
+        :Example: ::
+            
+            >>> # to change the grid lines to only be on the major ticks
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotAllResponses()
+            >>> [ax.grid(True, which='major') for ax in [ps1.axrte,ps1.axtep]]
+            >>> ps1.update_plot()
+        
+        """
+
+        fig.canvas.draw()
+        
+    def save_figure(self, save_fn, file_format='pdf', orientation='portrait', 
+                  fig_dpi=None, close_plot='y'):
+        """
+        save_plot will save the figure to save_fn.
+        
+        Arguments:
+        -----------
+        
+            **save_fn** : string
+                          full path to save figure to, can be input as
+                          * directory path -> the directory path to save to
+                            in which the file will be saved as 
+                            save_fn/station_name_PhaseTensor.file_format
+                            
+                          * full path -> file will be save to the given 
+                            path.  If you use this option then the format
+                            will be assumed to be provided by the path
+                            
+            **file_format** : [ pdf | eps | jpg | png | svg ]
+                              file type of saved figure pdf,svg,eps... 
+                              
+            **orientation** : [ landscape | portrait ]
+                              orientation in which the file will be saved
+                              *default* is portrait
+                              
+            **fig_dpi** : int
+                          The resolution in dots-per-inch the file will be
+                          saved.  If None then the dpi will be that at 
+                          which the figure was made.  I don't think that 
+                          it can be larger than dpi of the figure.
+                          
+            **close_plot** : [ y | n ]
+                             * 'y' will close the plot after saving.
+                             * 'n' will leave plot open
+                          
+        :Example: ::
+            
+            >>> # to save plot as jpg
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotPseudoSection()
+            >>> ps1.save_plot(r'/home/MT/figures', file_format='jpg')
+            
+        """
+
+        if fig_dpi == None:
+            fig_dpi = self.fig_dpi
+            
+        if os.path.isdir(save_fn) == False:
+            file_format = save_fn[-3:]
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                             orientation=orientation, bbox_inches='tight')
+            
+        else:
+            save_fn = os.path.join(save_fn, 'Occam1d.'+
+                                    file_format)
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                        orientation=orientation, bbox_inches='tight')
+        
+        if close_plot == 'y':
+            plt.clf()
+            plt.close(self.fig)
+        
+        else:
+            pass
+        
+        self.fig_fn = save_fn
+        print 'Saved figure to: '+self.fig_fn
+                          
+    def __str__(self):
+        """
+        rewrite the string builtin to give a useful message
+        """
+        
+        return ("Plots model responses and model for 1D occam inversion")
+                
+class Run(object):
+    """
+    run occam 1d from python given the correct files and location of occam1d
+    executable
+    
+    """                           
+    
+    def __init__(self, startup_fn=None, occam_path=None, **kwargs):
+        self.startup_fn = startup_fn
+        self.occam_path = occam_path
+        self.mode = kwargs.pop('mode', 'TE')
+        
+        self.run_occam1d()
+    def run_occam1d(self):
+        
+        if self.startup_fn is None:
+            raise IOError('Need to input startup file')
+        if self.occam_path is None:
+            raise IOError('Need to input path to occam1d executable')
+            
+        os.chdir(os.path.dirname(self.startup_fn))
+        test = subprocess.call([self.occam_path, 
+                                os.path.basename(self.startup_fn),
+                                self.mode])
+        if test == 0:
+            print '=========== Ran Inversion =========='
+            print '  check {0} for files'.format(os.path.dirname(self.startup_fn))
+                    
+class PlotL2():
+    """
+    plot L2 curve of iteration vs rms and roughness
+    
+    Arguments:
+    ----------
+        **rms_arr** : structured array with keys:
+                      * 'iteration' --> for iteration number (int)
+                      * 'rms' --> for rms (float)
+                      * 'roughness' --> for roughness (float)
+                      
+    ======================= ===================================================
+    Keywords/attributes     Description
+    ======================= ===================================================
+    ax1                     matplotlib.axes instance for rms vs iteration
+    ax2                     matplotlib.axes instance for roughness vs rms
+    fig                     matplotlib.figure instance
+    fig_dpi                 resolution of figure in dots-per-inch
+    fig_num                 number of figure instance
+    fig_size                size of figure in inches (width, height)
+    font_size               size of axes tick labels, axes labels is +2
+    plot_yn                 [ 'y' | 'n']
+                            'y' --> to plot on instantiation
+                            'n' --> to not plot on instantiation
+    rms_arr                 structure np.array as described above
+    rms_color               color of rms marker and line
+    rms_lw                  line width of rms line
+    rms_marker              marker for rms values
+    rms_marker_size         size of marker for rms values
+    rms_mean_color          color of mean line
+    rms_median_color        color of median line
+    rough_color             color of roughness line and marker
+    rough_font_size         font size for iteration number inside roughness 
+                            marker
+    rough_lw                line width for roughness line 
+    rough_marker            marker for roughness
+    rough_marker_size       size of marker for roughness
+    subplot_bottom          subplot spacing from bottom  
+    subplot_left            subplot spacing from left  
+    subplot_right           subplot spacing from right
+    subplot_top             subplot spacing from top
+    ======================= ===================================================
+   
+    =================== =======================================================
+    Methods             Description
+    =================== =======================================================
+    plot                plots L2 curve.  
+    redraw_plot         call redraw_plot to redraw the figures, 
+                        if one of the attributes has been changed
+    save_figure         saves the matplotlib.figure instance to desired 
+                        location and format
+    =================== ======================================================
+     
+    """
+    
+    def __init__(self, dir_path, model_fn, **kwargs):
+        self.dir_path = dir_path
+        self.model_fn = model_fn
+        self._get_iter_list()
+    
+        self.subplot_right = .98
+        self.subplot_left = .085
+        self.subplot_top = .91
+        self.subplot_bottom = .1
+        
+        self.fig_num = kwargs.pop('fig_num', 1)
+        self.fig_size = kwargs.pop('fig_size', [6, 6])
+        self.fig_dpi = kwargs.pop('dpi', 300)
+        self.font_size = kwargs.pop('font_size', 8)
+        
+        self.rms_lw = kwargs.pop('rms_lw', 1)
+        self.rms_marker = kwargs.pop('rms_marker', 'd')
+        self.rms_color = kwargs.pop('rms_color', 'k')
+        self.rms_marker_size = kwargs.pop('rms_marker_size', 5)
+        self.rms_median_color = kwargs.pop('rms_median_color', 'red')
+        self.rms_mean_color = kwargs.pop('rms_mean_color', 'orange')
+        
+        self.rough_lw = kwargs.pop('rough_lw', .75)
+        self.rough_marker = kwargs.pop('rough_marker', 'o')
+        self.rough_color = kwargs.pop('rough_color', 'b')
+        self.rough_marker_size = kwargs.pop('rough_marker_size', 7)
+        self.rough_font_size = kwargs.pop('rough_font_size', 6)
+        
+        
+        self.plot_yn = kwargs.pop('plot_yn', 'y')
+        if self.plot_yn == 'y':
+            self.plot()
+            
+    def _get_iter_list(self):
+        """
+        get all iteration files in dir_path        
+        """
+        
+        if os.path.isdir(self.dir_path) == False:
+            raise IOError('Could not find {0}'.format(self.dir_path))
+            
+        iter_list = [os.path.join(self.dir_path, fn) 
+                     for fn in os.listdir(self.dir_path) 
+                     if fn.find('.iter')>0]
+            
+        self.rms_arr = np.zeros(len(iter_list), 
+                                dtype=np.dtype([('iteration', np.int),
+                                                ('rms', np.float),
+                                                ('roughness', np.float)]))             
+        for ii, fn in enumerate(iter_list):
+            m1 = Model()
+            m1.read_iter_file(fn, self.model_fn)
+            self.rms_arr[ii]['iteration'] = int(m1.itdict['Iteration'])
+            self.rms_arr[ii]['rms'] = float(m1.itdict['Misfit Value'])
+            self.rms_arr[ii]['roughness'] = float(m1.itdict['Roughness Value'])
+            
+        self.rms_arr.sort(order='iteration')
+        
+    def plot(self):
+        """
+        plot L2 curve
+        """
+
+        nr = self.rms_arr.shape[0]
+        med_rms = np.median(self.rms_arr['rms'])
+        mean_rms = np.mean(self.rms_arr['rms'])
+        
+        #set the dimesions of the figure
+        plt.rcParams['font.size'] = self.font_size
+        plt.rcParams['figure.subplot.left'] = self.subplot_left
+        plt.rcParams['figure.subplot.right'] = self.subplot_right
+        plt.rcParams['figure.subplot.bottom'] = self.subplot_bottom
+        plt.rcParams['figure.subplot.top'] = self.subplot_top
+        
+        #make figure instance
+        self.fig = plt.figure(self.fig_num,self.fig_size, dpi=self.fig_dpi)
+        plt.clf()
+        
+        #make a subplot for RMS vs Iteration
+        self.ax1 = self.fig.add_subplot(1, 1, 1)
+        
+        #plot the rms vs iteration
+        l1, = self.ax1.plot(self.rms_arr['iteration'],
+                            self.rms_arr['rms'],
+                            '-k', 
+                            lw=1,
+                            marker='d',
+                            ms=5)
+        
+        #plot the median of the RMS
+        m1, = self.ax1.plot(self.rms_arr['iteration'],
+                            np.repeat(med_rms, nr),
+                            ls='--',
+                            color=self.rms_median_color,
+                            lw=self.rms_lw*.75)
+        
+        #plot the mean of the RMS
+        m2, = self.ax1.plot(self.rms_arr['iteration'],
+                            np.repeat(mean_rms, nr),
+                            ls='--',
+                            color=self.rms_mean_color,
+                            lw=self.rms_lw*.75)
+    
+        #make subplot for RMS vs Roughness Plot
+        self.ax2 = self.ax1.twiny()
+        
+        self.ax2.set_xlim(self.rms_arr['roughness'][1:].min(), 
+                          self.rms_arr['roughness'][1:].max())
+            
+        self.ax1.set_ylim(0, self.rms_arr['rms'][1])
+        
+        #plot the rms vs roughness 
+        l2, = self.ax2.plot(self.rms_arr['roughness'],
+                            self.rms_arr['rms'],
+                            ls='--',
+                            color=self.rough_color,
+                            lw=self.rough_lw,
+                            marker=self.rough_marker,
+                            ms=self.rough_marker_size,
+                            mfc='white')
+       
+        #plot the iteration number inside the roughness marker                     
+        for rms, ii, rough in zip(self.rms_arr['rms'], self.rms_arr['iteration'], 
+                           self.rms_arr['roughness']):
+            #need this because if the roughness is larger than this number
+            #matplotlib puts the text out of bounds and a draw_text_image
+            #error is raised and file cannot be saved, also the other 
+            #numbers are not put in.
+            if rough > 1e8:
+                pass
+            else:
+                self.ax2.text(rough,
+                              rms,
+                              '{0}'.format(ii),
+                              horizontalalignment='center',
+                              verticalalignment='center',
+                              fontdict={'size':self.rough_font_size,
+                                        'weight':'bold',
+                                        'color':self.rough_color})
+        
+        #make a legend
+        self.ax1.legend([l1, l2, m1, m2],
+                        ['RMS', 'Roughness',
+                         'Median_RMS={0:.2f}'.format(med_rms),
+                         'Mean_RMS={0:.2f}'.format(mean_rms)],
+                         ncol=1,
+                         loc='upper right',
+                         columnspacing=.25,
+                         markerscale=.75,
+                         handletextpad=.15)
+                    
+        #set the axis properties for RMS vs iteration
+        self.ax1.yaxis.set_minor_locator(MultipleLocator(.1))
+        self.ax1.xaxis.set_minor_locator(MultipleLocator(1))
+        self.ax1.set_ylabel('RMS', 
+                            fontdict={'size':self.font_size+2,
+                                      'weight':'bold'})                                   
+        self.ax1.set_xlabel('Iteration',
+                            fontdict={'size':self.font_size+2,
+                                      'weight':'bold'})
+        self.ax1.grid(alpha=.25, which='both', lw=self.rough_lw)
+        self.ax2.set_xlabel('Roughness',
+                            fontdict={'size':self.font_size+2,
+                                      'weight':'bold',
+                                      'color':self.rough_color})
+
+
+        
+        for t2 in self.ax2.get_xticklabels():
+            t2.set_color(self.rough_color)
+            
+        plt.show()
+            
+    def redraw_plot(self):
+        """
+        redraw plot if parameters were changed
+        
+        use this function if you updated some attributes and want to re-plot.
+        
+        :Example: ::
+            
+            >>> # change the color and marker of the xy components
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> ocd = occam2d.Occam2DData(r"/home/occam2d/Data.dat")
+            >>> p1 = ocd.plotAllResponses()
+            >>> #change line width
+            >>> p1.lw = 2
+            >>> p1.redraw_plot()
+        """
+        
+        plt.close(self.fig)
+        self.plot()
+        
+    def save_figure(self, save_fn, file_format='pdf', orientation='portrait', 
+                  fig_dpi=None, close_fig='y'):
+        """
+        save_plot will save the figure to save_fn.
+        
+        Arguments:
+        -----------
+        
+            **save_fn** : string
+                          full path to save figure to, can be input as
+                          * directory path -> the directory path to save to
+                            in which the file will be saved as 
+                            save_fn/station_name_PhaseTensor.file_format
+                            
+                          * full path -> file will be save to the given 
+                            path.  If you use this option then the format
+                            will be assumed to be provided by the path
+                            
+            **file_format** : [ pdf | eps | jpg | png | svg ]
+                              file type of saved figure pdf,svg,eps... 
+                              
+            **orientation** : [ landscape | portrait ]
+                              orientation in which the file will be saved
+                              *default* is portrait
+                              
+            **fig_dpi** : int
+                          The resolution in dots-per-inch the file will be
+                          saved.  If None then the dpi will be that at 
+                          which the figure was made.  I don't think that 
+                          it can be larger than dpi of the figure.
+                          
+            **close_plot** : [ y | n ]
+                             * 'y' will close the plot after saving.
+                             * 'n' will leave plot open
+                          
+        :Example: ::
+            
+            >>> # to save plot as jpg
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotPseudoSection()
+            >>> ps1.save_plot(r'/home/MT/figures', file_format='jpg')
+            
+        """
+
+        if fig_dpi == None:
+            fig_dpi = self.fig_dpi
+            
+        if os.path.isdir(save_fn) == False:
+            file_format = save_fn[-3:]
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                             orientation=orientation, bbox_inches='tight')
+            
+        else:
+            save_fn = os.path.join(save_fn, '_L2.'+
+                                    file_format)
+            self.fig.savefig(save_fn, dpi=fig_dpi, format=file_format,
+                        orientation=orientation, bbox_inches='tight')
+        
+        if close_fig == 'y':
+            plt.clf()
+            plt.close(self.fig)
+        
+        else:
+            pass
+        
+        self.fig_fn = save_fn
+        print 'Saved figure to: '+self.fig_fn
+        
+    def update_plot(self):
+        """
+        update any parameters that where changed using the built-in draw from
+        canvas.  
+        
+        Use this if you change an of the .fig or axes properties
+        
+        :Example: ::
+            
+            >>> # to change the grid lines to only be on the major ticks
+            >>> import mtpy.modeling.occam2d as occam2d
+            >>> dfn = r"/home/occam2d/Inv1/data.dat"
+            >>> ocd = occam2d.Occam2DData(dfn)
+            >>> ps1 = ocd.plotAllResponses()
+            >>> [ax.grid(True, which='major') for ax in [ps1.axrte,ps1.axtep]]
+            >>> ps1.update_plot()
+        
+        """
+
+        self.fig.canvas.draw()
+                          
+    def __str__(self):
+        """
+        rewrite the string builtin to give a useful message
+        """
+        
+        return ("Plots RMS vs Iteration computed by Occam2D")   

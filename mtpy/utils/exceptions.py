@@ -19,7 +19,9 @@ class MTpyError_float( Exception ):
 class MTpyError_inputarguments( Exception ):
     pass
 
-
+class MTpyError_value( Exception ): 
+    pass
+    
 class MTpyError_ts_data( Exception ): 
     pass
 
@@ -40,3 +42,7 @@ class MTpyError_Z( Exception ):
     
 class MTpyError_PT( Exception ):
     pass
+
+class MTpyError_occam( Exception ):
+    pass
+

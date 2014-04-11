@@ -110,7 +110,6 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
     checked for a new day!!
 
     """
-
     try:
         if type(inputdir)==str:
             raise
@@ -125,7 +124,7 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
     pattern = '*.[ebEB][xyzXYZ]'
     if stationname is not None:
         pattern = '*{0}*.[ebEB][xyzXYZ]'.format(stationname)
-        print 'pattern',pattern
+    print '\nSearching for files with pattern: ',pattern
 
     for folder in lo_foldernames:
         wd = op.abspath(op.realpath(folder)) 
@@ -141,11 +140,11 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
     #check, if list of files is empty
     if len(lo_allfiles) == 0:
         if stationname is not None:
-            raise MTex.MTpyError_inputarguments('Directory(ies) do(es) not contain'
-            ' files to combine for station {0}: {1}'.format(stationname, inputdir))
+            raise MTex.MTpyError_inputarguments('Directory(ies) do(es) not contain'\
+            ' files to combine for station {0}:\n {1}'.format(stationname, inputdir))
 
-        raise MTex.MTpyError_inputarguments('Directory does not contain files'
-                                            ' to combine: {0}'.format(inputdir))
+        raise MTex.MTpyError_inputarguments('Directory does not contain files'\
+                                            ' to combine:\n {0}'.format(inputdir))
 
     #define subfolder for storing dayfiles
     outpath = op.join(os.curdir,'dayfiles')    
@@ -214,6 +213,17 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
         incomplete = 0
         fileindex = 0
 
+        #allocate a data array to fill
+        # this is more memory efficient than extending lists!!
+        #cater for potential rounding errors:
+        if sampling < 1:
+            max_n_data = 86400 * (int(1./sampling)+1)
+        else:
+            max_n_data = int(86400./sampling) + 1
+
+        day_data = np.zeros(max_n_data,'float32')
+
+
         #loop over all (sorted) files for the current component
         for idx_f,f in enumerate(lo_sorted_files):
 
@@ -229,12 +239,14 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
 
             no_samples = len(data_in)
 
-            file_time_axis = (np.arange(no_samples)*sampling +
-                             file_start_time).tolist()
+            tmp_file_time_axis = np.arange(no_samples)*sampling+file_start_time
+            #file_time_axis = (np.arange(no_samples)*sampling +
+            #                 file_start_time).tolist()
 
 
             #time of the last sample + 1x sampling-interval
-            file_end_time =  file_time_axis[-1] + sampling
+            #file_end_time =  file_time_axis[-1] + sampling
+            file_end_time =  tmp_file_time_axis[-1] + sampling
          
 
 
@@ -242,14 +254,21 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
             #set the time as starting time for output file, if no output file is open already
             if fileopen == 0:
                 outfile_starttime =  file_start_time
-                outfile_timeaxis = file_time_axis
+                #outfile_timeaxis = file_time_axis
+                old_time_axis = tmp_file_time_axis[:]
+                
+                arrayindex = 0
 
                 #if it's a single column of data
                 if np.size(data_in.shape) == 1:
-                    outfile_data = data_in.tolist()
+                    day_data[arrayindex:arrayindex+len(data_in)] = data_in                    
+                    #outfile_data = data_in.tolist()
                 #otherwise assuming that the first column is time, so just take the second one
                 else:
-                    outfile_data = data_in[:,1].tolist()
+                    day_data[arrayindex:arrayindex+len(data_in)] = data_in[:,1]
+                    #outfile_data = data_in[:,1].tolist()
+                
+                arrayindex += len(data_in)
 
 
                 file_date = '{0}{1:02}{2:02}'.format(file_start[0],
@@ -276,36 +295,44 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
                     continue 
 
                 #if current file starts earlier than the endtime of data in buffer then delete ambiguous  parts of the buffer:
-                elif (outfile_timeaxis[-1] - file_start_time) > epsilon:
+                #elif (outfile_timeaxis[-1] - file_start_time) > epsilon:
+                elif (old_time_axis[-1] - file_start_time) > epsilon:
 
                     #find point on the outfile time axis for the beginning of current file:
                     overlap_idx = np.argmin(np.abs(np.array(
                                             outfile_timeaxis) - file_start_time)) 
 
+                    #set the array index back
+                    arrayindex = overlap_idx
+                   
                     #re-define outfile time axis and data
-                    outfile_timeaxis = np.delete(outfile_timeaxis,
-                                                 np.arange(len(outfile_timeaxis) - 
-                                                 overlap_idx) + 
-                                                 overlap_idx).tolist()
+                    # outfile_timeaxis = np.delete(outfile_timeaxis,
+                    #                              np.arange(len(outfile_timeaxis) - 
+                    #                              overlap_idx) + 
+                    #                              overlap_idx).tolist()
 
-                    outfile_data = np.delete(outfile_data, 
-                                                np.arange(len(outfile_data) - 
-                                                overlap_idx) + 
-                                                overlap_idx).tolist()
+                    # outfile_data = np.delete(outfile_data, 
+                    #                             np.arange(len(outfile_data) - 
+                    #                             overlap_idx) + 
+                    #                             overlap_idx).tolist()
                 
 
+                old_time_axis = tmp_file_time_axis[:]
                 #append current file's time axis
-                outfile_timeaxis.extend(file_time_axis)
+                #outfile_timeaxis.extend(file_time_axis)
                     
                 #append current data                  
                 #if it's a single column of data
                 if np.size(data_in.shape) == 1:
-                    outfile_data.extend(data_in.tolist())
+                    day_data[arrayindex:arrayindex+len(data_in)] = data_in                    
+                    #outfile_data.extend(data_in.tolist())
                 #otherwise assuming that the first column is time, so just take the second one
                 else:
-                    outfile_data.extend(data_in[:,1].tolist())
+                    day_data[arrayindex:arrayindex+len(data_in)] = data_in[:,1]                    
+                    #outfile_data.extend(data_in[:,1].tolist())
 
 
+                arrayindex += len(data_in)
 
 
             #-----------
@@ -355,8 +382,10 @@ def EDL_make_dayfiles(inputdir, sampling , stationname = None, outputdir = None)
                 #outfile_array[:,0] = outfile_timeaxis
                 #outfile_array[:,1] = outfile_data
 
-                np.savetxt(F, np.array(outfile_data))
-
+                np.savetxt(F,day_data[:arrayindex])
+                #np.savetxt(F, np.array(outfile_data))
+                arrayindex = 0
+                
                 F.close()
                 print '\t wrote file %s'%(new_file)
 
@@ -373,6 +402,7 @@ def EDL_get_starttime_fromfilename(filename):
 
     Starting time is determined by the filename. This has to be of the form
     'somthing/*.stationname.ddmmyyHHMMSS.??'
+
 
     """     
     #clip parent paths and structure
@@ -525,6 +555,7 @@ def validate_ts_file(tsfile):
         Return Boolean value True/False .
 
     """ 
+    tsfile = op.abspath(tsfile)
 
     try:
         header = read_ts_header(tsfile)
@@ -600,13 +631,14 @@ def read_ts_header(tsfile):
             header_dict[lo_headerelements[i]] = int(
                     (float(headerlist[i]) - float(headerlist[i-1])
                     )*float(headerlist[i-2]) )+1
-                    
-    header_dict['samplingrate'] = float(header_dict['samplingrate'])
-    header_dict['t_min'] = float(header_dict['t_min'])
-    header_dict['nsamples'] = int(header_dict['nsamples'])
-    header_dict['lat'] = float(header_dict['lat'])
-    header_dict['lon'] = float(header_dict['lon'])
-    header_dict['elev'] = float(header_dict['elev'])
+
+    headerlements = ['samplingrate','t_min','nsamples','lat','lon','elev']
+
+    for h in headerlements:                   
+        try: 
+            header_dict[h] = float(header_dict[h])
+        except:
+            pass
 
     return header_dict
 
