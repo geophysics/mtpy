@@ -538,21 +538,6 @@ class WSData(object):
                 
         ncol = len(dlines[nsstart].strip().split())
         
-        #get site names if entered a sites file
-        if wl_sites_fn != None:
-            self.wl_site_fn = wl_sites_fn
-            slist, station_list = wl.read_sites_file(self.wl_sites_fn)
-            self.data['station'] = station_list
-        
-        elif station_fn != None:
-            self.station_fn = station_fn
-            stations = WSStation(self.station_fn)
-            stations.read_station_file()
-            self.data['station'] = stations.names
-        else:
-            self.data['station'] = np.arange(n_stations)
-            
-    
         #get N-S locations
         for ii, dline in enumerate(dlines[findlist[0]+1:findlist[1]],0):
             dline = dline.strip().split()
@@ -574,6 +559,8 @@ class WSData(object):
                     pass
                 except ValueError:
                     break
+                
+            
         #make some empty array to put stuff into
         self.period_list = np.zeros(n_periods)
         
@@ -619,6 +606,29 @@ class WSData(object):
                                                         zline[6]-1j*zline[7]]])
                 st += 1
                 
+        #get site names if entered a sites file
+        if wl_sites_fn != None:
+            self.wl_site_fn = wl_sites_fn
+            slist, station_list = wl.read_sites_file(self.wl_sites_fn)
+            self.data['station'] = station_list
+            print 'Not incorporated yet, stop using winglink.'
+                    
+        elif station_fn != None:
+            self.station_fn = station_fn
+            stations = WSStation(self.station_fn)
+            stations.read_station_file()
+            for d_arr in self.data:
+                d_east = d_arr['east']
+                d_north = d_arr['north']
+                for s_arr in stations.station_locations:
+                    s_east = s_arr['east_c']
+                    s_north = s_arr['north_c']
+                    if d_east == s_east and d_north == s_north:
+                        d_arr['station'] = s_arr['station']
+                        break
+                
+        else:
+            self.data['station'] = np.arange(n_stations)
         
         self.station_east = self.data['east']
         self.station_north = self.data['north']

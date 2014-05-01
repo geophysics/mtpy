@@ -72,6 +72,21 @@ class Data(object):
         self.edi_obj_list = None
         self.data_array = None
         
+        self._z_shape = (1, 2, 2)
+        self._t_shape = (1, 1, 2)
+        self._dtype = [('station', '|S10'),
+                       ('lat', np.float),
+                       ('lon', np.float),
+                       ('elev', np.float),
+                       ('rel_east', np.float), 
+                       ('rel_north', np.float), 
+                       ('east', np.float),
+                       ('north', np.float),
+                       ('z', (np.complex, self._z_shape)),
+                       ('z_err', (np.complex, self._z_shape)),
+                       ('tip', (np.complex, self._t_shape)),
+                       ('tip_err', (np.complex, self_t_shape))]
+        
         self.inv_mode_dict = {'1':['Full_Impedance', 'Full_Vertical_Components'],
                               '2':['Full_Impedance'],
                               '3':['Off_Diagonal_Impedance', 
@@ -190,20 +205,32 @@ class Data(object):
         ns = len(self.edi_obj_list)
         nf = len(self.period_list)
         
-        self.data_array = np.zeros((ns, nf), dtype=[('zxx', np.complex),
-                                                    ('zxy', np.complex),
-                                                    ('zyx', np.complex),
-                                                    ('zyy', np.complex),
-                                                    ('tx', np.complex),
-                                                    ('ty', np.complex),
-                                                    ('zxx_err', np.float),
-                                                    ('zxy_err', np.float),
-                                                    ('zyx_err', np.float),
-                                                    ('zyy_err', np.float),
-                                                    ('tx_err', np.float),
-                                                    ('ty_err', np.float)])
+        self._z_shape = (nf, 2, 2)
+        self._t_shape = (nf, 1, 2)
+        self.data_array = np.zeros(ns, dtype=self._dtype)
+#        
+#        self.data_array = np.zeros((ns, nf), dtype=[('zxx', np.complex),
+#                                                    ('zxy', np.complex),
+#                                                    ('zyx', np.complex),
+#                                                    ('zyy', np.complex),
+#                                                    ('tx', np.complex),
+#                                                    ('ty', np.complex),
+#                                                    ('zxx_err', np.float),
+#                                                    ('zxy_err', np.float),
+#                                                    ('zyx_err', np.float),
+#                                                    ('zyy_err', np.float),
+#                                                    ('tx_err', np.float),
+#                                                    ('ty_err', np.float)])
                                               
         for ii, edi in enumerate(self.edi_obj_list):
+            zone, east, north = utm2ll.LLtoUTM(23, edi_obj.lat, edi_obj.lon)
+            self.data_array[ii]['station'] = edi_obj.station
+            self.data_array[ii]['lat'] = float(edi_obj.lat)
+            self.data_array[ii]['lon'] = float(edi_obj.lon)
+            self.data_array[ii]['east'] = float(east)
+            self.data_array[ii]['north'] = float(north)
+            self.data_array[ii]['elev'] = float(edi_obj.elev)
+            
             p_dict = dict([(np.round(per, 5), kk) for kk, per in 
                             enumerate(1./edi.freq)])
             for ff, per in enumerate(self.period_list):
@@ -219,25 +246,35 @@ class Data(object):
                         print 'Could not find {0:.5e} in {1}'.format(per,
                                                                 edi.station)
                 if jj is not None:
-                    self.data_array[ii][ff]['zxx'] = edi.Z.z[jj, 0, 0]
-                    self.data_array[ii][ff]['zxy'] = edi.Z.z[jj, 0, 1]
-                    self.data_array[ii][ff]['zyx'] = edi.Z.z[jj, 1, 0]
-                    self.data_array[ii][ff]['zyy'] = edi.Z.z[jj, 1, 1]
-                    
-                    self.data_array[ii][ff]['zxx_err'] = edi.Z.zerr[jj, 0, 0]
-                    self.data_array[ii][ff]['zxy_err'] = edi.Z.zerr[jj, 0, 1]
-                    self.data_array[ii][ff]['zyx_err'] = edi.Z.zerr[jj, 1, 0]
-                    self.data_array[ii][ff]['zyy_err'] = edi.Z.zerr[jj, 1, 1]
+#                    self.data_array[ii][ff]['zxx'] = edi.Z.z[jj, 0, 0]
+#                    self.data_array[ii][ff]['zxy'] = edi.Z.z[jj, 0, 1]
+#                    self.data_array[ii][ff]['zyx'] = edi.Z.z[jj, 1, 0]
+#                    self.data_array[ii][ff]['zyy'] = edi.Z.z[jj, 1, 1]
+#                    
+#                    self.data_array[ii][ff]['zxx_err'] = edi.Z.zerr[jj, 0, 0]
+#                    self.data_array[ii][ff]['zxy_err'] = edi.Z.zerr[jj, 0, 1]
+#                    self.data_array[ii][ff]['zyx_err'] = edi.Z.zerr[jj, 1, 0]
+#                    self.data_array[ii][ff]['zyy_err'] = edi.Z.zerr[jj, 1, 1]
+#                    if edi.Tipper.tipper is not None:
+#                        self.data_array[ii][ff]['tx'] = \
+#                                                edi.Tipper.tipper[jj, 0, 0]
+#                        self.data_array[ii][ff]['ty'] = \
+#                                                edi.Tipper.tipper[jj, 0, 1]
+#                        
+#                        self.data_array[ii][ff]['tx_err'] = \
+#                                                edi.Tipper.tippererr[jj, 0, 0]
+#                        self.data_array[ii][ff]['ty_err'] = \
+#                                                edi.Tipper.tippererr[jj, 0, 1]
+                    self.data_array[ii]['z'][ff] = edi.Z.z[jj, 0, 0]
+                    self.data_array[ii]['z_err'][ff] = edi.Z.z_err[jj, 0, 0]
+
                     if edi.Tipper.tipper is not None:
-                        self.data_array[ii][ff]['tx'] = \
+                        self.data_array[ii]['tip'][ff] = \
                                                 edi.Tipper.tipper[jj, 0, 0]
-                        self.data_array[ii][ff]['ty'] = \
-                                                edi.Tipper.tipper[jj, 0, 1]
                         
-                        self.data_array[ii][ff]['tx_err'] = \
+                        self.data_array[ii]['tip_err'][ff] = \
                                                 edi.Tipper.tippererr[jj, 0, 0]
-                        self.data_array[ii][ff]['ty_err'] = \
-                                                edi.Tipper.tippererr[jj, 0, 1]
+
                     
     def write_data_file(self, save_path=None, fn_basename=None):
         """
@@ -340,35 +377,50 @@ class Data(object):
         nf = wsd.period_list.shape[0]
         
         self.period_list = wsd.period_list.copy()
-        ws_z = wsd.data['z_data']
-        ws_z_err = wsd.data['z_data_err']
-        self.data_array = np.zeros((ns, nf), dtype=[('zxx', np.complex),
-                                                    ('zxy', np.complex),
-                                                    ('zyx', np.complex),
-                                                    ('zyy', np.complex),
-                                                    ('txy', np.complex),
-                                                    ('tyx', np.complex),
-                                                    ('zxx_err', np.float),
-                                                    ('zxy_err', np.float),
-                                                    ('zyx_err', np.float),
-                                                    ('zyy_err', np.float),
-                                                    ('txy_err', np.float),
-                                                    ('tyx_err', np.float)])
+        z_shape = (nf, 2, 2)
+        t_shape = (nf, 1, 2)
+        self.data_array = np.zeros(ns, 
+                                   dtype=[('station', '|S10'),
+                                          ('east', np.float),
+                                          ('north', np.float),
+                                          ('z_data', (np.complex, z_shape)),
+                                          ('z_data_err', (np.float, z_shape))])
+                                          ('t_data', (np.complex, t_shape)),
+                                          ('t_data_err', (np.float, t_shape))])
+#        self.data_array = np.zeros((ns, nf), dtype=[('zxx', np.complex),
+#                                                    ('zxy', np.complex),
+#                                                    ('zyx', np.complex),
+#                                                    ('zyy', np.complex),
+#                                                    ('txy', np.complex),
+#                                                    ('tyx', np.complex),
+#                                                    ('zxx_err', np.float),
+#                                                    ('zxy_err', np.float),
+#                                                    ('zyx_err', np.float),
+#                                                    ('zyy_err', np.float),
+#                                                    ('txy_err', np.float),
+#                                                    ('tyx_err', np.float)])
                                                     
         #--> fill data array
+        for ii, d_arr in enumerate(wsd.data):
+            self.data_array[ii]['station'] = d_arr['station']
+            self.data_array[ii]['east'] = d_arr['east']
+            self.data_array[ii]['north'] = d_arr['north']
+            self.data_array[ii]['z_data'] = d_arr['z_data']
+            self.data_array[ii]['z_data_err'] = d_arr['z_data'].real*\
+                                                d_arr['z_err_map'].real
         for ss in range(ns):
             for ff in range(nf):                                            
                 self.data_array[ss, ff]['zxx'] = ws_z[ss][ff, 0, 0]
-                self.data_array[ss, ff]['zxx_err'] = ws_z_err[ss][ff, 0, 0]
+                self.data_array[ss, ff]['zxx_err'] = abs(ws_z_err[ss][ff, 0, 0])
                 
                 self.data_array[ss, ff]['zxy'] = ws_z[ss][ff, 0, 1]
-                self.data_array[ss, ff]['zxy_err'] = ws_z_err[ss][ff, 0, 1]
+                self.data_array[ss, ff]['zxy_err'] = abs(ws_z_err[ss][ff, 0, 1])
                 
                 self.data_array[ss, ff]['zyx'] = ws_z[ss][ff, 1, 0]
-                self.data_array[ss, ff]['zyx_err'] = ws_z_err[ss][ff, 1, 0]
+                self.data_array[ss, ff]['zyx_err'] = abs(ws_z_err[ss][ff, 1, 0])
                 
                 self.data_array[ss, ff]['zyy'] = ws_z[ss][ff, 1, 1]
-                self.data_array[ss, ff]['zyy_err'] = ws_z_err[ss][ff, 1, 1]
+                self.data_array[ss, ff]['zyy_err'] = abs(ws_z_err[ss][ff, 1, 1])
 
         #--> fill coord array
         self.coord_array = np.zeros(ns, dtype=[('station','|S10'),
@@ -388,8 +440,19 @@ class Data(object):
             self.coord_array[ii]['rel_north'] = dd['north']
             self.coord_array[ii]['elev'] = 0.0
                 
-
-        #--write file
+        #need to change the inversion mode to be the same as the ws_data file
+        if self.data_array['zxx'].all() == 0.0:
+            if self.data_array['txy'].all() == 0.0:
+                self.inv_mode = '4'
+            else:
+                self.inv_mode = '3'
+        else:
+            if self.data_array['txy'].all() == 0.0:
+                self.inv_mode = '2'
+            else:
+                self.inv_mode = '1'
+        
+        #-->write file
         self.write_data_file()
         
     def read_data_file(self, data_fn=None):
@@ -626,9 +689,6 @@ class Model(object):
         self.res_model = None
         
         self.grid_center = None
-        
-        #rotation angle
-        self.rotation_angle = kwargs.pop('rotation_angle', None)
         
         #inital file stuff
         self.model_fn = kwargs.pop('model_fn', None)
@@ -1162,9 +1222,21 @@ class Model(object):
                     ifid.write('{0:>13.5E}'.format(write_res_model[nn, ee, zz]))
                 ifid.write('\n')
                 
+                
+        if self.grid_center is None:
+            #compute grid center
+            center_east = -self.nodes_east.__abs__().sum()/2
+            center_north = -self.nodes_norths.__abs__().sum()/2
+            center_z = 0
+            self.grid_center = np.array([center_north, center_east, center_z])
+            
         ifid.write('\n{0:>16.3f}{1:>16.3f}{2:>16.3f}\n'.format(self.grid_center[0],
                    self.grid_center[1], self.grid_center[2]))
-        ifid.write('{0:>9.3f}\n'.format(0))
+                   
+        if self.strike_angle is None:
+            ifid.write('{0:>9.3f}\n'.format(0))
+        else:
+            ifid.write('{0:>9.3f}\n'.format(self.strike_angle))
         ifid.close()
         
         print 'Wrote file to: {0}'.format(self.model_fn)
@@ -1313,9 +1385,33 @@ class Model(object):
             self.res_model = np.e**self.res_model
         elif log_yn.lower() == 'log' or log_yn.lower() == 'log10':
             self.res_model = 10**self.res_model
+            
+    def read_ws_model_file(self, ws_model_fn):
+        """
+        reads in a WS3INV3D model file
+        """
+        
+        ws_model_obj = ws.WSModel(ws_model_fn)
+        ws_model_obj.read_model_file()
+        
+        #set similar attributes
+        for ws_key in ws_model_obj.__dict__.keys():
+            for md_key in self.__dict__.keys():
+                if ws_key == md_key:
+                    setattr(self, ws_key, ws_model_obj.__dict__[ws_key])
+                    
+        #compute grid center
+        center_east = -self.nodes_east.__abs__().sum()/2
+        center_north = -self.nodes_norths.__abs__().sum()/2
+        center_z = 0
+        self.grid_center = np.array([center_north, center_east, center_z]) 
         
             
-
+    def write_vtk_file(self, vtk_fn=None):
+        """
+        write a vtk file to view in Paraview or other
+        """
+        pass
             
 #==============================================================================
 # Control File
@@ -1708,7 +1804,7 @@ class ModelManipulator(Model):
         self.res_list = kwargs.pop('res_list', None)
         if self.res_list is None:
             self.set_res_list(np.array([self._res_sea, 1, 10, 50, 100, 500, 
-                                        1000, 5000],
+                                        1000, 5000, self._res_air],
                                       dtype=np.float))
 
         #set initial resistivity value
@@ -4094,7 +4190,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
             #plot model below the phase tensors
             if self.model_fn is not None:
                 approx_depth, d_index = ws.estimate_skin_depth(self.model_obj.res_model,
-                                                            self.model_obj.grid_z/self.dscale, 
+                                                            self.model_obj.grid_z, 
                                                             per, 
                                                             dscale=self.dscale)  
                 #need to add an extra row and column to east and north to make sure 
