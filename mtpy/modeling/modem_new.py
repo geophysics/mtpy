@@ -144,7 +144,9 @@ class Data(object):
     Methods                    Description 
     ========================== ================================================
     convert_ws3dinv_data_file  convert a ws3dinv file to ModEM fomrat, 
-                               **Note** this doesn't work properly yet
+                               **Note** this doesn't include tipper data and 
+                               you need a station location file like the one
+                               output by mtpy.modeling.ws3dinv
     get_data_from_edi          get data from given .edi files and fill 
                                attributes accordingly
     get_mt_dict                get a dictionary of mtpy.core.mt.MT objects 
@@ -616,29 +618,7 @@ class Data(object):
         self.period_list = wsd.period_list.copy()
         self._set_dtype((nf, 2, 2), (nf, 1, 2))
         self.data_array = np.zeros(ns, dtype=self._dtype)
-                                                    
-        #--> fill data array
-        for ii, d_arr in enumerate(wsd.data):
-            self.data_array[ii]['station'] = d_arr['station']
-            self.data_array[ii]['east'] = d_arr['east']
-            self.data_array[ii]['north'] = d_arr['north']
-            self.data_array[ii]['z_data'] = d_arr['z_data']
-            self.data_array[ii]['z_data_err'] = d_arr['z_data'].real*\
-                                                d_arr['z_err_map'].real
-        for ss in range(ns):
-            for ff in range(nf):                                            
-                self.data_array[ss, ff]['zxx'] = ws_z[ss][ff, 0, 0]
-                self.data_array[ss, ff]['zxx_err'] = abs(ws_z_err[ss][ff, 0, 0])
-                
-                self.data_array[ss, ff]['zxy'] = ws_z[ss][ff, 0, 1]
-                self.data_array[ss, ff]['zxy_err'] = abs(ws_z_err[ss][ff, 0, 1])
-                
-                self.data_array[ss, ff]['zyx'] = ws_z[ss][ff, 1, 0]
-                self.data_array[ss, ff]['zyx_err'] = abs(ws_z_err[ss][ff, 1, 0])
-                
-                self.data_array[ss, ff]['zyy'] = ws_z[ss][ff, 1, 1]
-                self.data_array[ss, ff]['zyy_err'] = abs(ws_z_err[ss][ff, 1, 1])
-
+        
         #--> fill coord array
         self.coord_array = np.zeros(ns, dtype=[('station','|S10'),
                                                ('east', np.float),
@@ -648,23 +628,36 @@ class Data(object):
                                                ('elev', np.float),
                                                ('rel_east', np.float),
                                                ('rel_north', np.float)])
-                                        
-        for ii, dd in enumerate(wsd.data):
-            self.coord_array[ii]['station'] = dd['station']
+                                                    
+        #--> fill data array
+        for ii, d_arr in enumerate(wsd.data):
+            self.data_array[ii]['station'] = d_arr['station']
+            self.data_array[ii]['rel_east'] = d_arr['east']
+            self.data_array[ii]['rel_north'] = d_arr['north']
+            self.data_array[ii]['z'][:] = d_arr['z_data']
+            self.data_array[ii]['z_err'][:] = d_arr['z_data_err'].real*\
+                                                d_arr['z_err_map'].real
+            self.coord_array[ii]['station'] = d_arr['station']
             self.coord_array[ii]['lat'] = 0.0
             self.coord_array[ii]['lon'] = 0.0
-            self.coord_array[ii]['rel_east'] = dd['east']
-            self.coord_array[ii]['rel_north'] = dd['north']
+            self.coord_array[ii]['rel_east'] = d_arr['east']
+            self.coord_array[ii]['rel_north'] = d_arr['north']
             self.coord_array[ii]['elev'] = 0.0
-                
+            self.data_array[ii]['station'] = d_arr['station']
+            self.data_array[ii]['lat'] = 0.0
+            self.data_array[ii]['lon'] = 0.0
+            self.data_array[ii]['rel_east'] = d_arr['east']
+            self.data_array[ii]['rel_north'] = d_arr['north']
+            self.data_array[ii]['elev'] = 0.0
+      
         #need to change the inversion mode to be the same as the ws_data file
-        if self.data_array['zxx'].all() == 0.0:
-            if self.data_array['txy'].all() == 0.0:
+        if self.data_array['z'].all() == 0.0:
+            if self.data_array['tip'].all() == 0.0:
                 self.inv_mode = '4'
             else:
                 self.inv_mode = '3'
         else:
-            if self.data_array['txy'].all() == 0.0:
+            if self.data_array['tip'].all() == 0.0:
                 self.inv_mode = '2'
             else:
                 self.inv_mode = '1'
