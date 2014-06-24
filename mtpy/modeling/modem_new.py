@@ -160,7 +160,7 @@ class Data(object):
     ========================== ================================================
     
     
-    :Example 1  --> create inversion period list: ::
+    :Example 1 --> create inversion period list: ::
     
         >>> import os
         >>> import mtpy.modeling.modem as modem
@@ -189,7 +189,7 @@ class Data(object):
         >>> md.period_list = inv_period_list        
         >>> md.write_data_file(save_path=r"/home/modem/inv1")
                 
-    :Example 3-- change error values: ::
+    :Example 3 --> change error values: ::
         
         >>> import mtpy.modeling.modem as modem
         >>> mdr = modem.Data()
@@ -199,13 +199,35 @@ class Data(object):
         >>> mdr.error_tipper = .03
         >>> mdr.write_data_file(save_path=r"/home/modem/inv2")
         
-    :Example 3-- change inversion type: ::
+    :Example 4 --> change inversion type: ::
         
         >>> import mtpy.modeling.modem as modem
         >>> mdr = modem.Data()
         >>> mdr.read_data_file(r"/home/modem/inv1/ModEM_Data.dat")
         >>> mdr.inv_mode = '3'
         >>> mdr.write_data_file(save_path=r"/home/modem/inv2")
+        
+    :Example 5 --> create mesh first then data file: ::
+    
+        >>> import mtpy.modeling.modem as modem
+        >>> import os
+        >>> #1) make a list of all .edi files that will be inverted for 
+        >>> edi_path = r"/home/EDI_Files"
+        >>> edi_list = [os.path.join(edi_path, edi) 
+                        for edi in os.listdir(edi_path) 
+        >>> ...         if edi.find('.edi') > 0]
+        >>> #2) make a grid from the stations themselves with 200m cell spacing
+        >>> mmesh = modem.Model(edi_list=edi_list, cell_size_east=200, 
+        >>> ...                cell_size_north=200)
+        >>> mmesh.make_mesh()
+        >>> # check to see if the mesh is what you think it should be
+        >>> msmesh.plot_mesh()
+        >>> # all is good write the mesh file
+        >>> msmesh.write_model_file(save_path=r"/home/modem/Inv1")
+        >>> # create data file
+        >>> md = modem.Data(edi_list, coord_array=mmesh.station_locations)
+        >>> md.write_data_file(save_path=r"/home/modem/Inv1")
+    
                   
     """
     
@@ -324,7 +346,9 @@ class Data(object):
         """
         get station locations from edi files
         """
-        self.get_mt_dict()
+        
+        if self.mt_dict is None:
+            self.get_mt_dict()
 
         #--> read in .edi files and get position information as well as center
         #    station. 
@@ -371,6 +395,11 @@ class Data(object):
         """
         
         if self.period_list is not None:
+            print '-'*50
+            print 'Inverting for periods:'
+            for per in self.period_list:
+                print '     {0:<12.6f}'.format(per)
+            print '-'*50
             return
         
         if self.mt_dict is None:
@@ -404,11 +433,14 @@ class Data(object):
             print '-'*50
             print 'Inverting for periods:'
             for per in self.period_list:
-                print '     {0:.6E}'.format(per)
+                print '     {0:<12.6f}'.format(per)
+            print '-'*50
                 
         if self.period_list is None:
             raise ModEMError('Need to input period_min, period_max, '
                              'max_num_periods or a period_list')
+        
+        
     
     def get_data_from_edi(self):
         """
@@ -454,7 +486,7 @@ class Data(object):
                         jj = np.where(((1./mt_obj.Z.freq)*.95 <= per) & 
                                       ((1./mt_obj.Z.freq) >= per))[0][0]
                     except IndexError:
-                        print 'Could not find {0:.5e} in {1}'.format(per,
+                        print 'Could not find {0:<12.6f} in {1}'.format(per,
                                                                 mt_obj.station)
                 if jj is not None:
                     self.data_array[ii]['z'][ff] = mt_obj.Z.z[jj, :, :]
@@ -510,8 +542,9 @@ class Data(object):
         
         if self.coord_array is None:
             self.get_station_locations()
-            
-        self.get_period_list()
+        
+        if self.period_list is None:
+            self.get_period_list()
         
         if self.data_array is None:
             self.get_data_from_edi()
@@ -595,6 +628,35 @@ class Data(object):
         """ 
         convert a ws3dinv data file into ModEM format
         
+        Arguments:
+        ------------
+            **ws_data_fn** : string
+                             full path to WS data file
+            
+            **station_fn** : string
+                             full path to station info file output by
+                             mtpy.modeling.ws3dinv. Or you can create one using
+                             mtpy.modeling.ws3dinv.WSStation
+            
+            **save_path** : string
+                            directory path to save data file to.
+                            *default* is cwd
+                            
+            **fn_basename** : string
+                              basename to save data file as
+                              *default* is 'ModEM_Data.dat'
+                              
+        Outputs:
+        -----------
+            **data_fn** : string
+                          full path to created data file
+        
+        :Example: ::
+            
+            >>> import mtpy.modeling.modem as modem
+            >>> mdr = modem.Data()
+            >>> mdr.convert_ws3dinv_data_file(r"/home/ws3dinv/inv1/WSData.dat",
+                    station_fn=r"/home/ws3dinv/inv1/WS_Station_Locations.txt")
         """
         
         if os.path.isfile(ws_data_fn) == False:
@@ -830,22 +892,50 @@ class Model(object):
         
     All dimensions are in meters.
     
-    :Example: ::
+    :Example 1 --> create mesh first then data file: ::
     
-        >>> import mtpy.modeling.ws3dinv as ws
+        >>> import mtpy.modeling.modem as modem
         >>> import os
         >>> #1) make a list of all .edi files that will be inverted for 
         >>> edi_path = r"/home/EDI_Files"
-        >>> edi_list = [os.path.join(edi_path, edi) for edi in edi_path 
+        >>> edi_list = [os.path.join(edi_path, edi) 
+                        for edi in os.listdir(edi_path) 
         >>> ...         if edi.find('.edi') > 0]
         >>> #2) make a grid from the stations themselves with 200m cell spacing
-        >>> wsmesh = ws.WSMesh(edi_list=edi_list, cell_size_east=200, 
+        >>> mmesh = modem.Model(edi_list=edi_list, cell_size_east=200, 
         >>> ...                cell_size_north=200)
-        >>> wsmesh.make_mesh()
+        >>> mmesh.make_mesh()
         >>> # check to see if the mesh is what you think it should be
-        >>> wsmesh.plot_mesh()
+        >>> msmesh.plot_mesh()
         >>> # all is good write the mesh file
-        >>> wsmesh.write_initial_file(save_path=r"/home/ws3dinv/Inv1")
+        >>> msmesh.write_model_file(save_path=r"/home/modem/Inv1")
+        >>> # create data file
+        >>> md = modem.Data(edi_list, coord_array=mmesh.station_locations)
+        >>> md.write_data_file(save_path=r"/home/modem/Inv1")
+    
+    :Example 2 --> create data file first then model file: ::
+    
+        >>> import mtpy.modeling.modem as modem
+        >>> import os
+        >>> #1) make a list of all .edi files that will be inverted for 
+        >>> edi_path = r"/home/EDI_Files"
+        >>> edi_list = [os.path.join(edi_path, edi) 
+                        for edi in os.listdir(edi_path) 
+        >>> ...         if edi.find('.edi') > 0]
+        >>> #2) create data file
+        >>> md = modem.Data(edi_list, coord_array=mmesh.station_locations)
+        >>> md.write_data_file(save_path=r"/home/modem/Inv1")
+        >>> #3) make a grid from the stations themselves with 200m cell spacing
+        >>> mmesh = modem.Model(edi_list=edi_list, cell_size_east=200, 
+                                cell_size_north=200, 
+                                station_locations=md.coord_array)
+        >>> mmesh.make_mesh()
+        >>> # check to see if the mesh is what you think it should be
+        >>> msmesh.plot_mesh()
+        >>> # all is good write the mesh file
+        >>> msmesh.write_model_file(save_path=r"/home/modem/Inv1")
+        
+        
     
     ==================== ======================================================
     Attributes           Description    
@@ -2750,7 +2840,7 @@ class PlotResponse(object):
                         if station == int(pstation):
                             pstation_list.append(ii)
         else:
-            pstation_list = np.arange(ns)
+            pstation_list = self.data_object.mt_dict.keys()
         
         for jj, station in enumerate(pstation_list):
             z_obj = self.data_object.mt_dict[station].Z
