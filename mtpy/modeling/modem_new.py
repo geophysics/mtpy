@@ -52,6 +52,7 @@ class Data(object):
         self.error_floor = kwargs.pop('error_floor', 5.0)
         self.error_value = kwargs.pop('error_value', 5.0)
         self.error_egbert = kwargs.pop('error_egbert', 3.0)
+        self.error_tipper = kwargs.pop('error_tipper', .05)
         
         self.wave_sign = kwargs.pop('wave_sign', '+')
         self.units = kwargs.pop('units', '[mV/km]/[nT]')
@@ -192,16 +193,9 @@ class Data(object):
         
         """
 
-        if self.edi_list is None:
-            self.get_station_locations()
-            self.get_period_list()
-            
-        if self.edi_obj_list is None:
-            self.edi_obj_list = []
-            for ii, edi in enumerate(self.edi_list):
-                edi_obj = mtedi.Edi(edi)
-                self.edi_obj_list.append(edi_obj)
-            
+        self.get_station_locations()
+        self.get_period_list()
+             
         ns = len(self.edi_obj_list)
         nf = len(self.period_list)
         
@@ -223,13 +217,12 @@ class Data(object):
 #                                                    ('ty_err', np.float)])
                                               
         for ii, edi in enumerate(self.edi_obj_list):
-            zone, east, north = utm2ll.LLtoUTM(23, edi_obj.lat, edi_obj.lon)
-            self.data_array[ii]['station'] = edi_obj.station
-            self.data_array[ii]['lat'] = float(edi_obj.lat)
-            self.data_array[ii]['lon'] = float(edi_obj.lon)
-            self.data_array[ii]['east'] = float(east)
-            self.data_array[ii]['north'] = float(north)
-            self.data_array[ii]['elev'] = float(edi_obj.elev)
+            self.data_array[ii]['station'] = self.coord_array[ii]['station']
+            self.data_array[ii]['lat'] = self.coord_array[ii]['lat']
+            self.data_array[ii]['lon'] = self.coord_array[ii]['lon']
+            self.data_array[ii]['east'] = self.coord_array[ii]['east']
+            self.data_array[ii]['north'] = self.coord_array[ii]['north']
+            self.data_array[ii]['elev'] = self.coord_array[ii]['elev']
             
             p_dict = dict([(np.round(per, 5), kk) for kk, per in 
                             enumerate(1./edi.freq)])
@@ -273,8 +266,7 @@ class Data(object):
                                                 edi.Tipper.tipper[jj, 0, 0]
                         
                         self.data_array[ii]['tip_err'][ff] = \
-                                                edi.Tipper.tippererr[jj, 0, 0]
-
+                                                edi.Tipper.tippererr[jj, 0, 0]                                            
                     
     def write_data_file(self, save_path=None, fn_basename=None):
         """
@@ -319,26 +311,33 @@ class Data(object):
                         zz = self.data_array[ss, ff][comp]
                         if zz != 0.0+0.0j:
                             per = '{0:<12.5e}'.format(self.period_list[ff])
-                            sta = '{0:>7}'.format(self.coord_array[ss]['station'])
-                            lat = '{0:> 9.3f}'.format(self.coord_array[ss]['lat'])
-                            lon = '{0:> 9.3f}'.format(self.coord_array[ss]['lon'])
-                            eas = '{0:> 12.3f}'.format(self.coord_array[ss]['rel_east'])
-                            nor = '{0:> 12.3f}'.format(self.coord_array[ss]['rel_north'])
+                            sta = '{0:>7}'.format(self.data_array[ss]['station'])
+                            lat = '{0:> 9.3f}'.format(self.data_array[ss]['lat'])
+                            lon = '{0:> 9.3f}'.format(self.data_array[ss]['lon'])
+                            eas = '{0:> 12.3f}'.format(self.data_array[ss]['rel_east'])
+                            nor = '{0:> 12.3f}'.format(self.data_array[ss]['rel_north'])
                             ele = '{0:> 12.3f}'.format(0)
                             com = '{0:>4}'.format(comp.upper())
                             rea = '{0:> 14.6e}'.format(zz.real)
                             ima = '{0:> 14.6e}'.format(zz.imag)
+                            
+                            #compute relative error
+                            if comp.find('t') == 0:
+                                rel_err = self.error_tipper
                             if self.error_type == 'floor':
                                 rel_err = self.data_array[ss, ff][comp+'_err']/\
                                           abs(zz)
                                 if rel_err < self.error_floor/100.:
                                     rel_err = self.error_floor/100.*abs(zz)
+                            
                             elif self.error_type == 'value':
                                 rel_err = abs(zz)*self.error_value/100.
+                            
                             elif self.error_type == 'egbert':
                                 rel_err = np.sqrt(abs(self.data_array[ss, ff]['zxy']*\
                                           self.data_array[ss, ff]['zyx']))*\
                                           self.error_egbert/100.
+                            
                             rel_err = '{0:> 14.6e}'.format(rel_err)
                             #make sure that x==north, y==east, z==+down
                             dline = ''.join([per, sta, lat, lon, nor, eas, ele, 
