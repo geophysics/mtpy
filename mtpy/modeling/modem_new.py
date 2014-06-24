@@ -8,6 +8,7 @@ ModEM
 # Generate data file for ModEM
 # by Paul Soeffky 2013
 # revised by LK 2014
+# revised by JP 2014
 
 """
 
@@ -37,18 +38,179 @@ import mtpy.imaging.mtcolors as mtcl
 
 class Data(object):
     """
-    read and write .dat files for ModEM
+    Data will read and write .dat files for ModEM and convert a WS data file 
+    to ModEM format.  
     
-    error_type [ 'floor' | 'value' | 'egbert' ]
-                egbert is value * sqrt(abs(zxy*zyx))
+    Arguments:
+    ------------
+        **edi_list** : list 
+                       list of full paths to .edi files you want to invert for
+        
+    ====================== ====================================================
+    Attributes/Key Words   Description    
+    ====================== ====================================================
+    _dtype                 internal variable defining the data type of 
+                           data_array 
+    _t_shape               internal variable defining shape of tipper array in
+                           _dtype  
+    _z_shape               internal variable defining shape of Z array in 
+                           _dtype
+    center_position        (east, north, evel) for center point of station 
+                           array.  All stations are relative to this location
+                           for plotting purposes.
+    comp_index_dict        dictionary for index values of component of Z and T
+    coord_array            numpy.ndarray structured to store station 
+                           location values.  Keys are:
+                               * station --> station name
+                               * east --> UTM east (m)
+                               * north --> UTM north (m)
+                               * lat --> latitude in decimal degrees
+                               * lon --> longitude in decimal degrees
+                               * elev --> elevation (m)
+                               * rel_east -- > relative east location to 
+                                               center_position (m)
+                               * rel_north --> relative north location to 
+                                               center_position (m)
+    data_array             numpy.ndarray (num_stations) structured to store
+                           data.  keys are:
+                               * station --> station name
+                               * lat --> latitude in decimal degrees
+                               * lon --> longitude in decimal degrees
+                               * elev --> elevation (m)
+                               * rel_east -- > relative east location to 
+                                               center_position (m)
+                               * rel_north --> relative north location to 
+                                               center_position (m)
+                               * east --> UTM east (m)
+                               * north --> UTM north (m)
+                               * z --> impedance tensor array with shape
+                                       (num_freq, 2, 2)
+                               * z_err --> impedance tensor error array with
+                                       shape (num_freq, 2, 2)
+                               * tip --> Tipper array with shape
+                                       (num_freq, 1, 2)
+                               * tipperr --> Tipper array with shape
+                                       (num_freq, 1, 2)
+    data_fn                full path to data file 
+    data_period_list       period list from all the data
+    edi_list               list of full paths to edi files
+    error_egbert           percentage to multiply sqrt(Z_xy*Zyx) by. 
+                           *default* is 3 as prescribed by Egbert & Kelbert
+    error_floor            percentage to set the error floor at, anything below
+                           this number will be set to error_floor. 
+                           *default* is 10
+    error_tipper           absolute tipper error, all tipper error will be 
+                           set to this value. *default* is .05 for 5%
+    error_type             [ 'floor' | 'value' | 'egbert' ]
+                           *default* is 'egbert'
+                                * 'floor' sets the error floor to error_floor
+                                * 'value' sets error to error_value
+                                * 'egbert' sets error to  
+                                           error_egbert * sqrt(abs(zxy*zyx))
+                                           
+    error_value            percentage to multiply Z by to set error
+                           *default* is 5 for 5% of Z as error
+    fn_basename            basename of data file. *default* is 'ModEM_Data.dat'
+    header_strings         strings for header of data file following the format
+                           outlined in the ModEM documentation
+    inv_comp_dict          dictionary of inversion componets
+    inv_mode               inversion mode, options are: *default* is '1'
+                               * '1' --> for 'Full_Impedance' and 
+                                             'Full_Vertical_Components'
+                               * '2' --> 'Full_Impedance'
+                               * '3' --> 'Off_Diagonal_Impedance' and 
+                                         'Full_Vertical_Components'
+                               * '4' --> 'Off_Diagonal_Impedance'
+                               * '5' --> 'Full_Vertical_Components'
+                               * '6' --> 'Full_Interstation_TF'
+                               * '7' --> 'Off_Diagonal_Rho_Phase' 
+
+    inv_mode_dict          dictionary for inversion modes
+    max_num_periods        maximum number of periods
+    mt_dict                dictionary of mtpy.core.mt.MT objects with keys 
+                           being station names
+    period_dict            dictionary of period index for period_list
+    period_list            list of periods to invert for
+    period_max             maximum value of period to invert for
+    period_min             minimum value of period to invert for           
+    save_path              path to save data file to
+    units                  [ [V/m]/[T] | [mV/km]/[nT] | Ohm ] units of Z
+                           *default* is [mV/km]/[nT]
+    wave_sign              [ + | - ] sign of time dependent wave.  
+                           *default* is '+' as positive downwards. 
+    ====================== ====================================================
+   
+    ========================== ================================================
+    Methods                    Description 
+    ========================== ================================================
+    convert_ws3dinv_data_file  convert a ws3dinv file to ModEM fomrat, 
+                               **Note** this doesn't work properly yet
+    get_data_from_edi          get data from given .edi files and fill 
+                               attributes accordingly
+    get_mt_dict                get a dictionary of mtpy.core.mt.MT objects 
+                               with keys being station names
+    get_period_list            get a list of periods to invert for
+    get_station_locations      get station locations and relative locations
+                               filling in coord_array
+    read_data_file             read in a ModEM data file and fill attributes
+                               data_array, coord_array, period_list, mt_dict
+    write_data_file            write a ModEM data file 
+    ========================== ================================================
+    
+    
+    :Example 1  --> create inversion period list: ::
+    
+        >>> import os
+        >>> import mtpy.modeling.modem as modem
+        >>> edi_path = r"/home/mt/edi_files"
+        >>> edi_list = [os.path.join(edi_path, edi) \
+                        for edi in os.listdir(edi_path)\
+                        if edi.find('.edi') > 0]
+        >>> md = modem.Data(edi_list, period_min=.1, period_max=300,\
+                            max_num_periods=12)
+        >>> md.write_data_file(save_path=r"/home/modem/inv1")
+        
+    :Example 2 --> set inverions period list from data: ::
+    
+        >>> import os
+        >>> import mtpy.modeling.modem as modem
+        >>> edi_path = r"/home/mt/edi_files"
+        >>> edi_list = [os.path.join(edi_path, edi) \
+                        for edi in os.listdir(edi_path)\
+                        if edi.find('.edi') > 0]
+        >>> md = modem.Data(edi_list)
+        >>> #get period list from an .edi file
+        >>> mt_obj1 = modem.mt.MT(edi_list[0])
+        >>> inv_period_list = 1./mt_obj1.Z.freq
+        >>> #invert for every third period in inv_period_list
+        >>> inv_period_list = inv_period_list[np.arange(0, len(inv_period_list, 3))]
+        >>> md.period_list = inv_period_list        
+        >>> md.write_data_file(save_path=r"/home/modem/inv1")
+                
+    :Example 3-- change error values: ::
+        
+        >>> import mtpy.modeling.modem as modem
+        >>> mdr = modem.Data()
+        >>> mdr.read_data_file(r"/home/modem/inv1/ModEM_Data.dat")
+        >>> mdr.error_type = 'floor'
+        >>> mdr.error_floor = 10
+        >>> mdr.error_tipper = .03
+        >>> mdr.write_data_file(save_path=r"/home/modem/inv2")
+        
+    :Example 3-- change inversion type: ::
+        
+        >>> import mtpy.modeling.modem as modem
+        >>> mdr = modem.Data()
+        >>> mdr.read_data_file(r"/home/modem/inv1/ModEM_Data.dat")
+        >>> mdr.inv_mode = '3'
+        >>> mdr.write_data_file(save_path=r"/home/modem/inv2")
+                  
     """
     
     def __init__(self, edi_list=None, **kwargs):
         self.edi_list = edi_list
-        
-        self.merge_periods = kwargs.pop('merge_periods', False)
-        self.merge_threshold = kwargs.pop('merge_threshold', 5.0)
-        self.error_type = kwargs.pop('error_type', 'floor')
+
+        self.error_type = kwargs.pop('error_type', 'egbert')
         self.error_floor = kwargs.pop('error_floor', 5.0)
         self.error_value = kwargs.pop('error_value', 5.0)
         self.error_egbert = kwargs.pop('error_egbert', 3.0)
@@ -70,8 +232,8 @@ class Data(object):
         
         self.coord_array = None
         self.center_position = (0.0, 0.0, 0.0)
-        self.edi_obj_list = None
         self.data_array = None
+        self.mt_dict = None
         
         self._z_shape = (1, 2, 2)
         self._t_shape = (1, 1, 2)
@@ -86,7 +248,7 @@ class Data(object):
                        ('z', (np.complex, self._z_shape)),
                        ('z_err', (np.complex, self._z_shape)),
                        ('tip', (np.complex, self._t_shape)),
-                       ('tip_err', (np.complex, self_t_shape))]
+                       ('tip_err', (np.complex, self._t_shape))]
         
         self.inv_mode_dict = {'1':['Full_Impedance', 'Full_Vertical_Components'],
                               '2':['Full_Impedance'],
@@ -99,24 +261,72 @@ class Data(object):
         self.inv_comp_dict = {'Full_Impedance':['zxx', 'zxy', 'zyx', 'zyy'],
                               'Off_Diagonal_Impedance':['zxy', 'zyx'],
                               'Full_Vertical_Components':['tx', 'ty']}
+                              
+        self.comp_index_dict = {'zxx': (0, 0), 'zxy':(0, 1), 'zyx':(1, 0), 
+                                'zyy':(1, 1), 'tx':(0, 0), 'ty':(0, 1)}
         
                               
         self.header_strings = \
-        ['# Created using MTpy error floor {0:.0f}%\n'.format(self.error_floor), 
+        ['# Created using MTpy error {0} of {1:.0f}%\n'.format(self.error_type, self.error_floor), 
         '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) Component Real Imag Error\n']
 
+    def _set_dtype(self, z_shape, t_shape):
+        """
+        reset dtype
+        """
+        
+        self._z_shape = z_shape
+        self._t_shape = t_shape
+        
+        self._dtype = [('station', '|S10'),
+                       ('lat', np.float),
+                       ('lon', np.float),
+                       ('elev', np.float),
+                       ('rel_east', np.float), 
+                       ('rel_north', np.float), 
+                       ('east', np.float),
+                       ('north', np.float),
+                       ('z', (np.complex, self._z_shape)),
+                       ('z_err', (np.complex, self._z_shape)),
+                       ('tip', (np.complex, self._t_shape)),
+                       ('tip_err', (np.complex, self._t_shape))]
+                       
+    def _set_header_string(self):
+        """
+        reset the header sring for file
+        """
+        self.header_strings = \
+        ['# Created using MTpy error {0} of {1:.0f}%\n'.format(self.error_type, 
+                                                             self.error_floor), 
+        '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) Component Real Imag Error\n']
+   
+    def get_mt_dict(self):
+        """
+        get mt_dict from edi file list
+        """
+        
+        if self.edi_list is None:
+            raise ModEMError('edi_list is None, please input a list of '
+                             '.edi files containing the full path')
+                             
+        if len(self.edi_list) == 0:
+            raise ModEMError('edi_list is empty, please input a list of '
+                             '.edi files containing the full path' )
+                             
+        self.mt_dict = {}
+        for edi in self.edi_list:
+            mt_obj = mt.MT(edi)
+            self.mt_dict[mt_obj.station] = mt_obj
         
     def get_station_locations(self):
         """
         get station locations from edi files
         """
-        self.edi_obj_list = []
-        if self.edi_list is None:
-            raise ModEMError('edi_list is None, enter a list of .edi files')
+        self.get_mt_dict()
 
         #--> read in .edi files and get position information as well as center
         #    station. 
-        ns = len(self.edi_list)
+        ns = len(self.mt_dict.keys())
         self.coord_array = np.zeros(ns, dtype=[('station','|S10'),
                                                ('east', np.float),
                                                ('north', np.float),
@@ -126,16 +336,14 @@ class Data(object):
                                                ('rel_east', np.float),
                                                ('rel_north', np.float)])
                                         
-        for ii, edi in enumerate(self.edi_list):
-            edi_obj = mtedi.Edi(edi)
-            self.edi_obj_list.append(edi_obj)
-            zone, east, north = utm2ll.LLtoUTM(23, edi_obj.lat, edi_obj.lon)
-            self.coord_array[ii]['station'] = edi_obj.station
-            self.coord_array[ii]['lat'] = float(edi_obj.lat)
-            self.coord_array[ii]['lon'] = float(edi_obj.lon)
-            self.coord_array[ii]['east'] = float(east)
-            self.coord_array[ii]['north'] = float(north)
-            self.coord_array[ii]['elev'] = float(edi_obj.elev)
+        for ii, s_key in enumerate(sorted(self.mt_dict.keys())):
+            mt_obj = self.mt_dict[s_key]
+            self.coord_array[ii]['station'] = mt_obj.station
+            self.coord_array[ii]['lat'] = float(mt_obj.lat)
+            self.coord_array[ii]['lon'] = float(mt_obj.lon)
+            self.coord_array[ii]['east'] = float(mt_obj.east)
+            self.coord_array[ii]['north'] = float(mt_obj.north)
+            self.coord_array[ii]['elev'] = float(mt_obj.elev)
             
         #--> get center of the grid
         east_0 = self.coord_array['east'].mean()
@@ -149,6 +357,11 @@ class Data(object):
         self.coord_array['rel_east'] = self.coord_array['east']-east_0
         self.coord_array['rel_north'] = self.coord_array['north']-north_0
         
+        #fill in value for relative location in mt_obj
+        for cc in self.coord_array:
+            self.mt_dict[cc['station']].grid_east = cc['rel_east']
+            self.mt_dict[cc['station']].grid_north = cc['rel_north']
+        
     def get_period_list(self):
         """
         make a period list to invert for
@@ -158,12 +371,16 @@ class Data(object):
         if self.period_list is not None:
             return
         
-        data_period_list = []
-        for edi in self.edi_obj_list:
-            data_period_list.extend(list(1./edi.freq))
+        if self.mt_dict is None:
+            self.get_mt_dict()
             
-        self.data_period_list = sorted(list(set(data_period_list)), 
-                                       reverse=False)
+        data_period_list = []
+        for s_key in sorted(self.mt_dict.keys()):
+            mt_obj = self.mt_dict[s_key]
+            data_period_list.extend(list(1./mt_obj.Z.freq))
+            
+        self.data_period_list = np.array(sorted(list(set(data_period_list)), 
+                                       reverse=False))
                                        
         if self.period_min is not None:
             if self.period_max is None:
@@ -175,16 +392,22 @@ class Data(object):
             if self.max_num_periods is None:
                 raise ModEMError('Need to input number of periods to use')
                 
-            min_index = np.where(self.data_period_list >= self.period_min)[0][1]
-            max_index = np.where(self.data_period_list >= self.period_max)[0][0]
+            min_index = np.where(self.data_period_list >= self.period_min)[0][0]
+            max_index = np.where(self.data_period_list <= self.period_max)[0][-1]
             
             pmin = np.log10(self.data_period_list[min_index])
             pmax = np.log10(self.data_period_list[max_index])
             self.period_list = np.logspace(pmin, pmax, num=self.max_num_periods)
             
+            print '-'*50
+            print 'Inverting for periods:'
+            for per in self.period_list:
+                print '     {0:.6E}'.format(per)
+                
         if self.period_list is None:
             raise ModEMError('Need to input period_min, period_max, '
                              'max_num_periods or a period_list')
+    
     def get_data_from_edi(self):
         """
         get data from edi files and put into an array for easy manipulation 
@@ -196,36 +419,29 @@ class Data(object):
         self.get_station_locations()
         self.get_period_list()
              
-        ns = len(self.edi_obj_list)
+        ns = len(self.mt_dict.keys())
         nf = len(self.period_list)
         
-        self._z_shape = (nf, 2, 2)
-        self._t_shape = (nf, 1, 2)
+        self._set_dtype((nf, 2, 2), (nf, 1, 2))
         self.data_array = np.zeros(ns, dtype=self._dtype)
-#        
-#        self.data_array = np.zeros((ns, nf), dtype=[('zxx', np.complex),
-#                                                    ('zxy', np.complex),
-#                                                    ('zyx', np.complex),
-#                                                    ('zyy', np.complex),
-#                                                    ('tx', np.complex),
-#                                                    ('ty', np.complex),
-#                                                    ('zxx_err', np.float),
-#                                                    ('zxy_err', np.float),
-#                                                    ('zyx_err', np.float),
-#                                                    ('zyy_err', np.float),
-#                                                    ('tx_err', np.float),
-#                                                    ('ty_err', np.float)])
                                               
-        for ii, edi in enumerate(self.edi_obj_list):
-            self.data_array[ii]['station'] = self.coord_array[ii]['station']
-            self.data_array[ii]['lat'] = self.coord_array[ii]['lat']
-            self.data_array[ii]['lon'] = self.coord_array[ii]['lon']
-            self.data_array[ii]['east'] = self.coord_array[ii]['east']
-            self.data_array[ii]['north'] = self.coord_array[ii]['north']
-            self.data_array[ii]['elev'] = self.coord_array[ii]['elev']
+        for ii, s_key in enumerate(sorted(self.mt_dict.keys())):
+            mt_obj = self.mt_dict[s_key]
+            self.data_array[ii]['station'] = mt_obj.station
+            self.data_array[ii]['lat'] = mt_obj.lat
+            self.data_array[ii]['lon'] = mt_obj.lon
+            self.data_array[ii]['east'] = mt_obj.east
+            self.data_array[ii]['north'] = mt_obj.north
+            self.data_array[ii]['elev'] = mt_obj.elev
+            self.data_array[ii]['rel_east'] = mt_obj.grid_east
+            self.data_array[ii]['rel_north'] = mt_obj.grid_north
             
+            #make a dictionary for period as keys and values as index within
+            #each mt_obj
             p_dict = dict([(np.round(per, 5), kk) for kk, per in 
-                            enumerate(1./edi.freq)])
+                            enumerate(1./mt_obj.Z.freq)])
+                            
+            #search for period in given period list
             for ff, per in enumerate(self.period_list):
                 per = np.round(per, 5)
                 jj = None
@@ -233,45 +449,54 @@ class Data(object):
                     jj = p_dict[per]
                 except KeyError:
                     try:
-                        jj = np.where((edi.period*.95 <= per) & 
-                                      (edi.period*1.05 >= per))[0][0]
+                        jj = np.where(((1./mt_obj.Z.freq)*.95 <= per) & 
+                                      ((1./mt_obj.Z.freq) >= per))[0][0]
                     except IndexError:
                         print 'Could not find {0:.5e} in {1}'.format(per,
-                                                                edi.station)
+                                                                mt_obj.station)
                 if jj is not None:
-#                    self.data_array[ii][ff]['zxx'] = edi.Z.z[jj, 0, 0]
-#                    self.data_array[ii][ff]['zxy'] = edi.Z.z[jj, 0, 1]
-#                    self.data_array[ii][ff]['zyx'] = edi.Z.z[jj, 1, 0]
-#                    self.data_array[ii][ff]['zyy'] = edi.Z.z[jj, 1, 1]
-#                    
-#                    self.data_array[ii][ff]['zxx_err'] = edi.Z.zerr[jj, 0, 0]
-#                    self.data_array[ii][ff]['zxy_err'] = edi.Z.zerr[jj, 0, 1]
-#                    self.data_array[ii][ff]['zyx_err'] = edi.Z.zerr[jj, 1, 0]
-#                    self.data_array[ii][ff]['zyy_err'] = edi.Z.zerr[jj, 1, 1]
-#                    if edi.Tipper.tipper is not None:
-#                        self.data_array[ii][ff]['tx'] = \
-#                                                edi.Tipper.tipper[jj, 0, 0]
-#                        self.data_array[ii][ff]['ty'] = \
-#                                                edi.Tipper.tipper[jj, 0, 1]
-#                        
-#                        self.data_array[ii][ff]['tx_err'] = \
-#                                                edi.Tipper.tippererr[jj, 0, 0]
-#                        self.data_array[ii][ff]['ty_err'] = \
-#                                                edi.Tipper.tippererr[jj, 0, 1]
-                    self.data_array[ii]['z'][ff] = edi.Z.z[jj, 0, 0]
-                    self.data_array[ii]['z_err'][ff] = edi.Z.z_err[jj, 0, 0]
+                    self.data_array[ii]['z'][ff] = mt_obj.Z.z[jj, :, :]
+                    self.data_array[ii]['z_err'][ff] = mt_obj.Z.zerr[jj, :, :]
 
-                    if edi.Tipper.tipper is not None:
+                    if mt_obj.Tipper.tipper is not None:
                         self.data_array[ii]['tip'][ff] = \
-                                                edi.Tipper.tipper[jj, 0, 0]
+                                        mt_obj.Tipper.tipper[jj, :, :]
                         
                         self.data_array[ii]['tip_err'][ff] = \
-                                                edi.Tipper.tippererr[jj, 0, 0]                                            
+                                        mt_obj.Tipper.tippererr[jj, :, :]                                            
                     
     def write_data_file(self, save_path=None, fn_basename=None):
         """
         write data file for ModEM
         
+        will save file as save_path/fn_basename
+        
+        Arguments:
+        ------------
+            **save_path** : string
+                            directory path to save data file to.
+                            *default* is cwd
+                            
+            **fn_basename** : string
+                              basename to save data file as
+                              *default* is 'ModEM_Data.dat'
+                              
+        Outputs:
+        ----------
+            **data_fn** : string
+                          full path to created data file
+                          
+        :Example: :: 
+                            
+            >>> import os
+            >>> import mtpy.modeling.modem as modem
+            >>> edi_path = r"/home/mt/edi_files"
+            >>> edi_list = [os.path.join(edi_path, edi) \
+                            for edi in os.listdir(edi_path)\
+                            if edi.find('.edi') > 0]
+            >>> md = modem.Data(edi_list, period_min=.1, period_max=300,\
+                                max_num_periods=12)
+            >>> md.write_data_file(save_path=r"/home/modem/inv1")
         """
         
         if save_path is not None:
@@ -288,8 +513,10 @@ class Data(object):
         
         if self.data_array is None:
             self.get_data_from_edi()
+            
+        self._set_header_string()
 
-        dlines = []           
+        dlines = []        
         for inv_mode in self.inv_mode_dict[self.inv_mode]:
             dlines.append(self.header_strings[0])
             dlines.append(self.header_strings[1])
@@ -302,13 +529,23 @@ class Data(object):
             dlines.append('> 0\n') #oriention, need to add at some point
             dlines.append('> {0: >7.3f} {1: >7.3f}\n'.format(
                           self.center_position[0], self.center_position[1]))
-            dlines.append('> {0} {1}\n'.format(self.data_array.shape[1],
-                                               self.data_array.shape[0]))
+            dlines.append('> {0} {1}\n'.format(self.data_array['z'].shape[1],
+                                               self.data_array['z'].shape[0]))
                                                
-            for ss in range(self.data_array.shape[0]):
-                for ff in range(self.data_array.shape[1]):
+            for ss in range(self.data_array['z'].shape[0]):
+                for ff in range(self.data_array['z'].shape[1]):
                     for comp in self.inv_comp_dict[inv_mode]:
-                        zz = self.data_array[ss, ff][comp]
+                        #index values for component with in the matrix
+                        z_ii, z_jj = self.comp_index_dict[comp]
+                        
+                        #get the correct key for data array according to comp
+                        if comp.find('z') == 0:
+                            c_key = 'z'
+                        elif comp.find('t') == 0:
+                            c_key = 'tip'
+                        
+                        #get the value for that compenent at that frequency
+                        zz = self.data_array[ss][c_key][ff, z_ii, z_jj]
                         if zz != 0.0+0.0j:
                             per = '{0:<12.5e}'.format(self.period_list[ff])
                             sta = '{0:>7}'.format(self.data_array[ss]['station'])
@@ -324,21 +561,22 @@ class Data(object):
                             #compute relative error
                             if comp.find('t') == 0:
                                 rel_err = self.error_tipper
-                            if self.error_type == 'floor':
-                                rel_err = self.data_array[ss, ff][comp+'_err']/\
-                                          abs(zz)
-                                if rel_err < self.error_floor/100.:
-                                    rel_err = self.error_floor/100.*abs(zz)
+                            elif comp.find('z') == 0:
+                                if self.error_type == 'floor':
+                                    rel_err = self.data_array[ss][c_key+'_err'][ff, z_ii, z_jj]/\
+                                              abs(zz)
+                                    if rel_err < self.error_floor/100.:
+                                        rel_err = self.error_floor/100.*abs(zz)
+                                
+                                elif self.error_type == 'value':
+                                    rel_err = abs(zz)*self.error_value/100.
+                                
+                                elif self.error_type == 'egbert':
+                                    rel_err = np.sqrt(abs(self.data_array[ss][c_key][ff, 0, 1]*\
+                                              self.data_array[ss][c_key][ff, 1, 0]))*\
+                                              self.error_egbert/100.
                             
-                            elif self.error_type == 'value':
-                                rel_err = abs(zz)*self.error_value/100.
-                            
-                            elif self.error_type == 'egbert':
-                                rel_err = np.sqrt(abs(self.data_array[ss, ff]['zxy']*\
-                                          self.data_array[ss, ff]['zyx']))*\
-                                          self.error_egbert/100.
-                            
-                            rel_err = '{0:> 14.6e}'.format(rel_err)
+                            rel_err = '{0:> 14.6e}'.format(abs(rel_err))
                             #make sure that x==north, y==east, z==+down
                             dline = ''.join([per, sta, lat, lon, nor, eas, ele, 
                                              com, rea, ima, rel_err, '\n'])
@@ -376,28 +614,8 @@ class Data(object):
         nf = wsd.period_list.shape[0]
         
         self.period_list = wsd.period_list.copy()
-        z_shape = (nf, 2, 2)
-        t_shape = (nf, 1, 2)
-        self.data_array = np.zeros(ns, 
-                                   dtype=[('station', '|S10'),
-                                          ('east', np.float),
-                                          ('north', np.float),
-                                          ('z_data', (np.complex, z_shape)),
-                                          ('z_data_err', (np.float, z_shape))])
-                                          ('t_data', (np.complex, t_shape)),
-                                          ('t_data_err', (np.float, t_shape))])
-#        self.data_array = np.zeros((ns, nf), dtype=[('zxx', np.complex),
-#                                                    ('zxy', np.complex),
-#                                                    ('zyx', np.complex),
-#                                                    ('zyy', np.complex),
-#                                                    ('txy', np.complex),
-#                                                    ('tyx', np.complex),
-#                                                    ('zxx_err', np.float),
-#                                                    ('zxy_err', np.float),
-#                                                    ('zyx_err', np.float),
-#                                                    ('zyy_err', np.float),
-#                                                    ('txy_err', np.float),
-#                                                    ('tyx_err', np.float)])
+        self._set_dtype((nf, 2, 2), (nf, 1, 2))
+        self.data_array = np.zeros(ns, dtype=self._dtype)
                                                     
         #--> fill data array
         for ii, d_arr in enumerate(wsd.data):
@@ -458,6 +676,11 @@ class Data(object):
         """
         read ModEM data file
         
+        Fills attributes: 
+            * data_array
+            * period_list
+            * mt_dict
+        
         """
         
         if data_fn is not None:
@@ -498,6 +721,7 @@ class Data(object):
         self.period_list = np.array(sorted(set(period_list)))
         station_list = sorted(set(station_list))
         
+        #make a period dictionary to with key as period and value as index
         period_dict = dict([(per, ii) for ii, per in enumerate(self.period_list)])
         
         #--> need to sort the data into a useful fashion such that each station
@@ -509,7 +733,9 @@ class Data(object):
         
         index_dict = {'zxx': (0, 0), 'zxy':(0, 1), 'zyx':(1, 0), 'zyy':(1, 1),
                       'tx':(0, 0), 'ty':(0, 1)} 
-                      
+        
+        #dictionary for true false if station data (lat, lon, elev, etc) 
+        #has been filled already so we don't rewrite it each time              
         tf_dict = {}
         for station in station_list:
             data_dict[station] = mt.MT()
@@ -519,11 +745,18 @@ class Data(object):
             data_dict[station].Tipper = mtz.Tipper(tipper_array=t_dummy.copy(), 
                                                    tippererr_array=t_dummy.copy().real, 
                                                    freq=1./self.period_list)
+            #make sure that the station data starts out with false to fill
+            #the data later
             tf_dict[station] = False
-                                                   
+            
+        #fill in the data for each station                                      
         for dd in data_list:
+            #get the period index from the data line
             p_index = period_dict[dd[0]]
+            #get the component index from the data line
             ii, jj = index_dict[dd[7].lower()]
+            
+            #if the station data has not been filled yet, fill it
             if tf_dict[dd[1]] == False:
                 data_dict[dd[1]].lat = dd[2]
                 data_dict[dd[1]].lon = dd[3]
@@ -532,16 +765,21 @@ class Data(object):
                 data_dict[dd[1]].grid_elev = dd[6]
                 data_dict[dd[1]].station = dd[1]
                 tf_dict[dd[1]] = True
+            #fill in the impedance tensor with appropriate values
             if dd[7].find('Z') == 0:
                 data_dict[dd[1]].Z.z[p_index, ii, jj] = dd[8]+1j*dd[9]
                 data_dict[dd[1]].Z.zerr[p_index, ii, jj] = dd[10]
+            #fill in tipper with appropriate values
             elif dd[7].find('T') == 0:
                 data_dict[dd[1]].Tipper.tipper[p_index, ii, jj] = dd[8]+1j*dd[9]
                 data_dict[dd[1]].Tipper.tippererr[p_index, ii, jj] = dd[10]
+       
+        #make mt_dict an attribute for easier manipulation later
         self.mt_dict = data_dict
         
         #--> fill coord array
         ns = len(self.mt_dict.keys())
+        nf = len(self.period_list)
         self.coord_array = np.zeros(ns, dtype=[('station','|S10'),
                                                ('east', np.float),
                                                ('north', np.float),
@@ -550,17 +788,39 @@ class Data(object):
                                                ('elev', np.float),
                                                ('rel_east', np.float),
                                                ('rel_north', np.float)])
+        
+        self._set_dtype((nf, 2, 2), (nf, 1, 2))
+        self.data_array = np.zeros(ns, dtype=self._dtype)
 
-        #Be sure to caclulate invariants and phase tensor
-        for ii, key in enumerate(self.mt_dict.keys()):
-            self.mt_dict[key].zinv.compute_invariants
-            self.mt_dict[key].pt.set_z_object(self.mt_dict[key].Z)
-            self.coord_array[ii]['station'] = self.mt_dict[key].station
-            self.coord_array[ii]['lat'] = self.mt_dict[key].lat
-            self.coord_array[ii]['lon'] = self.mt_dict[key].lon
-            self.coord_array[ii]['elev'] = self.mt_dict[key].elev
-            self.coord_array[ii]['rel_east'] = self.mt_dict[key].grid_east
-            self.coord_array[ii]['rel_north'] = self.mt_dict[key].grid_north
+        #Be sure to caclulate invariants and phase tensor for each station
+        for ii, s_key in enumerate(sorted(self.mt_dict.keys())):
+            mt_obj = self.mt_dict[s_key]
+            
+            self.mt_dict[s_key].zinv.compute_invariants()
+            self.mt_dict[s_key].pt.set_z_object(mt_obj.Z)
+            self.coord_array[ii]['station'] = mt_obj.station
+            self.coord_array[ii]['lat'] = mt_obj.lat
+            self.coord_array[ii]['lon'] = mt_obj.lon
+            self.coord_array[ii]['elev'] = mt_obj.elev
+            self.coord_array[ii]['rel_east'] = mt_obj.grid_east
+            self.coord_array[ii]['rel_north'] = mt_obj.grid_north
+            
+            
+            self.data_array[ii]['station'] = mt_obj.station
+            self.data_array[ii]['lat'] = mt_obj.lat
+            self.data_array[ii]['lon'] = mt_obj.lon
+            self.data_array[ii]['east'] = mt_obj.east
+            self.data_array[ii]['north'] = mt_obj.north
+            self.data_array[ii]['elev'] = mt_obj.elev
+            self.data_array[ii]['rel_east'] = mt_obj.grid_east
+            self.data_array[ii]['rel_north'] = mt_obj.grid_north
+            
+            
+            self.data_array[ii]['z'][:] = mt_obj.Z.z
+            self.data_array[ii]['z_err'][:] = mt_obj.Z.zerr
+
+            self.data_array[ii]['tip'][:] =  mt_obj.Tipper.tipper
+            self.data_array[ii]['tip_err'][:] = mt_obj.Tipper.tippererr 
             
         
 #==============================================================================
@@ -732,6 +992,10 @@ class Model(object):
                                      'edi files to read in.')
                                      
             n_stations = len(self.edi_list)
+            
+            if n_stations == 0:
+                raise ModEMError('No .edi files in edi_list, please check '
+                                 'file locations.')
             
             #make a structured array to put station location information into
             self.station_locations = np.zeros(n_stations,
