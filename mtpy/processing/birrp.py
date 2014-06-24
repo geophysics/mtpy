@@ -1762,13 +1762,15 @@ def convert2edi_incl_instrument_correction(stationname, in_dir,
             except:
                 print 'output directory could not be created - using input directory instead'
                 output_dir = input_dir
-
     out_fn = op.join(output_dir,'{0}.edi'.format(stationname))
 
     if not op.isfile(survey_configfile):
         raise MTex.MTpyError_inputarguments('Survey - configfile not existing: "{0}"'.format(survey_configfile))
-    if not op.isfile(birrp_configfile):
-        raise MTex.MTpyError_inputarguments('BIRRP - Configfile not existing: "{0}"'.format(birrp_configfile))
+    
+    if birrp_configfile is not None:
+        if not op.isfile(birrp_configfile):
+            raise MTex.MTpyError_inputarguments('BIRRP - Configfile not existing: "{0}"'.format(birrp_configfile))
+
      
     #read the survey config file:
     #try:
@@ -1778,7 +1780,8 @@ def convert2edi_incl_instrument_correction(stationname, in_dir,
     #     raise EX.MTpyError_config_file( 'Config file cannot be read: %s' % (survey_configfile) )
 
     if not stationname in survey_config_dict:
-        raise MTex.MTpyError_config_file( 'No information about station {0} found in configuration file: {1}'.format(stationname, survey_configfile) )
+        print  'No information about station {0} found in configuration file: {1}'.format(stationname, survey_configfile)  
+        raise MTex.MTpyError_config_file()
 
     station_config_dict = survey_config_dict[stationname]
 
@@ -1788,19 +1791,21 @@ def convert2edi_incl_instrument_correction(stationname, in_dir,
     except:
         sys.exit('ERROR - cannot read instrument response file {0}'.format(instr_response_file))
 
+
     try:
         if not instr_resp.shape[1]==3:
             raise
     except:
         sys.exit('ERROR - instrument response file {0} has wrong format - need 3 columns'.format(instr_response_file))
 
-
     
     #read the BIRRP/processing config file:
-    try:
-        birrp_config_dict = MTcf.read_configfile(birrp_configfile)
-    except:
-        raise MTex.MTpyError_config_file( 'Config file with BIRRP processing parameters could not be read: %s' % (birrp_configfile) )
+    birrp_config_dict = {}
+    if birrp_configfile is not None:
+        try:
+            birrp_config_dict = MTcf.read_configfile(birrp_configfile)
+        except:
+            raise MTex.MTpyError_config_file( 'Config file with BIRRP processing parameters could not be read: %s' % (birrp_configfile) )
 
     #find the birrp-output j-file for the current station 
     j_filename_list = [i for i in os.listdir(input_dir) if op.basename(i).upper() == ('%s.j'%stationname).upper() ]
@@ -2218,6 +2223,8 @@ def read_j_file(fn):
                             value = np.nan
                         tipper[idx_per,idx_z_entry,idx_comp] = value
 
+
+
     return _check_j_file_content(periods, Z, tipper)
 
  
@@ -2241,7 +2248,7 @@ def _check_j_file_content( periods_array, Z_array, tipper_array):
     #print lo_all_periods_raw
     #lo_all_periods_raw.sort()
     lo_all_periods = np.array(sorted(lo_all_periods_raw))
-    #print lo_all_periods
+
 
     n_period_entries = periods_array.shape[1]
 
@@ -2289,7 +2296,6 @@ def _check_j_file_content( periods_array, Z_array, tipper_array):
                 tipper_array_out[idx,:,k] = tipper_array[idx_tuple[k+4],:,k]
 
  
-
 
     return np.array(lo_periods_out), Z_array_out, tipper_array_out  
 

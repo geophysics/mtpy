@@ -329,7 +329,7 @@ class PlotStrike2D(object):
                 tip.compute_components()
             
             #needs to be negative because measures clockwise
-            tipr = tip.ang_real[index_2d]
+            tipr = -tip.ang_real[index_2d]
             
             tipr[np.where(tipr == 180.)] = 0.0
             tipr[np.where(tipr == -180.)] = 0.0
@@ -575,7 +575,7 @@ class PlotStrike2D(object):
                 axlist = [self.axhpt]
             else:
                 self.axhpt = self.fig.add_subplot(1, 2, 1, polar=True)
-                self.axhtip = self.fig.add_subplot(1, 2, 3, polar=True)
+                self.axhtip = self.fig.add_subplot(1, 2, 2, polar=True)
                 axlist=[self.axhpt, self.axhtip]
             
             #make a list of indicies for each decades    
