@@ -1730,7 +1730,7 @@ class Model(object):
         east = self.station_locations['rel_east'].max()+self.cell_size_east*3/2.
         south = self.station_locations['rel_north'].min()-self.cell_size_north*3/2.
         north = self.station_locations['rel_north'].max()+self.cell_size_north*3/2.
-        print self.Data.center_position_EN
+
         # round end nodes
         westr = np.round(west, -2)
         eastr= np.round(east, -2)
@@ -1775,7 +1775,7 @@ class Model(object):
         north_gridr = np.arange(start=southr, stop=northr+self.cell_size_north, 
                                 step=self.cell_size_north)
         self.Data.center_position_EN[1] -= np.mean(north_gridr)
-        print self.Data.center_position
+
         north_gridr -= np.mean(north_gridr)
         #padding cells in the east-west direction
         for ii in range(1, self.pad_north+1):
