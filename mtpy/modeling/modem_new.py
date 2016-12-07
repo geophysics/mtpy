@@ -1744,7 +1744,9 @@ class Model(object):
         #cells within station area
         east_gridr = np.arange(start=westr, stop=eastr+self.cell_size_east,
                                step=self.cell_size_east)
-        self.Data.center_position_EN[0] -= np.mean(east_gridr)
+        if self.Data.rotation_angle == 0:
+            self.Data.center_position_EN[0] -= np.mean(east_gridr)
+            self.station_locations['rel_east'] -= np.mean(east_gridr)
         east_gridr -= np.mean(east_gridr)
         #padding cells in the east-west direction
         for ii in range(1,self.pad_east+1):
@@ -1774,8 +1776,9 @@ class Model(object):
         #N-S cells with in station area
         north_gridr = np.arange(start=southr, stop=northr+self.cell_size_north, 
                                 step=self.cell_size_north)
-        self.Data.center_position_EN[1] -= np.mean(north_gridr)
-
+        if self.Data.rotation_angle == 0:
+            self.Data.center_position_EN[1] -= np.mean(north_gridr)
+            self.station_locations['rel_north'] -= np.mean(north_gridr)
         north_gridr -= np.mean(north_gridr)
         #padding cells in the east-west direction
         for ii in range(1, self.pad_north+1):
@@ -1830,11 +1833,10 @@ class Model(object):
         north_nodes = north_gridr[1:]-north_gridr[:-1]
 
         #compute grid center
-#        center_east = -east_nodes.__abs__().sum()/2
-#        center_north = -north_nodes.__abs__().sum()/2
+        center_east = -east_nodes.__abs__().sum()/2
+        center_north = -north_nodes.__abs__().sum()/2
         center_z = 0
-        self.grid_center = np.array([self.Data.center_position_EN[0], 
-                                     self.Data.center_position_EN[1], center_z])
+        self.grid_center = np.array([center_north,center_east, center_z])
         
         #make nodes attributes
         self.nodes_east = east_nodes
@@ -2660,6 +2662,69 @@ class Model(object):
         
         print 'Wrote file to {0}'.format(vtk_fn)
 
+    
+    def write_gocad_sgrid_file(self, outfilname = None,coordinates='relative'):
+        """
+        write the model to gocad sgrid
+
+        """
+        ny,nx,nz = self.res_model.shape
+        res_property_name = 'Resi'
+        headerlines = ["GOCAD SGrid 1 ","HEADER {","name:{}".format(outfilename),
+        "volume:false","ascii:on", "painted:on",
+        "*painted*variable:{}".format(res_property_name),
+        "last_selected_folder:Property sections",
+        "*volume*grid:false",
+        "*volume*solid:false",
+        "*cube*solid:false",
+        "*cube*grid:false",
+        "*volume*points:false",
+        "*Resi*psections:3 1 0 0 2 0 0 3 0 0",
+        "double_precision_binary:off",
+        "sections:3 1 0 0 2 0 0 3 0 0",
+        "*FenceDiagram*I_selection:1",
+        "*FenceDiagram*J_selection:1",
+        "*FenceDiagram*K_selection:1",
+        "*FenceDiagram*I_clipping:0 {}".format(ny+1),
+        "*FenceDiagram*SubBlock*maximum_I:{}".format(ny),
+        "*FenceDiagram*J_clipping:0 {}".format(nx+1),
+        "*FenceDiagram*SubBlock*maximum_J:{}".format(nx),
+        "*FenceDiagram*K_clipping:0 {}".format(nz+1),
+        "*FenceDiagram*SubBlock*maximum_K:{}".format(nz),
+        "dead_cells_faces:false",
+        "cage:false",
+        "}",
+        "GOCAD_ORIGINAL_COORDINATE_SYSTEM",
+        "NAME Default",
+        'AXIS_NAME "X" "Y" "Z"',
+        'AXIS_UNIT "m" "m" "m"',
+        'ZPOSITIVE Elevation',
+        "END_ORIGINAL_COORDINATE_SYSTEM",
+        "AXIS_N {} {} {}".format(ny,nx,nz) ,
+        "PROP_ALIGNMENT CELLS",
+        "ASCII_DATA_FILE {}__ascii@@".format(outfilename),
+        "",
+        "",
+        'PROPERTY 1 "{}"'.format(res_property_name),
+        'PROPERTY_CLASS 1 "{}"'.format(res_property_name),
+        'PROPERTY_CLASS_HEADER 1 "{}" {'.format(str.lower(res_property_name)),
+        "low_clip:0",
+        "high_clip:6",
+        "pclip:99",
+        "colormap:flag",
+        "*colormap*reverse:true",
+        "name:{}".format(str.lower(res_property_name),
+        "}",
+        "PROPERTY_SUBCLASS 1 QUANTITY Float",
+        "PROP_ORIGINAL_UNIT 1 none",
+        "PROP_UNIT 1 none",
+        "PROP_NO_DATA_VALUE 1 -99999",
+        "PROP_ESIZE 1 4",
+        "END"]
+
+        
+        
+        return
 
 
 #==============================================================================
@@ -3014,19 +3079,19 @@ class Covariance(object):
         
         #--> grid dimensions
         clines.append(' {0:<10}{1:<10}{2:<10}\n'.format(self.grid_dimensions[0],
-                                                       self.grid_dimensions[1],
-                                                       self.grid_dimensions[2]))
+                                                        self.grid_dimensions[1],
+                                                        self.grid_dimensions[2]))
         clines.append('\n')
         
         #--> smoothing in north direction        
         n_smooth_line = ''
-        for zz in range(self.grid_dimensions[0]):
+        for zz in range(self.grid_dimensions[2]):
             n_smooth_line += ' {0:<5.1f}'.format(self.smoothing_north)
         clines.append(n_smooth_line+'\n')
 
         #--> smoothing in east direction
         e_smooth_line = ''
-        for zz in range(self.grid_dimensions[1]):
+        for zz in range(self.grid_dimensions[2]):
             e_smooth_line += ' {0:<5.1f}'.format(self.smoothing_east)
         clines.append(e_smooth_line+'\n')
         
