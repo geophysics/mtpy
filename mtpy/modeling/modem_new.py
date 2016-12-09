@@ -2665,26 +2665,48 @@ class Model(object):
         print 'Wrote file to {0}'.format(vtk_fn)
 
     
-    def write_gocad_sgrid_file(self, outfilename = None, origin=[0,0,0],
-                               z_convention = 'positive_up',no_data_value=-99999):
+    def write_gocad_sgrid_file(self, fn = None, origin=[0,0,0],clip=0,no_data_value=-99999):
         """
-        write the model to gocad sgrid
+        write a model to gocad sgrid
+        
+        optional inputs:
+        
+        fn = filename to save to. File extension ('.sg') will be appended. 
+             default is the model name with extension removed
+        origin = real world [x,y,z] location of zero point in model grid
+        clip = how much padding to clip off the edge of the model for export,
+               provide one integer value or list of 3 integers for x,y,z directions
+        no_data_value = no data value to put in sgrid
+        
+        
 
         """
-        pad = 2
+        if not np.iterable(clip):
+            clip = [clip,clip,clip]
+        z_convention = 'positive_up'
         ny,nx,nz = np.array(self.res_model.shape) + 1
-        ny -= (self.pad_north - pad)*2
-        nx -= (self.pad_east - pad)*2
-        nz -= self.pad_z - pad
+        ny -= clip[1]*2#(self.pad_north - pad)*2
+        nx -= clip[0]*2#(self.pad_east - pad)*2
+        nz -= clip[2]#self.pad_z - pad
         res_property_name = 'Resi'
-        if outfilename is None:
-            outfilename = op.join(op.dirname(self.model_fn),
+        
+        # determine save path
+        savepath = None
+        if fn is not None:
+            savepath = op.dirname(fn)
+            if len(savepath) == 0:
+                savepath = None
+        if savepath is None:
+            savepath = op.dirname(self.model_fn)
+            
+        if fn is None:
+            fn = op.join(op.dirname(self.model_fn),
                                   op.basename(self.model_fn).split('.')[0])
-        propfilename= outfilename+'__ascii@@'
+        propfilename= fn+'__ascii@@'
         
         headerlines = [r''+ item + '\n' for item in ['GOCAD SGrid 1 ',
         'HEADER {',
-        'name:{}'.format(op.basename(outfilename)),
+        'name:{}'.format(op.basename(fn)),
         'ascii:on',
         'double_precision_binary:off',
         '}',
@@ -2721,14 +2743,15 @@ class Model(object):
 
         
         # write header file
-        with open(outfilename,'w') as hdrfile:
+        with open(fn,'w') as hdrfile:
             hdrfile.writelines(headerlines)
             
+        nyin,nxin,nzin = np.array(self.res_model.shape)+1
         
         # get x, y and z positions
-        gridedges = [self.grid_east[self.pad_east-pad:-self.pad_east+pad]+origin[0],
-                     self.grid_north[self.pad_north-pad:-self.pad_north+pad]+origin[1],
-                     self.grid_z[:-self.pad_z+pad]-origin[2]]
+        gridedges = [self.grid_east[clip[0]:nxin-clip[0]]+origin[0],
+                     self.grid_north[clip[1]:nyin-clip[1]]+origin[1],
+                     self.grid_z[:nzin-clip[2]]-origin[2]]
 #        gridcentres = [np.mean([arr[1:],arr[:-1]],axis=0) for arr in gridedges]
          
         x,y,z = [arr.transpose(2,1,0).flatten() for arr in \
@@ -2742,7 +2765,7 @@ class Model(object):
         # initialise an array with one more cell in each direction - need an extra dummy cell that won't display in sgrid
         resmodel = np.ones(np.array(self.res_model.shape)+1)*no_data_value
         resmodel[:-1,:-1,:-1] = self.res_model
-        resvals = resmodel[self.pad_north-pad:-self.pad_north+pad,self.pad_east-pad:-self.pad_east+pad,:-self.pad_z+pad].transpose(2,1,0).flatten()
+        resvals = resmodel[clip[1]:nyin-clip[1],clip[0]:nxin-clip[0],:nzin-clip[2]].transpose(2,1,0).flatten()
 
         # make an array containing the data
         data = np.vstack([x,y,z,resvals,i,j,k]).T
@@ -2751,7 +2774,7 @@ class Model(object):
         datahdr = '\n X Y Z Resi I J K\n'
         
         # write property values
-        outfilename += '.sg'
+        fn += '.sg'
         np.savetxt(propfilename,data,header=datahdr,comments='*',fmt=['%10.3f']*4 + ['%10i']*3)
 
 
