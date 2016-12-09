@@ -14,6 +14,7 @@ ModEM
 """
 
 import os
+import os.path as op
 import mtpy.core.z as mtz
 import mtpy.core.mt as mt
 import numpy as np
@@ -1736,9 +1737,9 @@ class Model(object):
         eastr= np.round(east, -2)
         southr= np.round(south, -2)
         northr = np.round(north, -2)
-        # adjust center position (centre may be moved by rounding)
-        self.Data.center_position_EN[0] += (westr + eastr - west - east)/2.
-        self.Data.center_position_EN[1] += (southr + northr - south - north)/2.
+#        # adjust center position (centre may be moved by rounding)
+#        self.Data.center_position_EN[0] += (westr + eastr - west - east)/2.
+#        self.Data.center_position_EN[1] += (southr + northr - south - north)/2.
         #-------make a grid around the stations from the parameters above------
         #--> make grid in east-west direction
         #cells within station area
@@ -1746,7 +1747,7 @@ class Model(object):
                                step=self.cell_size_east)
         if self.Data.rotation_angle == 0:
             self.Data.center_position_EN[0] -= np.mean(east_gridr)
-            self.station_locations['rel_east'] -= np.mean(east_gridr)
+            self.station_locations['rel_east'] += np.mean(east_gridr)
         east_gridr -= np.mean(east_gridr)
         #padding cells in the east-west direction
         for ii in range(1,self.pad_east+1):
@@ -1778,7 +1779,7 @@ class Model(object):
                                 step=self.cell_size_north)
         if self.Data.rotation_angle == 0:
             self.Data.center_position_EN[1] -= np.mean(north_gridr)
-            self.station_locations['rel_north'] -= np.mean(north_gridr)
+            self.station_locations['rel_north'] += np.mean(north_gridr)
         north_gridr -= np.mean(north_gridr)
         #padding cells in the east-west direction
         for ii in range(1, self.pad_north+1):
@@ -1805,7 +1806,8 @@ class Model(object):
         #--> make depth grid
         log_z = np.logspace(np.log10(self.z1_layer), 
                             np.log10(self.z_target_depth),
-                            num=self.n_layers-self.pad_z-self.n_airlayers)
+                            num=self.n_layers-self.pad_z-self.n_airlayers+1)
+        log_z = log_z[1:] - log_z[:-1]
         z_nodes = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
                            log_z])
         # index of top of padding
@@ -2663,68 +2665,95 @@ class Model(object):
         print 'Wrote file to {0}'.format(vtk_fn)
 
     
-    def write_gocad_sgrid_file(self, outfilname = None,coordinates='relative'):
+    def write_gocad_sgrid_file(self, outfilename = None, origin=[0,0,0],
+                               z_convention = 'positive_up',no_data_value=-99999):
         """
         write the model to gocad sgrid
 
         """
-        ny,nx,nz = self.res_model.shape
+        pad = 2
+        ny,nx,nz = np.array(self.res_model.shape) + 1
+        ny -= (self.pad_north - pad)*2
+        nx -= (self.pad_east - pad)*2
+        nz -= self.pad_z - pad
         res_property_name = 'Resi'
-        headerlines = ["GOCAD SGrid 1 ","HEADER {","name:{}".format(outfilename),
-        "volume:false","ascii:on", "painted:on",
-        "*painted*variable:{}".format(res_property_name),
-        "last_selected_folder:Property sections",
-        "*volume*grid:false",
-        "*volume*solid:false",
-        "*cube*solid:false",
-        "*cube*grid:false",
-        "*volume*points:false",
-        "*Resi*psections:3 1 0 0 2 0 0 3 0 0",
-        "double_precision_binary:off",
-        "sections:3 1 0 0 2 0 0 3 0 0",
-        "*FenceDiagram*I_selection:1",
-        "*FenceDiagram*J_selection:1",
-        "*FenceDiagram*K_selection:1",
-        "*FenceDiagram*I_clipping:0 {}".format(ny+1),
-        "*FenceDiagram*SubBlock*maximum_I:{}".format(ny),
-        "*FenceDiagram*J_clipping:0 {}".format(nx+1),
-        "*FenceDiagram*SubBlock*maximum_J:{}".format(nx),
-        "*FenceDiagram*K_clipping:0 {}".format(nz+1),
-        "*FenceDiagram*SubBlock*maximum_K:{}".format(nz),
-        "dead_cells_faces:false",
-        "cage:false",
-        "}",
-        "GOCAD_ORIGINAL_COORDINATE_SYSTEM",
-        "NAME Default",
+        if outfilename is None:
+            outfilename = op.join(op.dirname(self.model_fn),
+                                  op.basename(self.model_fn).split('.')[0])
+        propfilename= outfilename+'__ascii@@'
+        
+        headerlines = [r''+ item + '\n' for item in ['GOCAD SGrid 1 ',
+        'HEADER {',
+        'name:{}'.format(op.basename(outfilename)),
+        'ascii:on',
+        'double_precision_binary:off',
+        '}',
+        'GOCAD_ORIGINAL_COORDINATE_SYSTEM',
+        'NAME Default',
         'AXIS_NAME "X" "Y" "Z"',
         'AXIS_UNIT "m" "m" "m"',
         'ZPOSITIVE Elevation',
-        "END_ORIGINAL_COORDINATE_SYSTEM",
-        "AXIS_N {} {} {}".format(ny,nx,nz) ,
-        "PROP_ALIGNMENT CELLS",
-        "ASCII_DATA_FILE {}__ascii@@".format(outfilename),
-        "",
-        "",
+        'END_ORIGINAL_COORDINATE_SYSTEM',
+        'AXIS_N {} {} {} '.format(ny,nx,nz),
+        'PROP_ALIGNMENT CELLS',
+        'ASCII_DATA_FILE {}'.format(op.basename(propfilename)),
+        '',
+        '',
         'PROPERTY 1 "{}"'.format(res_property_name),
         'PROPERTY_CLASS 1 "{}"'.format(res_property_name),
-        'PROPERTY_CLASS_HEADER 1 "{}" {'.format(str.lower(res_property_name)),
-        "low_clip:0",
-        "high_clip:6",
-        "pclip:99",
-        "colormap:flag",
-        "*colormap*reverse:true",
-        "name:{}".format(str.lower(res_property_name),
-        "}",
-        "PROPERTY_SUBCLASS 1 QUANTITY Float",
-        "PROP_ORIGINAL_UNIT 1 none",
-        "PROP_UNIT 1 none",
-        "PROP_NO_DATA_VALUE 1 -99999",
-        "PROP_ESIZE 1 4",
-        "END"]
+        'PROPERTY_KIND 1 "Resistivity"',
+        'PROPERTY_CLASS_HEADER 1 "{}" '.format(str.lower(res_property_name))+'{',
+        'low_clip:1',
+        'high_clip:10000',
+        'pclip:99',
+        'colormap:flag',
+        'last_selected_folder:Property',
+        'scale_function:log10',
+        '*colormap*reverse:true',
+        '}',
+        'PROPERTY_SUBCLASS 1 QUANTITY Float',
+        'PROP_ORIGINAL_UNIT 1 ohm*m',
+        'PROP_UNIT 1 ohm*m',
+        'PROP_NO_DATA_VALUE 1 {}'.format(no_data_value),
+        'PROP_ESIZE 1 4',
+        'END']]
+
 
         
+        # write header file
+        with open(outfilename,'w') as hdrfile:
+            hdrfile.writelines(headerlines)
+            
         
-        return
+        # get x, y and z positions
+        gridedges = [self.grid_east[self.pad_east-pad:-self.pad_east+pad]+origin[0],
+                     self.grid_north[self.pad_north-pad:-self.pad_north+pad]+origin[1],
+                     self.grid_z[:-self.pad_z+pad]-origin[2]]
+#        gridcentres = [np.mean([arr[1:],arr[:-1]],axis=0) for arr in gridedges]
+         
+        x,y,z = [arr.transpose(2,1,0).flatten() for arr in \
+                 np.meshgrid(*gridedges)]
+        if z_convention == 'positive_up':
+            z *= -1.
+        # get i, j, k coordinates (note y is i and x is j)
+        j,i,k = [arr.transpose(2,1,0).flatten() for arr in \
+                np.meshgrid(*[np.arange(len(arr2)) for arr2 in gridedges])]
+        # get resistivity values
+        # initialise an array with one more cell in each direction - need an extra dummy cell that won't display in sgrid
+        resmodel = np.ones(np.array(self.res_model.shape)+1)*no_data_value
+        resmodel[:-1,:-1,:-1] = self.res_model
+        resvals = resmodel[self.pad_north-pad:-self.pad_north+pad,self.pad_east-pad:-self.pad_east+pad,:-self.pad_z+pad].transpose(2,1,0).flatten()
+
+        # make an array containing the data
+        data = np.vstack([x,y,z,resvals,i,j,k]).T
+        
+        # make data header
+        datahdr = '\n X Y Z Resi I J K\n'
+        
+        # write property values
+        outfilename += '.sg'
+        np.savetxt(propfilename,data,header=datahdr,comments='*',fmt=['%10.3f']*4 + ['%10i']*3)
+
 
 
 #==============================================================================
