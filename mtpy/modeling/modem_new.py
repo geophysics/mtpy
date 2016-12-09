@@ -34,6 +34,7 @@ import mtpy.utils.exceptions as mtex
 import mtpy.analysis.pt as mtpt
 import mtpy.imaging.mtcolors as mtcl
 import scipy.interpolate as spi
+import mtpy.utils.gocad as mtgocad
 try:
     from evtk.hl import gridToVTK, pointsToVTK
 except ImportError:
@@ -2664,8 +2665,57 @@ class Model(object):
         
         print 'Wrote file to {0}'.format(vtk_fn)
 
+
     
     def write_gocad_sgrid_file(self, fn = None, origin=[0,0,0],clip=0,no_data_value=-99999):
+        """
+        write a model to gocad sgrid
+        
+        optional inputs:
+        
+        fn = filename to save to. File extension ('.sg') will be appended. 
+             default is the model name with extension removed
+        origin = real world [x,y,z] location of zero point in model grid
+        clip = how much padding to clip off the edge of the model for export,
+               provide one integer value or list of 3 integers for x,y,z directions
+        no_data_value = no data value to put in sgrid
+
+        """
+        if not np.iterable(clip):
+            clip = [clip,clip,clip] 
+
+        # determine save path
+        savepath = None
+        if fn is not None:
+            savepath = op.dirname(fn)
+            if len(savepath) == 0:
+                savepath = None
+        if savepath is None:
+            savepath = op.dirname(self.model_fn)
+            
+        if fn is None:
+            fn = op.join(op.dirname(self.model_fn),
+                                  op.basename(self.model_fn).split('.')[0])
+        
+        # number of cells in the ModEM model
+        nyin,nxin,nzin = np.array(self.res_model.shape) + 1
+        
+        # get x, y and z positions
+        gridedges = [self.grid_east[clip[0]:nxin-clip[0]]+origin[0],
+                     self.grid_north[clip[1]:nyin-clip[1]]+origin[1],
+                     -1.*self.grid_z[:nzin-clip[2]]-origin[2]]
+        gridedges = np.meshgrid(*gridedges)
+        
+        # resistivity values, clipped to one smaller than grid edges
+        resvals = self.res_model[clip[1]:nyin-clip[1]-1,clip[0]:nxin-clip[0]-1,:nzin-clip[2]-1]
+
+
+        sgObj = mtgocad.Sgrid(resistivity=resvals,grid_xyz=gridedges,
+                              fn=fn,workdir=savepath)
+        sgObj.write_sgrid_file()
+
+
+    def old_write_gocad_sgrid_file(self, fn = None, origin=[0,0,0],clip=0,no_data_value=-99999):
         """
         write a model to gocad sgrid
         
@@ -2743,6 +2793,7 @@ class Model(object):
 
         
         # write header file
+        fn += '.sg'
         with open(fn,'w') as hdrfile:
             hdrfile.writelines(headerlines)
             
@@ -2774,7 +2825,6 @@ class Model(object):
         datahdr = '\n X Y Z Resi I J K\n'
         
         # write property values
-        fn += '.sg'
         np.savetxt(propfilename,data,header=datahdr,comments='*',fmt=['%10.3f']*4 + ['%10i']*3)
 
 
