@@ -35,6 +35,7 @@ import mtpy.analysis.pt as mtpt
 import mtpy.imaging.mtcolors as mtcl
 import scipy.interpolate as spi
 import mtpy.utils.gocad as mtgocad
+reload(mtgocad)
 try:
     from evtk.hl import gridToVTK, pointsToVTK
 except ImportError:
@@ -1700,6 +1701,30 @@ class Model(object):
 #        self.station_locations['rel_north'] -= north_center
 
 
+    def _reset_defaults_for_reading(self):
+        """
+        Reset all the defaults for input parameters prior to reading a model
+        """
+       # size of cells within station area in meters
+        self.cell_size_east = None
+        self.cell_size_north = None
+        
+        
+        self.z1_layer = None
+        self.z_target_depth = None
+        self.z_bottom = None
+        
+        #number of vertical layers
+        self.n_layers = None
+        
+        # number of air layers
+        self.n_airlayers = None
+        # sea level in grid_z coordinates. Auto adjusts when topography read in
+        self.sea_level = 0.
+
+
+
+
     def make_mesh(self, update_data_center=False):
         """ 
         create finite element mesh according to parameters set.
@@ -2119,8 +2144,8 @@ class Model(object):
                 szi = 0
             # assign topography value
             topoval = self.grid_z[szi]
-            self.station_locations['elev'][ss] = topoval
-            self.Data.data_array['elev'][ss] = topoval
+            self.station_locations['elev'][ss] = topoval + 0.1
+            self.Data.data_array['elev'][ss] = topoval + 0.1
         self.Data.station_locations = self.station_locations
         
 
@@ -2713,6 +2738,79 @@ class Model(object):
         sgObj = mtgocad.Sgrid(resistivity=resvals,grid_xyz=gridedges,
                               fn=fn,workdir=savepath)
         sgObj.write_sgrid_file()
+
+    
+    def read_gocad_sgrid_file(self,sgrid_header_file,air_resistivity=1e39, sea_resistivity=0.3):
+        """
+        read a gocad sgrid file and put this info into a ModEM file.
+        Note: can only deal with grids oriented N-S or E-W at this stage,
+        with orthogonal coordinates
+        
+        """
+        # read sgrid file
+        sgObj = mtgocad.Sgrid()
+        sgObj.read_sgrid_file(sgrid_header_file)
+        self.sgObj = sgObj
+        
+        # check if we have a data object and if we do, is there a centre position
+        # if not then assume it is the centre of the grid
+        calculate_centre = True
+        if self.Data is not None:
+            if hasattr(self.Data,'center_position_EN'):
+                if self.Data.center_position_EN is not None:
+                    centre = np.zeros(3)
+                    centre[:2] = self.Data.center_position_EN
+                    calculate_centre = False    
+
+        # get resistivity model values
+        self.res_model = sgObj.resistivity
+        
+        # get nodes and grid locations
+        grideast, gridnorth, gridz = [np.unique(sgObj.grid_xyz[i]) for i in range(3)]
+        gridz = np.abs(gridz)
+        gridz.sort()
+        if np.all(np.array([len(gridnorth),len(grideast),len(gridz)]) - 1 == np.array(self.res_model.shape)):
+            self.grid_east, self.grid_north, self.grid_z = grideast, gridnorth, gridz
+        else:
+            print "Cannot read sgrid, can't deal with non-orthogonal grids or grids not aligned N-S or E-W"
+            return
+
+        # get nodes
+        self.nodes_east = self.grid_east[1:] - self.grid_east[:-1]
+        self.nodes_north = self.grid_north[1:] - self.grid_north[:-1]
+        self.nodes_z = self.grid_z[1:] - self.grid_z[:-1]
+
+        self.z1_layer = self.nodes_z[0]
+#        self.z_target_depth = None
+        self.z_bottom = self.nodes_z[-1]
+        
+        #number of vertical layers
+        self.n_layers = len(self.grid_z) - 1
+        
+        # number of air layers
+        self.n_airlayers = sum(np.amax(self.res_model,axis=(0,1))>0.9*air_resistivity)
+        
+        # sea level in grid_z coordinates, calculate and adjust centre
+        self.sea_level = self.grid_z[self.n_airlayers]
+        
+        # get relative grid locations
+        if calculate_centre:
+            print "Calculating center position"
+            centre = np.zeros(3)
+            centre[0] = (self.grid_east.max() + self.grid_east.min())/2.
+            centre[1] = (self.grid_north.max() + self.grid_north.min())/2.
+        centre[2] = self.grid_z[self.n_airlayers]
+        self.grid_east -= centre[0]
+        self.grid_north -= centre[1]
+        self.grid_z += centre[2]
+#
+#        # make covariance mask
+#        self.covariance_mask = np.ones_like(self.res_model)        
+#        self.covariance_mask[self.res_model > 0.9*air_resistivity] = 0
+#        self.covariance_mask[self.res_model > 0.9*air_resistivity] = 0
+
+
+
 
 
     def old_write_gocad_sgrid_file(self, fn = None, origin=[0,0,0],clip=0,no_data_value=-99999):

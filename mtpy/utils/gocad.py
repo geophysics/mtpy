@@ -13,7 +13,7 @@ import os.path as op
 
 class Sgrid():
     """
-    create a gocad sgrid file
+    class to read and write gocad sgrid files
     
     need to provide:
     workdir = working directory
@@ -30,9 +30,53 @@ class Sgrid():
         self.property_fn = self.fn + '__ascii@@'
         self.property_name = 'Resistivity'
         self.grid_xyz = kwargs.pop('grid_xyz',None)
+        if self.grid_xyz is not None:
+            self.ncells = self.grid_xyz[0].shape
         self.resistivity = kwargs.pop('resistivity',None)
         self.no_data_value = -99999
         
+
+    def _read_header(self, headerfn = None):
+        """
+        read header, get the following attributes and store in object
+        - ascii data file name
+        - number of cells in x, y and z direction      
+        
+        """
+        print "headerfn",headerfn
+        if headerfn is not None:
+            self.workdir = op.dirname(headerfn)
+            self.fn = headerfn
+        
+        if self.fn is None:
+            print "Cannot read, no header file name provided"
+            return
+        
+        with open(op.join(self.workdir,self.fn)) as header:
+            for line in header.readlines():
+                if line.startswith('AXIS_N '):
+                    self.ncells = [int(val) for val in line.strip().split()[1:]]
+                for param in ['ASCII_DATA_FILE']:
+                    if line.startswith(param):
+                        setattr(self,str.lower(param),line.strip().split()[1])
+        
+        
+    def _read_ascii_data(self,ascii_data_file=None):
+        
+        if self.ascii_data_file is None:
+            self._read_header()
+            
+        asciidata = np.loadtxt(op.join(self.workdir,self.ascii_data_file),comments='*')
+        
+        self.grid_xyz = [asciidata[:,i].reshape(*self.ncells[::-1]).transpose(2,1,0) for i in range(3)]
+        self.resistivity = asciidata[:,3].reshape(*self.ncells[::-1]).transpose(2,1,0)[:-1,:-1,:-1]
+        
+        
+    def read_sgrid_file(self, headerfn = None):
+        self._read_header(headerfn = headerfn)
+        self._read_ascii_data()
+
+
     def _write_header(self):
                 
         ny,nx,nz = np.array(self.resistivity.shape) + 1
@@ -79,7 +123,8 @@ class Sgrid():
             
         with open(hdrfn,'w') as hdrfile:
             hdrfile.writelines(headerlines)
-            
+  
+          
     def _write_data(self):
         
         resmodel = np.ones(np.array(self.resistivity.shape)+1)*self.no_data_value
@@ -99,6 +144,7 @@ class Sgrid():
         
         # write property values
         np.savetxt(self.property_fn,data,header=datahdr,comments='*',fmt=['%10.3f']*4 + ['%10i']*3)
+
         
     def write_sgrid_file(self):
         self._write_header()
