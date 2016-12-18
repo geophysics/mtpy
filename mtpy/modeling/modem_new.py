@@ -1833,7 +1833,7 @@ class Model(object):
         log_z = np.logspace(np.log10(self.z1_layer), 
                             np.log10(self.z_target_depth),
                             num=self.n_layers-self.pad_z-self.n_airlayers+1)
-        log_z = log_z[1:] - log_z[:-1]
+#        log_z = log_z[1:] - log_z[:-1]
         z_nodes = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
                            log_z])
         # index of top of padding
@@ -2144,8 +2144,8 @@ class Model(object):
                 szi = 0
             # assign topography value
             topoval = self.grid_z[szi]
-            self.station_locations['elev'][ss] = topoval + 0.1
-            self.Data.data_array['elev'][ss] = topoval + 0.1
+            self.station_locations['elev'][ss] = topoval + 1.0
+            self.Data.data_array['elev'][ss] = topoval + 1.0
         self.Data.station_locations = self.station_locations
         
 
@@ -3256,6 +3256,8 @@ class Covariance(object):
                 self.mask_arr[np.where(mod_obj.res_model > air*.9)] = 0
                 self.mask_arr[np.where((mod_obj.res_model < sea_water*1.1) & 
                                   (mod_obj.res_model > sea_water*.9))] = 9
+                # flip mask arr as it needs to be in opposite order
+                self.mask_arr = self.mask_arr[::-1]
         else:
             if self.mask_arr is None:
                 self.mask_arr = np.ones((self.grid_dimensions[0],
