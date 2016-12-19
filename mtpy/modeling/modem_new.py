@@ -1553,7 +1553,7 @@ class Residual():
                 
                 # append individual normalised errors to a master list for all stations
                 rms_valuelist_all = np.append(rms_valuelist_all,znorm.flatten())
-                rms_valuelist_z = np.append(rms_valuelist_all,znorm.flatten())
+                rms_valuelist_z = np.append(rms_valuelist_z,znorm.flatten())
                 
                 # normalised error for separate components
                 rms_z_comp[sta_ind] = (((znorm**2.).sum(axis=0))/(znorm.shape[0]))**0.5
@@ -1567,7 +1567,7 @@ class Residual():
                 
                 # append individual normalised errors to a master list for all stations
                 rms_valuelist_all = np.append(rms_valuelist_all,tipnorm.flatten())
-                rms_valuelist_tip = np.append(rms_valuelist_all,tipnorm.flatten())
+                rms_valuelist_tip = np.append(rms_valuelist_tip,tipnorm.flatten())
                 
                 # normalised error for separate components
                 rms_tip_comp[sta_ind] = (((tipnorm**2.).sum(axis=0))/len(tipnorm))**0.5
@@ -6514,14 +6514,16 @@ class PlotPTMaps(mtplottools.MTEllipse):
                                                 ('skew', np.float),
                                                 ('azimuth', np.float),
                                                 ('east', np.float),
-                                                ('north', np.float)])
+                                                ('north', np.float),
+                                                ('station','S10')])
         if self.resp_fn is not None:
             model_pt_arr = np.zeros((nf, ns), dtype=[('phimin', np.float),
                                                     ('phimax', np.float),
                                                     ('skew', np.float),
                                                     ('azimuth', np.float),
                                                     ('east', np.float),
-                                                    ('north', np.float)])
+                                                    ('north', np.float),
+                                                    ('station','S10')])
             
             res_pt_arr = np.zeros((nf, ns), dtype=[('phimin', np.float),
                                                     ('phimax', np.float),
@@ -6529,7 +6531,8 @@ class PlotPTMaps(mtplottools.MTEllipse):
                                                     ('azimuth', np.float),
                                                     ('east', np.float),
                                                     ('north', np.float),
-                                                    ('geometric_mean', np.float)])
+                                                    ('geometric_mean', np.float),
+                                                    ('station','S10')])
                                                 
         for ii, key in enumerate(self.data_obj.mt_dict.keys()):
             east = self.data_obj.mt_dict[key].grid_east/self.dscale
@@ -6541,6 +6544,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
             data_pt_arr[:, ii]['phimax'] = dpt.phimax[0]
             data_pt_arr[:, ii]['azimuth'] = dpt.azimuth[0]
             data_pt_arr[:, ii]['skew'] = dpt.beta[0]
+            data_pt_arr[:, ii]['station'] = self.data_obj.mt_dict[key].station
             if self.resp_fn is not None:
                 mpt = self.resp_obj.mt_dict[key].pt
                 try:
@@ -6553,6 +6557,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
                     res_pt_arr[:, ii]['phimax'] = rpt.phimax[0]
                     res_pt_arr[:, ii]['azimuth'] = rpt.azimuth[0]
                     res_pt_arr[:, ii]['skew'] = rpt.beta[0]
+                    res_pt_arr[:, ii]['station'] = self.data_obj.mt_dict[key].station
                     res_pt_arr[:, ii]['geometric_mean'] = np.sqrt(abs(rpt.phimin[0]*\
                                                                   rpt.phimax[0]))
                 except mtex.MTpyError_PT:
@@ -6564,6 +6569,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
                 model_pt_arr[:, ii]['phimax'] = mpt.phimax[0]
                 model_pt_arr[:, ii]['azimuth'] = mpt.azimuth[0]
                 model_pt_arr[:, ii]['skew'] = mpt.beta[0]
+                model_pt_arr[:, ii]['station'] = self.data_obj.mt_dict[key].station
                 
                 
                 
@@ -6917,6 +6923,39 @@ class PlotPTMaps(mtplottools.MTEllipse):
         for fig in self.fig_list:
             plt.close(fig)
         self.plot()
+            
+    
+    def write_pt_data_to_text(self,savepath='.'):
+        
+        if self.pt_data_arr is None:
+            self._read_files()
+
+        for att in ['pt_data_arr','pt_resp_arr','pt_resid_arr']:
+            if hasattr(self,att):
+                filename = op.join(savepath,att[:-4]+'.txt')
+                headerlist = ['period','station','east','north','azimuth','phimin','phimax','skew']
+                data = getattr(self,att).T.copy()
+                indices = np.argsort(data['station'][:,0])
+
+                data = data[indices].T
+                dtype = []
+                for val in headerlist:
+                    if val == 'station':
+                        dtype.append((val,'S10'))
+                    else:
+                        dtype.append((val,np.float))
+                        
+                data_to_write = np.zeros(np.product(data.shape),dtype=dtype)
+                data_to_write['period'] = np.vstack([self.plot_period_list]*data.shape[1]).T.flatten()
+                
+                for val in headerlist[1:]:
+                    if val in ['east','north']:
+                        data[val] *= self.dscale
+                    data_to_write[val] = data[val].flatten()
+                    
+                np.savetxt(filename,data_to_write,header=' '.join(headerlist),
+                           fmt=['%.4e','%s','%.2f','%.2f','%.2f','%.2f','%.2f','%.3f'])
+       
             
     def save_figure(self, save_path=None, fig_dpi=None, file_format='pdf', 
                     orientation='landscape', close_fig='y'):
