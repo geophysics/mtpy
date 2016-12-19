@@ -1535,7 +1535,8 @@ class Residual():
         rms_z_comp = np.zeros((len(self.rms_array),2,2))
         rms_tip_comp = np.zeros((len(self.rms_array),2))
         rms_valuelist_all = np.zeros(0)
-        
+        rms_valuelist_z = np.zeros(0)
+        rms_valuelist_tip = np.zeros(0)
         
         for stname in self.rms_array['station']:
             rms_valuelist = []
@@ -1552,6 +1553,7 @@ class Residual():
                 
                 # append individual normalised errors to a master list for all stations
                 rms_valuelist_all = np.append(rms_valuelist_all,znorm.flatten())
+                rms_valuelist_z = np.append(rms_valuelist_all,znorm.flatten())
                 
                 # normalised error for separate components
                 rms_z_comp[sta_ind] = (((znorm**2.).sum(axis=0))/(znorm.shape[0]))**0.5
@@ -1561,10 +1563,11 @@ class Residual():
                 # sum over absolute value of tipper
                 # need to divide by sqrt(2) to normalise (code applies same error to real and imag components)
                 tipnorm = np.abs(resvals['tip'])/(np.real(resvals['tip_err'])*2.**0.5)
-                tipnorm = znorm[np.all(np.isfinite(tipnorm),axis=(1,2))]
+                tipnorm = tipnorm[np.all(np.isfinite(tipnorm),axis=(1,2))]
                 
                 # append individual normalised errors to a master list for all stations
                 rms_valuelist_all = np.append(rms_valuelist_all,tipnorm.flatten())
+                rms_valuelist_tip = np.append(rms_valuelist_all,tipnorm.flatten())
                 
                 # normalised error for separate components
                 rms_tip_comp[sta_ind] = (((tipnorm**2.).sum(axis=0))/len(tipnorm))**0.5
@@ -1582,7 +1585,8 @@ class Residual():
                 self.rms_array[sta_ind]['rms_tip'] = ((rms_tip_comp[sta_ind]**2.).sum()/rms_z_comp[sta_ind].size)**0.5
             
         self.rms = np.mean(rms_valuelist_all**2.)**0.5
-
+        self.rms_z = np.mean(rms_valuelist_z**2.)**0.5
+        self.rms_tip = np.mean(rms_valuelist_tip**2.)**0.5
 
 
 
