@@ -532,17 +532,23 @@ class Data(object):
                     pyproj.transform(p1,p2,
                                      c_arr['lon'],c_arr['lat'])
             
-    def project_xy(self,x,y):
+    def project_xy(self,x,y,epsg_from,epsg_to=4326):
+        """
+        project some xy points
+        """
+        if epsg_from is None:
+            epsg_from = self.epsg
+
         try:
             import pyproj
         except ImportError:
             print "please install pyproj to use update_data_center option"
             return
         if self.epsg is not None:
-            p1 = pyproj.Proj(epsg_dict[self.epsg][0])
-            p2 = pyproj.Proj(epsg_dict[4326][0])
+            p1 = pyproj.Proj(epsg_dict[epsg_from][0])
+            p2 = pyproj.Proj(epsg_dict[epsg_to][0])
         
-            self.center_position = np.array(pyproj.transform(p1,p2,x,y))
+        return np.array(pyproj.transform(p1,p2,x,y))
         
         
     def get_relative_station_locations(self):
@@ -1215,7 +1221,9 @@ class Data(object):
         station_list = []
         read_impedance = False
         read_tipper = False
+        linecount = 0
         for dline in dlines:
+            linecount += 1
             if dline.find('#') == 0:
                 header_list.append(dline.strip())
             elif dline.find('>') == 0:
@@ -1230,6 +1238,8 @@ class Data(object):
                 elif dline.lower().find('impedance') > 0:
                     read_impedance = True
                     read_tipper = False
+                if linecount == 7:
+                    self.center_position = [float(val) for val in dline.strip().replace('>','').split()]
                 if dline.find('exp') > 0:
                     if read_impedance is True:
                         self.wave_sign_impedance = dline[dline.find('(')+1]
@@ -2058,8 +2068,8 @@ class Model(object):
         # if desired, update the data center position (need to first project 
         # east/north back to lat/lon) and rewrite to file
         if update_data_center:
-            self.Data.project_xy(self.Data.center_position_EN[0],
-                                 self.Data.center_position_EN[1])
+            self.Data.center_position = self.Data.project_xy(self.Data.center_position_EN[0],
+                                                             self.Data.center_position_EN[1])
             self.Data.write_data_file(compute_error=False,fill=False)
 
             
@@ -6965,8 +6975,87 @@ class PlotPTMaps(mtplottools.MTEllipse):
                     
                 np.savetxt(filename,data_to_write,header=header,
                            fmt=['%.4e','%s','%.2f','%.2f','%.2f','%.2f','%.2f','%.3f'])
+
+
        
-    
+    def write_pt_data_to_gmt(self,period=None,epsg=None,savepath='.',center_utm=None):
+        """
+        write data to plot phase tensor ellipses in gmt.
+        saves a gmt script and text file containing ellipse data
+        
+        provide:
+        period to plot (seconds)
+        epsg for the projection the model was projected to 
+        (google "epsg your_projection_name" and you will find it)
+       
+        """
+        
+        if epsg is None:
+            print "Cannot write gmt input, need epsg to project the model"
+            return
+        
+        attribute = 'pt_data_arr'
+        
+        # get text data list
+        data, headerlist = self._get_pt_data_list(attribute)
+
+        # extract relevant columns in correct order
+        periodlist = data['period']
+        columns = [2,3,7,4,5,6]
+        columns = ['east','north','phimin','azimuth','phimax','phimin']
+        gmtdata = np.vstack([data[i] for i in columns]).T
+        
+        # make a filename based on period
+        if period >= 1.:
+            suffix = '%1i'%round(period)
+        else:
+            nzeros = np.abs(np.int(np.floor(np.log10(period))))
+            fmt = '%0'+str(nzeros+1)+'i'
+            suffix = fmt%(period*10**nzeros)
+        
+        filename = 'ellipse_' + attribute[3:-4] + '.' + suffix    
+        
+        if period is not None:
+            # extract relevant period
+            unique_periods = np.unique(periodlist)
+            closest_period = unique_periods[np.abs(unique_periods-period) == \
+                                            np.amin(np.abs(unique_periods-period))]
+            # indices to select all occurrances of relevant period (to nearest 10^-8 s)
+            pind = np.where(np.abs(closest_period-periodlist) < 1e-8)[0]
+        else:
+            # take the first period
+            pind = 0
+        
+        # select relevant periods
+        periodlist, gmtdata = periodlist[pind], gmtdata[pind]
+        
+        # if centre utm not provided, try and get it from the data object
+        # in this case need to project from lat/long (wgs84) to epsg provided
+        if center_utm is None:
+            if hasattr(self.data_obj,'center_position'):
+                center_utm = self.data_obj.project_xy(self.data_obj.center_position[0],self.data_obj.center_position[1],
+                                                      epsg_from=4326, epsg_to=epsg)
+            else:
+                print "Cannot project, please provide center position of data in real world coordinates"
+                return
+
+        gmtdata[:,0] += center_utm[0]
+        gmtdata[:,1] += center_utm[1]
+        
+        # now that x y coordinates are in utm, project to lon/lat
+        self.data_obj.epsg = epsg
+        gmtdata[:,0], gmtdata[:,1] = self.data_obj.project_xy(gmtdata[:,0], gmtdata[:,1])
+        # normalise by maximum value of phimax
+        norm = np.amax(gmtdata[:,4])
+        gmtdata[:,5] /= norm
+        gmtdata[:,4] /= norm
+        gmtdata[:,3] = 90. - gmtdata[:,3]
+
+        # write to text file in correct format
+        fmt = ['%+11.6f','%+10.6f'] + ['%+9.4f']*2 +['%8.4f']*2
+        np.savetxt(op.join(savepath,filename),gmtdata,fmt)
+        
+        # write gmt script    
     
             
     def save_figure(self, save_path=None, fig_dpi=None, file_format='pdf', 
