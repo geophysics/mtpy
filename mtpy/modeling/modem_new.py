@@ -532,7 +532,7 @@ class Data(object):
                     pyproj.transform(p1,p2,
                                      c_arr['lon'],c_arr['lat'])
             
-    def project_xy(self,x,y,epsg_from,epsg_to=4326):
+    def project_xy(self,x,y,epsg_from=None,epsg_to=4326):
         """
         project some xy points
         """
@@ -544,7 +544,7 @@ class Data(object):
         except ImportError:
             print "please install pyproj to use update_data_center option"
             return
-        if self.epsg is not None:
+        if epsg_from is not None:
             p1 = pyproj.Proj(epsg_dict[epsg_from][0])
             p2 = pyproj.Proj(epsg_dict[epsg_to][0])
         
