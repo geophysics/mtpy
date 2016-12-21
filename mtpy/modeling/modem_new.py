@@ -1599,6 +1599,33 @@ class Residual():
         self.rms_tip = np.mean(rms_valuelist_tip**2.)**0.5
 
 
+    def write_rms_to_file(self):
+        """
+        write rms station data to file
+        """
+        
+        fn = op.join(self.workdir,'rms_values.dat')
+        
+        if not hasattr(self,'rms'):
+            self.get_rms()
+
+        headerlist = ['station','lon','lat','rel_east','rel_north','rms','rms_z','rms_tip']
+        
+        dtype = []
+        for val in headerlist:
+            if val == 'station':
+                dtype.append((val,'S10'))
+            else:
+                dtype.append((val,np.float))        
+        
+        savelist = np.zeros(len(self.rms_array),dtype=dtype)
+        for val in headerlist:
+            savelist[val] = self.rms_array[val]
+        
+        header = ' '.join(headerlist)
+        
+        np.savetxt(fn,savelist,header=header,fmt=['%s','%.6f','%.6f','%.1f','%.1f','%.3f','%.3f','%.3f'])
+
 
 #==============================================================================
 # mesh class
