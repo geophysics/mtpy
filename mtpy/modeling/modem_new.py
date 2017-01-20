@@ -6522,6 +6522,7 @@ class PlotPTMaps(mtplottools.MTEllipse):
         #--> get period list to plot
         if self.plot_period_list is None:
             self.plot_period_list = self.data_obj.period_list
+            
         else:
             if type(self.plot_period_list) is list:
                 #check if entries are index values or actual periods
@@ -7013,6 +7014,8 @@ class PlotPTMaps(mtplottools.MTEllipse):
             if hasattr(self,att):
                 data_to_write,header = self._get_pt_data_list(att)
                 filename = op.join(savepath,att[:-4]+'.txt')
+                if att == 'pt_resid_arr':
+                    data_to_write['azimuth'] = 90.-data_to_write['azimuth']
                     
                 np.savetxt(filename,data_to_write,header=header,
                            fmt=['%.4e','%s','%.2f','%.2f','%.2f','%.2f','%.2f','%.3f'])

@@ -1035,7 +1035,7 @@ class Header(object):
                     value = '{0:.3f}'.format(value)
                 except ValueError:
                     value = '0.000'
-                    
+
             if key in ['filedate']:
                 value = datetime.datetime.utcnow().strftime(
                                                     '%Y/%m/%d %H:%M:%S UTC')

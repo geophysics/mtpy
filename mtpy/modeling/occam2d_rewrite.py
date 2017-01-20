@@ -322,6 +322,7 @@ class Mesh():
         #round the layers to be whole numbers
         zpadding = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
                                log_zpad])
+        zpadding.sort()
                                
         #create the vertical nodes
         self.z_nodes = np.append(ztarget, zpadding)
@@ -1484,7 +1485,7 @@ class Regularization(Mesh):
         
         #At the top of the mesh model blocks will be 2 combined mesh blocks
         #Note that the padding cells are combined into one model block
-        station_col = [2]*((self.x_nodes.shape[0]-2*self.num_x_pad_cells)/2)
+        station_col = [2]*((self.x_nodes.shape[0]-2*self.num_x_pad_cells +1)/2)
         model_cols = [self.num_x_pad_cells]+station_col+[self.num_x_pad_cells]
         station_widths = [self.x_nodes[ii]+self.x_nodes[ii+1] for ii in 
                        range(self.num_x_pad_cells, 
@@ -1494,9 +1495,10 @@ class Regularization(Mesh):
         model_widths = [pad_width]+station_widths+[pad_width]
         num_cols = len(model_cols)
         
-        model_thickness = np.append(self.z_nodes[0:self.z_nodes.shape[0]-
+        model_thickness = np.hstack([self.z_nodes[:2].sum(),
+                                     self.z_nodes[2:self.z_nodes.shape[0]-
                                                         self.num_z_pad_cells], 
-                                    self.z_nodes[-self.num_z_pad_cells:].sum())
+                                    self.z_nodes[-self.num_z_pad_cells:].sum()])
         
         self.num_param = 0
         #--> now need to calulate model blocks to the bottom of the model
@@ -2462,10 +2464,14 @@ class Data(Profile):
                             self.res_tm_err/100.
                             
                 #--> get te phase
-                phase_te = phi[f_index, 0, 1]
-                #be sure the phase is in the first quadrant
-                if phase_te > 180:
-                    phase_te -= 180
+                #be sure the phase is positive and in the first quadrant
+                phase_te = phi[f_index, 0, 1]%180
+                    
+                if ((phase_te < 0) or (phase_te > 90)):
+                    phase_te = 0
+                
+                
+                
                 self.data[s_index]['te_phase'][0, freq_num] =  phase_te
                 #compute error
                 #if phi[f_index, 0, 1] != 0.0:
@@ -2480,9 +2486,12 @@ class Data(Profile):
                     self.data[s_index]['te_phase'][1, freq_num] = \
                         (self.phase_te_err/100.)*57./2.
                             
-                #--> get tm phase and be sure its in the first quadrant
+                #--> get tm phase and be sure it's positive and in the first quadrant
                 phase_tm = phi[f_index, 1, 0]%180
-                
+        
+                if ((phase_tm < 0) or (phase_tm > 90)):
+                    phase_tm = 0
+                    
                 self.data[s_index]['tm_phase'][0, freq_num] =  phase_tm
                 #compute error
                 #if phi[f_index, 1, 0] != 0.0:
@@ -2556,6 +2565,8 @@ class Data(Profile):
                         if sdict['te_phase'][0, ff] != 0.0:
                             dvalue = sdict['te_phase'][0, ff]
                             derror = sdict['te_phase'][1, ff]
+                            if (np.isnan(derror) or (derror > 90)):
+                                derror = 90.
                             dstr = '{0:.4f}'.format(dvalue)
                             derrstr = '{0:.4f}'.format(derror)
                             line = self._data_string.format(ss, ff+1, mmode, 
@@ -2589,6 +2600,8 @@ class Data(Profile):
                         if sdict['tm_phase'][0, ff] != 0.0:
                             dvalue = sdict['tm_phase'][0, ff]
                             derror = sdict['tm_phase'][1, ff]
+                            if (np.isnan(derror) or (derror > 90)):
+                                derror = 90.
                             dstr = '{0:.4f}'.format(dvalue)
                             derrstr = '{0:.4f}'.format(derror)
                             line = self._data_string.format(ss, ff+1, mmode, 
