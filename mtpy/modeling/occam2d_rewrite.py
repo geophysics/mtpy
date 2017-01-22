@@ -2437,16 +2437,17 @@ class Data(Profile):
                 if rho[f_index, 0, 1] != 0.0:
                     #--> get error from data
                     if ((self.res_te_err is None) or (self.error_type == 'floor')):
-                        error_val = np.abs(rho_err[f_index, 0, 1]/rho[f_index, 0, 1])
+                        error_val = np.abs(rho_err[f_index, 0, 1])
                         # set error floor if desired
                         if self.error_type == 'floor':
+                
                             error_val = max(error_val,rho[f_index, 0, 1]*self.res_te_err/100.)
                             
                         self.data[s_index]['te_res'][1, freq_num] = error_val    
                     #--> set generic error
                     else:
                         self.data[s_index]['te_res'][1, freq_num] = \
-                                                        self.res_te_err/100.
+                            self.res_te*self.res_te_err/100.
                             
                 #--> get tm resistivity
                 self.data[s_index]['tm_res'][0, freq_num] =  rho[f_index, 1, 0]
@@ -2454,14 +2455,14 @@ class Data(Profile):
                 if rho[f_index, 1, 0] != 0.0:
                     #--> get error from data
                     if ((self.res_tm_err is None) or (self.error_type == 'floor')):
-                        error_val = np.abs(rho_err[f_index, 1, 0]/rho[f_index, 1, 0])
+                        error_val = np.abs(rho_err[f_index, 1, 0])
                         if self.error_type == 'floor':
                             error_val = max(error_val,rho[f_index, 1, 0]*self.res_tm_err/100.)
                         self.data[s_index]['tm_res'][1, freq_num] = error_val
                     #--> set generic error
                     else:
                         self.data[s_index]['tm_res'][1, freq_num] = \
-                            self.res_tm_err/100.
+                            self.res_tm*self.res_tm_err/100.
                             
                 #--> get te phase
                 #be sure the phase is positive and in the first quadrant
@@ -2542,7 +2543,7 @@ class Data(Profile):
                     if mmode == 1:
                         if sdict['te_res'][0, ff] != 0.0:
                             dvalue = np.log10(sdict['te_res'][0, ff])
-                            derror = sdict['te_res'][1, ff]/np.log(10)
+                            derror = (sdict['te_res'][1, ff]/sdict['te_res'][0, ff])/np.log(10)
                             dstr = '{0:.4f}'.format(dvalue)
                             derrstr = '{0:.4f}'.format(derror)
                             line = self._data_string.format(ss, ff+1, mmode, 
@@ -2565,8 +2566,6 @@ class Data(Profile):
                         if sdict['te_phase'][0, ff] != 0.0:
                             dvalue = sdict['te_phase'][0, ff]
                             derror = sdict['te_phase'][1, ff]
-                            if (np.isnan(derror) or (derror > 90)):
-                                derror = 90.
                             dstr = '{0:.4f}'.format(dvalue)
                             derrstr = '{0:.4f}'.format(derror)
                             line = self._data_string.format(ss, ff+1, mmode, 
@@ -2577,7 +2576,7 @@ class Data(Profile):
                     if mmode == 5:
                         if sdict['tm_res'][0, ff] != 0.0:
                             dvalue = np.log10(sdict['tm_res'][0, ff])
-                            derror = sdict['tm_res'][1, ff]/np.log(10)
+                            derror = (sdict['tm_res'][1, ff]/sdict['tm_res'][0, ff])/np.log(10)
                             dstr = '{0:.4f}'.format(dvalue)
                             derrstr = '{0:.4f}'.format(derror)
                             line = self._data_string.format(ss, ff+1, mmode, 
