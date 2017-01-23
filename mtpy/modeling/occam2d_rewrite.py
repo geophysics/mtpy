@@ -783,10 +783,12 @@ class Mesh():
             for m_value in mline:
                 self.x_nodes[h_index] = float(m_value)
                 h_index += 1
-                
+                if h_index == nh - 1:
+                    break     
             line_count += 1
-            if h_index == nh:
-                break
+            if h_index == nh - 1:
+                break                
+            
  
         #--> fill vertical nodes
         for mline in mlines[line_count:]:
@@ -794,9 +796,12 @@ class Mesh():
             for m_value in mline:
                 self.z_nodes[v_index] = float(m_value)
                 v_index += 1
+                if v_index == nv - 1:
+                    break    
             line_count += 1
-            if v_index == nv:
+            if v_index == nv - 1:
                 break    
+            
 
         #--> fill model values
         for ll, mline in enumerate(mlines[line_count+1:], line_count):
@@ -805,7 +810,7 @@ class Mesh():
                 break
             else:
                 mlist = list(mline)
-                if len(mlist) != nh:
+                if len(mlist) != nh - 1:
                     print '--- Line {0} in {1}'.format(ll, self.mesh_fn) 
                     print 'Check mesh file too many columns'
                     print 'Should be {0}, has {1}'.format(nh,len(mlist))
@@ -818,17 +823,17 @@ class Mesh():
         #sometimes it seems that the number of nodes is not the same as the
         #header would suggest so need to remove the zeros
         self.x_nodes = self.x_nodes[np.nonzero(self.x_nodes)]
-        if self.x_nodes.shape[0] != nh:
+        if self.x_nodes.shape[0] != nh - 1:
             new_nh = self.x_nodes.shape[0]
-            print 'The header number {0} should read {1}'.format(nh, new_nh)
+            print 'The header number {0} should read {1}'.format(nh - 1, new_nh)
             self.mesh_values.resize(new_nh, nv, 4)
         else:
             new_nh = nh
             
         self.z_nodes = self.z_nodes[np.nonzero(self.z_nodes)]
-        if self.z_nodes.shape[0] != nv:
+        if self.z_nodes.shape[0] != nv - 1:
             new_nv = self.z_nodes.shape[0]
-            print 'The header number {0} should read {1}'.format(nv, new_nv)
+            print 'The header number {0} should read {1}'.format(nv - 1, new_nv)
             self.mesh_values.resize(new_nh, nv, 4)
 
         #make x_grid and z_grid
@@ -2438,12 +2443,14 @@ class Data(Profile):
                     #--> get error from data
                     if ((self.res_te_err is None) or (self.error_type == 'floor')):
                         error_val = np.abs(rho_err[f_index, 0, 1])
+                        if error_val > rho[f_index, 0, 1]:
+                            error_val = rho[f_index, 0, 1]
+                            
                         # set error floor if desired
                         if self.error_type == 'floor':
-                
                             error_val = max(error_val,rho[f_index, 0, 1]*self.res_te_err/100.)
                             
-                        self.data[s_index]['te_res'][1, freq_num] = error_val    
+                        self.data[s_index]['te_res'][1, freq_num] = error_val 
                     #--> set generic error
                     else:
                         self.data[s_index]['te_res'][1, freq_num] = \
@@ -2456,6 +2463,10 @@ class Data(Profile):
                     #--> get error from data
                     if ((self.res_tm_err is None) or (self.error_type == 'floor')):
                         error_val = np.abs(rho_err[f_index, 1, 0])
+                        
+                        if error_val > rho[f_index, 1, 0]:
+                            error_val = rho[f_index, 1, 0]
+
                         if self.error_type == 'floor':
                             error_val = max(error_val,rho[f_index, 1, 0]*self.res_tm_err/100.)
                         self.data[s_index]['tm_res'][1, freq_num] = error_val
@@ -2470,7 +2481,7 @@ class Data(Profile):
                     
                 if ((phase_te < 0) or (phase_te > 90)):
                     phase_te = 0
-                
+#                    self.data[s_index]['te_res'][0, freq_num] = 0
                 
                 
                 self.data[s_index]['te_phase'][0, freq_num] =  phase_te
@@ -2478,7 +2489,7 @@ class Data(Profile):
                 #if phi[f_index, 0, 1] != 0.0:
                 #--> get error from data
                 if ((self.phase_te_err is None) or (self.error_type == 'floor')):
-                    error_val = np.degrees(np.arcsin(.5*rho_err[f_index, 0, 1]/rho[f_index, 0, 1]))
+                    error_val = np.degrees(np.arcsin(min(.5*rho_err[f_index, 0, 1]/rho[f_index, 0, 1],1.)))
                     if self.error_type == 'floor':
                         error_val = max(error_val,(self.phase_te_err/100.)*57./2.)
                     self.data[s_index]['te_phase'][1, freq_num] = error_val
@@ -2492,13 +2503,14 @@ class Data(Profile):
         
                 if ((phase_tm < 0) or (phase_tm > 90)):
                     phase_tm = 0
+#                    self.data[s_index]['tm_res'][0, freq_num] = 0
                     
                 self.data[s_index]['tm_phase'][0, freq_num] =  phase_tm
                 #compute error
                 #if phi[f_index, 1, 0] != 0.0:
                 #--> get error from data
                 if ((self.phase_tm_err is None) or (self.error_type == 'floor')):
-                    error_val = np.degrees(np.arcsin(.5*rho_err[f_index, 1, 0]/rho[f_index, 1, 0]))
+                    error_val = np.degrees(np.arcsin(min(.5*rho_err[f_index, 1, 0]/rho[f_index, 1, 0],1.)))
                     if self.error_type == 'floor':
                         error_val = max(error_val,(self.phase_tm_err/100.)*57./2.)
                     self.data[s_index]['tm_phase'][1, freq_num] = error_val
@@ -3066,7 +3078,7 @@ class Model(Startup):
         """
     
         if iter_fn is not None:
-            self.iter_fn == iter_fn
+            self.iter_fn = iter_fn
        
         if self.iter_fn is None:
             raise OccamInputError('iter_fn is None, input iteration file')
