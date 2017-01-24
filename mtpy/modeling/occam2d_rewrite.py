@@ -2481,7 +2481,7 @@ class Data(Profile):
                     
                 if ((phase_te < 0) or (phase_te > 90)):
                     phase_te = 0
-#                    self.data[s_index]['te_res'][0, freq_num] = 0
+                    self.data[s_index]['te_res'][0, freq_num] = 0
                 
                 
                 self.data[s_index]['te_phase'][0, freq_num] =  phase_te
@@ -2503,7 +2503,7 @@ class Data(Profile):
         
                 if ((phase_tm < 0) or (phase_tm > 90)):
                     phase_tm = 0
-#                    self.data[s_index]['tm_res'][0, freq_num] = 0
+                    self.data[s_index]['tm_res'][0, freq_num] = 0
                     
                 self.data[s_index]['tm_phase'][0, freq_num] =  phase_tm
                 #compute error
@@ -2640,8 +2640,33 @@ class Data(Profile):
                             line = self._data_string.format(ss, ff+1, mmode, 
                                                             dstr, derrstr)
                             self.data_list.append(line)
-                    
+ 
+
+                   
+    def mask_from_datafile(self, mask_datafn):
+        """
+        reads a separate data file and applies mask from this data file.
+        mask_datafn needs to have exactly the same frequencies, and station names 
+        must match exactly.
+        
+        """
+        ocdm = Data()
+        ocdm.read_data_file(mask_datafn)
+        # list of stations, in order, for the mask_datafn and the input data file
+        ocdm_stlist = [ocdm.data[i]['station'] for i in range(len(ocdm.data))]
+        ocd_stlist = [self.data[i]['station'] for i in range(len(self.data))]
+        
+        for i_ocd,stn in enumerate(ocd_stlist):
+            i_ocdm = ocdm_stlist.index(stn)
+            for dmode in ['te_res','tm_res','te_phase','tm_phase','im_tip','re_tip']:
                 
+                for i in range(len(self.freq)):
+                    if self.data[i_ocdm][dmode][0][i] == 0:
+                        self.data[i_ocd][dmode][0][i] = 0.
+        self.fn_basename = self.fn_basename[:-4]+'Masked'+self.fn_basename[-4:]
+        self.write_data_file()
+    
+    
 
     def write_data_file(self, data_fn=None):
         """
@@ -2792,7 +2817,7 @@ class Data(Profile):
         if data_fn is not None:
             self.data_fn = data_fn
 
-        pr_obj = self.plot_response(**kwargs)
+        pr_obj = self.plot_response()#**kwargs
         
         #make points an attribute of self which is a data type OccamPointPicker       
         self.masked_data = OccamPointPicker(pr_obj.ax_list,
@@ -3527,8 +3552,8 @@ class PlotResponse():
             
             #--> TE mode Data 
             if len(rxy) > 0:
-                rte_err = rp_list[jj]['te_res'][1, rxy]*\
-                          rp_list[jj]['te_res'][0, rxy]
+                rte_err = rp_list[jj]['te_res'][1, rxy]#*\
+#                          rp_list[jj]['te_res'][0, rxy]
                 rte = plot_errorbar(axrte, 
                                     period[rxy],
                                     rp_list[jj]['te_res'][0, rxy],
@@ -3548,8 +3573,8 @@ class PlotResponse():
             
              #--> TM mode data
             if len(ryx) > 0:
-                rtm_err = rp_list[jj]['tm_res'][1, ryx]*\
-                          rp_list[jj]['tm_res'][0, ryx] 
+                rtm_err = rp_list[jj]['tm_res'][1, ryx]#*\
+#                          rp_list[jj]['tm_res'][0, ryx] 
                 rtm = plot_errorbar(axrtm, 
                                     period[ryx],
                                     rp_list[jj]['tm_res'][0, ryx],
