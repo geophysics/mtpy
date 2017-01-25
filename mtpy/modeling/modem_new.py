@@ -3028,7 +3028,30 @@ class Model(object):
 #        self.covariance_mask[self.res_model > 0.9*air_resistivity] = 0
 
 
-
+    def write_xyres(self,origin=[0,0,0],savepath=None,outfile_basename='DepthSlice'):
+        """
+        write files containing depth slice data (x, y, res for each depth)
+        
+        """
+        if savepath is None:
+            savepath = self.save_path
+            
+        # make a directory to save the files
+        savepath = op.join(savepath,'DepthSlices')
+        if not op.exists(savepath):
+            os.mkdir(savepath)
+        
+        # reshape the data
+        x,y,z = [np.mean([arr[1:], arr[:-1]],axis=0) for arr in \
+                [self.grid_east + origin[0], self.grid_north + origin[1], self.grid_z + origin[2]]]
+        x,y = [arr.flatten() for arr in np.meshgrid(x,y)]
+        
+        print len(x),len(y),len(self.res_model[:,:,0].flatten())
+        for k in range(len(z)):
+            fname = op.join(savepath,outfile_basename+'_%1im.xyz'%z[k])
+            data = np.vstack([x,y,self.res_model[:,:,k].flatten()]).T
+            np.savetxt(fname,data,fmt=['%.1f','%.1f','%.3e'])
+        
 
 
     def old_write_gocad_sgrid_file(self, fn = None, origin=[0,0,0],clip=0,no_data_value=-99999):
