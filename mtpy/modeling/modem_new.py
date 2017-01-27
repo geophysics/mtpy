@@ -512,25 +512,30 @@ class Data(object):
                     c_arr['east'] -= east_shift
     
     
-    def project_sites_pyproj(self):   
-        import pyproj
-
+    def project_sites_pyproj(self):
+        
+        """
+        project site locations from lat/long to eastings/northings (defined by
+        epsg in data object). Uses pyproj so this needs to be installed before
+        this module will work.
+        
+        
+        """
         
         if self.epsg not in epsg_dict.keys():
             self.epsg = None
         
         if self.epsg is None:
+            print "can't project, invalid (or no) epsg provided"
             return
-            
-        p1 = pyproj.Proj(epsg_dict[4326][0])
-        p2 = pyproj.Proj(epsg_dict[self.epsg][0])
         
         for c_arr in self.data_array:
             if c_arr['lat'] != 0.0 and c_arr['lon'] != 0.0:
                 c_arr['zone'] = epsg_dict[self.epsg][1]
                 c_arr['east'], c_arr['north'] = \
-                    pyproj.transform(p1,p2,
-                                     c_arr['lon'],c_arr['lat'])
+                    utm2ll.project(c_arr['lon'], c_arr['lat'],
+                                   4326,self.epsg)
+            
             
     def project_xy(self,x,y,epsg_from=None,epsg_to=4326):
         """
@@ -539,16 +544,7 @@ class Data(object):
         if epsg_from is None:
             epsg_from = self.epsg
 
-        try:
-            import pyproj
-        except ImportError:
-            print "please install pyproj to use update_data_center option"
-            return
-        if epsg_from is not None:
-            p1 = pyproj.Proj(epsg_dict[epsg_from][0])
-            p2 = pyproj.Proj(epsg_dict[epsg_to][0])
-        
-        return np.array(pyproj.transform(p1,p2,x,y))
+        return np.array(utm2ll.project(x,y,epsg_from,epsg_to))
         
         
     def get_relative_station_locations(self):
@@ -588,21 +584,9 @@ class Data(object):
             use_pyproj=False            
 
         if use_pyproj:
-            try:
-                self.project_sites_pyproj()
-            except ImportError:
-                use_pyproj=False
-                errormessage = "Error loading pyproj"
-            if self.epsg is None:
-                use_pyproj=False
-                errormessage = "Couldn't find epsg, please define manually"
-            # warning message
-            if not use_pyproj:
-                print errormessage
-
-
+            self.project_sites_pyproj()
         
-        if not use_pyproj:
+        else:
             self.project_sites()
             
         # center of the grid in east/north coordinates
@@ -2202,7 +2186,9 @@ class Model(object):
                         surface_epsg=4326,method='nearest'):
         """
         project a surface to the model grid and add resulting elevation data 
-        to a dictionary called surface_dict.
+        to a dictionary called surface_dict. Assumes the surface is in lat/long
+        coordinates (wgs84), if not, need to supply the epsg of the surface xy 
+        points
         
         **returns**
         nothing returned, but surface data are added to surface_dict under
@@ -2249,21 +2235,15 @@ class Model(object):
         # read the surface data in from ascii if surface not provided
         if surface is None:
             surface = read_surface_ascii(surfacefile)
-        lon,lat,elev = surface
+        x,y,elev = surface
             
         # if lat/lon provided as a 1D list, convert to a 2d grid of points
-        if len(lon.shape) == 1:
-            lon,lat = np.meshgrid(lon,lat)
-        
-        try:
-            import pyproj
-            p1,p2 = [pyproj.Proj(text) for text in [epsg_dict[surface_epsg][0],epsg_dict[self.Data.epsg][0]]]
-            xs,ys = pyproj.transform(p1,p2,lon,lat)
-        except ImportError:
-            print "pyproj not installed and other methods for projecting points not implemented yet. Please install pyproj"
-        except KeyError:
-            print "epsg not in dictionary, please add epsg and Proj4 text to epsg_dict at beginning of modem_new module"
-            return
+        if len(x.shape) == 1:
+            x,y = np.meshgrid(x,y)
+
+        epsg_from,epsg_to = surface_epsg,self.Data.epsg
+        xs,ys = utm2ll.project(x,y,epsg_from,epsg_to)
+
         
         # get centre position of model grid in real world coordinates
         x0,y0 = [np.median(self.station_locations[dd]-self.station_locations['rel_'+dd]) for dd in ['east','north']]
