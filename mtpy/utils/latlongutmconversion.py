@@ -241,10 +241,10 @@ def project(x,y,epsg_from,epsg_to):
         return
     if epsg_from is not None:
         try:
-            p1 = pyproj.Proj(epsg_dict[epsg_from][0])
-            p2 = pyproj.Proj(epsg_dict[epsg_to][0])
-        except KeyError:
-            print "Surface or data epsg either not in dictionary or None, please add epsg and Proj4 text to epsg_dict at beginning of modem_new module"
+            p1 = pyproj.Proj(init='epsg:%1i'%epsg_from)
+            p2 = pyproj.Proj(init='epsg:%1i'%epsg_to)
+        except RuntimeError:
+            print "Invalid epsg number provided"
             return 
             
     return pyproj.transform(p1,p2,x,y)
