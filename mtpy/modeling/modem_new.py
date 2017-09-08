@@ -1943,12 +1943,29 @@ class Model(object):
                 continue
             
         #--> make depth grid
+        # make initial guess for maximum cell thickness
+        max_cell_thickness = self.z_target_depth
+        
         log_z = np.logspace(np.log10(self.z1_layer), 
-                            np.log10(self.z_target_depth),
-                            num=self.n_layers-self.pad_z-self.n_airlayers+1)
-        log_z = log_z[1:] - log_z[:-1]
-        z_nodes = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
-                           log_z])
+                            np.log10(max_cell_thickness),
+                            num=self.n_layers-self.pad_z-self.n_airlayers)
+        counter = 0                    
+        while np.sum(log_z) > self.z_target_depth:
+            max_cell_thickness *= 0.9
+            log_z = np.logspace(np.log10(self.z1_layer), 
+                                np.log10(max_cell_thickness),
+                                num=self.n_layers-self.pad_z-self.n_airlayers) 
+            print np.sum(log_z)
+            counter += 1
+            if counter > 1e6:
+                break
+        
+        z_nodes = np.around(log_z[log_z<100],decimals=-int(np.floor(np.log10(self.z1_layer))))
+        z_nodes = np.append(z_nodes, np.around(log_z[log_z >= 100],decimals=-2))
+        print z_nodes
+#        z_nodes = np.array([zz-zz%10**np.floor(np.log10(zz)) for zz in 
+#                           log_z])
+
         # index of top of padding
         itp = len(z_nodes) - 1
                            
