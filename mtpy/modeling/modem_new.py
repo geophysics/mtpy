@@ -963,14 +963,18 @@ class Data(object):
             if inv_mode.find('Impedance') > 0:
                 dlines.append('> exp({0}i\omega t)\n'.format(self.wave_sign_impedance))
                 dlines.append('> {0}\n'.format(self.units))
+                nper = len(np.nonzero(np.abs(self.data_array['z']).sum(axis=(1,2,3)))[0])
+                nsta = len(np.nonzero(np.abs(self.data_array['z']).sum(axis=(0,2,3)))[0])
             elif inv_mode.find('Vertical') >=0:
                 dlines.append('> exp({0}i\omega t)\n'.format(self.wave_sign_tipper))
                 dlines.append('> []\n')
+                nper = len(np.nonzero(np.abs(self.data_array['tip']).sum(axis=(1,2,3)))[0])
+                nsta = len(np.nonzero(np.abs(self.data_array['tip']).sum(axis=(0,2,3)))[0])
             dlines.append('> 0\n') #oriention, need to add at some point
             dlines.append('> {0: >10.6f} {1:>10.6f}\n'.format(
                           self.center_position[0], self.center_position[1]))
             dlines.append('> {0} {1}\n'.format(nper,
-                                               self.data_array['z'].shape[0]))
+                                               nsta))
                                                
             for ss in range(self.data_array['z'].shape[0]):
                 for ff in range(self.data_array['z'].shape[1]):
