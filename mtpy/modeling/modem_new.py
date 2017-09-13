@@ -1737,6 +1737,7 @@ class Model(object):
         self.pad_east = kwargs.pop('pad_east', 7)
         self.pad_north = kwargs.pop('pad_north', 7)
         self.pad_z = kwargs.pop('pad_z', 4)
+
         
         #root of padding cells
         self.pad_stretch_h= kwargs.pop('pad_stretch_h', 1.2)
