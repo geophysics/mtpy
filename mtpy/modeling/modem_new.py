@@ -963,13 +963,13 @@ class Data(object):
             if inv_mode.find('Impedance') > 0:
                 dlines.append('> exp({0}i\omega t)\n'.format(self.wave_sign_impedance))
                 dlines.append('> {0}\n'.format(self.units))
-                nper = len(np.nonzero(np.abs(self.data_array['z']).sum(axis=(1,2,3)))[0])
-                nsta = len(np.nonzero(np.abs(self.data_array['z']).sum(axis=(0,2,3)))[0])
+                nsta = len(np.nonzero(np.abs(self.data_array['z']).sum(axis=(1,2,3)))[0])
+                nper = len(np.nonzero(np.abs(self.data_array['z']).sum(axis=(0,2,3)))[0])
             elif inv_mode.find('Vertical') >=0:
                 dlines.append('> exp({0}i\omega t)\n'.format(self.wave_sign_tipper))
                 dlines.append('> []\n')
-                nper = len(np.nonzero(np.abs(self.data_array['tip']).sum(axis=(1,2,3)))[0])
-                nsta = len(np.nonzero(np.abs(self.data_array['tip']).sum(axis=(0,2,3)))[0])
+                nsta = len(np.nonzero(np.abs(self.data_array['tip']).sum(axis=(1,2,3)))[0])
+                nper = len(np.nonzero(np.abs(self.data_array['tip']).sum(axis=(0,2,3)))[0])
             dlines.append('> 0\n') #oriention, need to add at some point
             dlines.append('> {0: >10.6f} {1:>10.6f}\n'.format(
                           self.center_position[0], self.center_position[1]))
@@ -2114,8 +2114,11 @@ class Model(object):
                     self.covariance_mask[j,i,ii[0]] = 9.        
                     self.res_model[j,i,ii[0]] = sea_resistivity
 
-        self.covariance_mask = self.covariance_mask[::-1]       
+        self.covariance_mask = self.covariance_mask[::-1]  
+#        self.grid_center[-1] = -self.sea_level
+#        self.sea_level = 0.
         self.project_stations_on_topography()
+        
     
 
     def project_surface(self,surfacefile=None,surface=None,surfacename=None,
@@ -2276,10 +2279,12 @@ class Model(object):
             # otherwise place station at the top of the model
             else:
                 szi = 0
+                
             # assign topography value
-            topoval = self.grid_z[szi]
+            topoval = self.grid_z[szi] + self.grid_center[2]
             self.station_locations['elev'][ss] = topoval + 1.0
             self.Data.data_array['elev'][ss] = topoval + 1.0
+            
         self.Data.station_locations = self.station_locations
         
 
