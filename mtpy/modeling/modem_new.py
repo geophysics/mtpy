@@ -827,7 +827,7 @@ class Data(object):
                     # find nearest data period
                     difference = np.abs(iperiod-dperiods)
                     nearestdperiod = dperiods[difference == np.amin(difference)][0]
-                    if max(nearestdperiod/iperiod, iperiod/nearestdperiod) < self.period_buffer:
+                    if max(nearestdperiod/iperiod, iperiod/nearestdperiod) < self.period_buffer + 1.:
                         interp_periods_new.append(iperiod)
                 interp_periods = np.array(interp_periods_new)
             
