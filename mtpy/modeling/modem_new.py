@@ -1869,12 +1869,12 @@ class Model(object):
                 
         
         """
-        
+        nc_extra = 15./2
         #find the edges of the grid
-        west = self.station_locations['rel_east'].min()-self.cell_size_east*3/2.
-        east = self.station_locations['rel_east'].max()+self.cell_size_east*3/2.
-        south = self.station_locations['rel_north'].min()-self.cell_size_north*3/2.
-        north = self.station_locations['rel_north'].max()+self.cell_size_north*3/2.
+        west = self.station_locations['rel_east'].min()-self.cell_size_east*nc_extra
+        east = self.station_locations['rel_east'].max()+self.cell_size_east*nc_extra
+        south = self.station_locations['rel_north'].min()-self.cell_size_north*nc_extra
+        north = self.station_locations['rel_north'].max()+self.cell_size_north*nc_extra
 
         # round end nodes
         westr = np.round(west, -2)
