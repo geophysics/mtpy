@@ -56,8 +56,8 @@ class ModEM_to_Raster(object):
         model_obj.model_fn = self.model_fn
         model_obj.read_model_file()
         
-        self.cell_size_east = np.median(model_obj.nodes_east)
-        self.cell_size_north = np.median(model_obj.nodes_north)
+        self.cell_size_east = model_obj.cell_size_east
+        self.cell_size_north = model_obj.cell_size_north
         
         self.pad_east = np.where(model_obj.nodes_east[0:10] > 
                                     self.cell_size_east*1.1)[0][-1]
@@ -87,20 +87,15 @@ class ModEM_to_Raster(object):
         model_obj.read_model_file()
         
         if model_center:                                      
-            center_zone, center_east, center_north = gis_tools.project_point_ll2utm( 
+            center_east, center_north, center_zone = gis_tools.project_point_ll2utm( 
                                                                     model_center[1],
                                                                     model_center[0]) 
                                              
-                                             
-            lower_left_east = center_east+model_obj.grid_center[1]+\
-                                model_obj.nodes_east[0:pad_east].sum()-\
-                                model_obj.nodes_east[pad_east]/2
-            lower_left_north = center_north+model_obj.grid_center[1]+\
-                                model_obj.nodes_north[0:pad_north].sum()+\
-                                model_obj.nodes_north[pad_north]/2
-            
-            ll_lat, ll_lon = gis_tools.project_point_utm2ll(lower_left_north, 
-                                                            lower_left_east,
+            lower_left_east = center_east+model_obj.grid_east[pad_east]
+            lower_left_north = center_north+model_obj.grid_north[pad_north]
+
+            ll_lat, ll_lon = gis_tools.project_point_utm2ll(lower_left_east, 
+                                                            lower_left_north,
                                                             center_zone)
             
             print 'Lower Left Coordinates should be ({0:.5f}, {1:.5f})'.format(ll_lon, ll_lat)
@@ -402,7 +397,6 @@ def array2raster(raster_fn, origin, cell_width, cell_height, res_array,
     driver = gdal.GetDriverByName('GTiff')
 
     # make a raster with the shape of the array to be written 
-    print raster_fn, ncols, nrows
     out_raster = driver.Create(raster_fn, ncols, nrows, 1, gdal.GDT_Float32)
     
     # geotransform:
