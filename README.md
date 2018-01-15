@@ -1,11 +1,9 @@
 MTpy
 ====
 
-A Python toolbox for standard MT data processing
+A Python toolbox for using magnetotelluric data.
 
-*For an updated version of MTpy with more features and 
-less clutter, but probably more buggy, checkout 
-the beta version.*
+**Note: This project has moved to https://github.com/MTgeophysics/mtpy**
 
 Installation
 ------------
