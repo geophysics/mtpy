@@ -149,8 +149,8 @@ class Rotate_EDI_Files(QtGui.QWidget):
             edi_fn = os.path.join(self.cwd, '{0}.edi'.format(edi))
             mt_obj = mt.MT(fn=edi_fn)
             mt_obj.rotation_angle = self.rotation_angle
-            mt_obj.write_edi_file(new_fn=os.path.join(self.save_dir, 
-                                                      '{0}.edi'.format(edi)))
+            mt_obj.write_mt_file(save_dir=self.save_dir,
+                                 fn_basename='{0}.edi'.format(edi))
     
     @QtCore.pyqtSlot(str)
     def normal_output(self, message):

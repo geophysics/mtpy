@@ -212,7 +212,6 @@ class JFile(object):
         
         data_lines = [j_line for j_line in j_line_list 
                       if not '>' in j_line and not '#' in j_line][1:]
-        print data_lines
         # sometimes birrp outputs some missing periods, so the best way to deal with 
         # this that I could come up with was to get things into dictionaries with 
         # key words that are the period values, then fill in Z and T from there
