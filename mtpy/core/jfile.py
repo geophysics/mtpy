@@ -41,7 +41,7 @@ class JFile(object):
         with open(self.j_fn, 'r') as fid:
             j_lines = fid.readlines()
         
-        for variable in ['lat', 'lon', 'elev']:
+        for variable in ['lat', 'lon', 'elev', 'azimuth']:
             for ii, line in enumerate(j_lines):
                 if variable in line.lower():
                     name = line.split('=')[0]

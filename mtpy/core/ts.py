@@ -417,6 +417,8 @@ class MT_TS(object):
                                                              np.nan_to_num(ff[1]))
             except ValueError:
                 pass
+            except TypeError:
+                print ff
         
     # decimate data
     def decimate(self, dec_factor=1):
@@ -647,13 +649,13 @@ class MT_TS(object):
         
         self.read_ascii_header(fn_ascii)
         
-        self.ts = pd.read_csv(self.fn_ascii, 
+        self.ts = pd.read_csv(self.fn, 
                               sep='\n', 
                               skiprows=self._end_header_line,
                               memory_map=True,
                               names=['data'])
         
-        print 'Read in {0}'.format(self.fn_ascii)
+        print 'Read in {0}'.format(self.fn)
         
     def plot_spectra(self, spectra_type='welch', **kwargs):
         """

@@ -830,7 +830,7 @@ class Zen3D(object):
             self._read_metadata(fid=file_id)        
         
     #======================================    
-    def read_z3d(self, z3d_fn=None):
+    def read_z3d(self, z3d_fn=None, convert_to_mv=True):
         """
         read in z3d file and populate attributes accordingly
         
@@ -919,9 +919,11 @@ class Zen3D(object):
         # trim the data after taking out the gps stamps
         self.ts_obj = mtts.MT_TS()
         self.ts_obj.ts = data[np.nonzero(data)]
+        self.ts_obj.ts.astype('int32')
         
         # convert data to mV
-        self.convert_counts_to_mv() 
+        if convert_to_mv:
+            self.convert_counts_to_mv() 
         
         # fill time series object metadata
         self.ts_obj.station = self.station
@@ -1060,7 +1062,7 @@ class Zen3D(object):
         convert the time series from counts to millivolts
 
         """
-        
+        self.ts_obj.ts.astype('float')
         self.ts_obj.ts.data *= self._counts_to_mv_conversion
     
     #==================================================    
@@ -2034,7 +2036,7 @@ def copy_from_sd(station, save_path=r"d:\Peacock\MTData",
     
     st_test = time.ctime()
     fn_list = []
-    for key in drive_names.keys():
+    for key in sorted(drive_names.keys()):
         dr = r"{0}:\\".format(key)
         print '='*25+drive_names[key]+'='*25
         log_fid.write('='*25+drive_names[key]+'='*25+'\n')

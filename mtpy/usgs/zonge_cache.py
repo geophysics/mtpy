@@ -364,8 +364,8 @@ class ZenCache(object):
         self._ch_factor = '9.5367431640625e-10'
         self._ch_gain = '01-0'
         self._ch_lowpass_dict = {'256':'112', 
-                           '1024':'576',
-                           '4096':'1792'}
+                                 '1024':'576',
+                                 '4096':'1792'}
         self._flag = -1
         self._ts_dtype = np.int32
         
@@ -479,80 +479,153 @@ class ZenCache(object):
         
         n_fn = len(zt_list)
         
+        t_arr = np.zeros(n_fn, 
+                 dtype=[('comp', 'S3'),
+                        ('start', np.int64),
+                        ('stop', np.int64)])
+                        
+        ts_list = []
+        print '-'*50
+        for ii, z3d_obj in enumerate(zt_list):
+            dt_index = z3d_obj.ts_obj.ts.data.index.astype(np.int64)
+            t_arr[ii]['comp'] = z3d_obj.metadata.ch_cmp.lower()
+            t_arr[ii]['start'] = dt_index[0]
+            t_arr[ii]['stop'] = dt_index[-1]
+            ts_list.append(z3d_obj.ts_obj)
+            if self.verbose:
+                print '{0} -- {1:<16.2f}{2:<16.2f} sec'.format(z3d_obj.metadata.ch_cmp,
+                                                           dt_index[0]/10.**9,
+                                                           dt_index[-1]/10.**9)                 
+
+            self.log_lines.append('{0} -- {1:<16.2f}{2:<16.2f} sec'.format(z3d_obj.metadata.ch_cmp,
+                                                           dt_index[0]/10.**9,
+                                                           dt_index[-1]/10.**9))
+        
+        # get the start and stop times that correlates with all time series
+        start = t_arr['start'].max()/10**9
+        stop = t_arr['stop'].min()/10**9
+        
+        # figure out the max length of the array, getting the time difference into
+        # seconds and then multiplying by the sampling rate
+        ts_len = int((stop-start)*z3d_obj.df)
+        
+        if decimate > 1:
+            ts_len /= decimate
+        
+#        temp_fn = os.path.join(os.path.dirname(z3d_obj.fn), 'ts_array_00.dat')
+#        if os.path.isfile(temp_fn):
+#            ts_num = int(temp_fn[-6:-4])+1
+#            temp_fn = '{0}{1}.dat'.format(temp_fn[:-6], ts_num)
+#        
+#        ts_mm = np.memmap(temp_fn,
+#                          dtype='int32',
+#                          mode='w+',
+#                          shape=(ts_len, n_fn ))
+        
+        ts_arr = np.zeros((ts_len, n_fn))
+        for ii, ts in enumerate(ts_list):
+            dt_index = ts.ts.data.index.astype(np.int64)/10**9
+            index_0 = np.where(dt_index == start)[0][0]
+            index_1 = np.where(dt_index == stop)[0][0]
+            t_diff = ts_len-(index_1-index_0)
+            ts.ts.data.astype(np.int32)
+            if t_diff != 0:
+                if self.verbose:
+                    print '{0} off by {1} points --> {2} sec'.format(ts.fn,
+                                                                     t_diff,
+                                                                     t_diff/ts.sampling_rate)
+                self.log_lines.append('{0} off by {1} points --> {2} sec \n'.format(ts.fn,
+                                                                     t_diff,
+                                                                     t_diff/ts.sampling_rate))
+            if decimate > 1:
+                 ts_arr[:, ii] = sps.resample(ts.ts.data[index_0:index_1],
+                                              ts_len, 
+                                              window='hanning')
+#                ts_mm[:, ii] = sps.resample(ts.ts.data[index_0:index_1],
+#                                            ts_len, 
+#                                            window='hanning') 
+            else:
+                ts_arr[0:ts_len-t_diff, ii] = ts.ts.data[index_0:index_1]
+#                ts_mm[0:ts_len-t_diff, ii] = ts.ts.data[index_0:index_1]
+        
+#        return ts_mm, ts_len, temp_fn
+        return ts_arr, ts_len, None 
+        
         #test start time
         #st_list = np.array([int(zt.date_time[0][-2:]) for zt in zt_list])
-        st_list = np.array([int(zt.gps_time[0]) for zt in zt_list])
-        time_max = max(st_list)
+#        st_list = np.array([int(zt.gps_time[0]) for zt in zt_list])
+#        st_list = np.array([int(zt.gps_stamp[0]['time']) for zt in zt_list])
+#        time_max = max(st_list)
         #time_max = np.where(st_list==st_list.max())[0]
         
         #get the number of seconds each time series is off by
-        skip_dict = {}
-        for ii, zt in enumerate(list(zt_list)):
-            try:
-                skip_dict[ii] = np.where(zt.gps_time==time_max)[0][0]
-            except IndexError:
-                zt_list.remove(zt_list[ii])
-                print '***SKIPPING {0} '.format(zt.fn)
-                print '   because it does not contain correct gps time'
-                print '   {0} --> {1}'.format(time_max, 
-                                             zt.get_date_time(zt.gps_week, 
-                                                             time_max))    
+#        skip_dict = {}
+#        for ii, zt in enumerate(list(zt_list)):
+#            try:
+#                skip_dict[ii] = np.where(zt.gps_stamp['time'] == time_max)[0][0]
+#            except IndexError:
+#                zt_list.remove(zt_list[ii])
+#                print '***SKIPPING {0} '.format(zt.fn)
+#                print '   because it does not contain correct gps time'
+#                print '   {0} --> {1}'.format(time_max, 
+#                                             zt.get_UTC_date_time(zt.header.gpsweek, 
+#                                                             time_max))    
         
-        #change data by amount needed        
-        for ii, zt in zip(skip_dict.keys(), zt_list):
-            if skip_dict[ii] != 0:
-                skip_points = skip_dict[ii]*zt.df
-                print 'Skipping {0} points for {1}'.format(skip_points,
-                                                            zt.ch_cmp)
-                zt.time_series = zt.time_series[skip_points:]
-                zt.gps_diff = zt.gps_diff[skip_dict[ii]:]
-                zt.gps_list = zt.gps_list[skip_dict[ii]:]
-                zt.date_time = zt.date_time[skip_dict[ii]:]
-                zt.gps_time = zt.gps_time[skip_dict[ii]:]
-            
-        #test length of time series
-        ts_len_list = np.array([len(zt.time_series) for zt in zt_list])
-        
-        #get the smallest number of points in the time series
-        ts_min = ts_len_list.min()
-        
-        #make a time series array for easy access
-        ts_min /= decimate
-            
-        ts_array = np.zeros((ts_min, n_fn))
-        
-        #trim the time series if needed
-        for ii, zt in enumerate(zt_list):
-            if decimate > 1:
-                zt.time_series = sps.resample(zt.time_series, 
-                                              zt.time_series.shape[0]/decimate,
-                                              window='hanning')
-            if len(zt.time_series) != ts_min:
-                ts_trim = zt.time_series[:ts_min]
-            else:
-                ts_trim = zt.time_series
-            zt.time_series = ts_trim
-            
-            ts_array[:, ii] = ts_trim
-            
-            if self.verbose:
-                print 'TS length for channel {0} '.format(zt.ch_number)+\
-                      '({0}) '.format(zt.ch_cmp)+\
-                      '= {0}'.format(len(ts_trim))
-                print '    T0 = {0}\n'.format(zt.date_time[0])
-            self.log_lines.append(' '*4+\
-                                  'TS length for channel {0} '.format(zt.ch_number)+\
-                                  '({0}) '.format(zt.ch_cmp)+\
-                                  '= {0}'.format(len(ts_trim)))
-            self.log_lines.append(', T0 = {0}\n'.format(zt.date_time[0]))
-            
-        if decimate is not 1:
-            ts_array = sps.resample(ts_array, ts_min/decimate, 
-                                    window='hanning')
-            ts_min = ts_array.shape[0]
-            
-        
-        return ts_array, ts_min
+#        #change data by amount needed        
+#        for ii, zt in zip(skip_dict.keys(), zt_list):
+#            if skip_dict[ii] != 0:
+#                skip_points = skip_dict[ii]*zt.df
+#                print 'Skipping {0} points for {1}'.format(skip_points,
+#                                                            zt.metadata.ch_cmp)
+#                zt.time_series = zt.time_series[skip_points:]
+#                zt.gps_diff = zt.gps_diff[skip_dict[ii]:]
+#                zt.gps_list = zt.gps_list[skip_dict[ii]:]
+#                zt.date_time = zt.date_time[skip_dict[ii]:]
+#                zt.gps_time = zt.gps_time[skip_dict[ii]:]
+#            
+#        #test length of time series
+#        ts_len_list = np.array([len(zt.time_series) for zt in zt_list])
+#        
+#        #get the smallest number of points in the time series
+#        ts_min = ts_len_list.min()
+#        
+#        #make a time series array for easy access
+#        ts_min /= decimate
+#            
+#        ts_array = np.zeros((ts_min, n_fn))
+#        
+#        trim the time series if needed
+#        for ii, zt in enumerate(zt_list):
+#            if decimate > 1:
+#                zt.time_series = sps.resample(zt.time_series, 
+#                                              zt.time_series.shape[0]/decimate,
+#                                              window='hanning')
+#            if len(zt.time_series) != ts_min:
+#                ts_trim = zt.time_series[:ts_min]
+#            else:
+#                ts_trim = zt.time_series
+#            zt.time_series = ts_trim
+#            
+#            ts_array[:, ii] = ts_trim
+#            
+#            if self.verbose:
+#                print 'TS length for channel {0} '.format(zt.ch_number)+\
+#                      '({0}) '.format(zt.ch_cmp)+\
+#                      '= {0}'.format(len(ts_trim))
+#                print '    T0 = {0}\n'.format(zt.date_time[0])
+#            self.log_lines.append(' '*4+\
+#                                  'TS length for channel {0} '.format(zt.ch_number)+\
+#                                  '({0}) '.format(zt.ch_cmp)+\
+#                                  '= {0}'.format(len(ts_trim)))
+#            self.log_lines.append(', T0 = {0}\n'.format(zt.date_time[0]))
+#            
+#        if decimate is not 1:
+#            ts_array = sps.resample(ts_array, ts_min/decimate, 
+#                                    window='hanning')
+#            ts_min = ts_array.shape[0]
+#            
+#        
+#        return ts_array, ts_min
     
     #==================================================    
     def write_cache_file(self, fn_list, save_fn, station='ZEN', decimate=1):
@@ -568,7 +641,9 @@ class ZenCache(object):
                     fn_sort_list.append(fn)
 
         fn_list = fn_sort_list
-        print fn_list
+        print '-'*15+' Merging '+'-'*15
+        for fn in fn_list:
+            print fn
             
         n_fn = len(fn_list)
         self.zt_list = []
@@ -576,35 +651,35 @@ class ZenCache(object):
             zt1 = zen.Zen3D(fn=fn)
             zt1.verbose = self.verbose
             try:
-                zt1.read_3d()
+                zt1.read_z3d(convert_to_mv=False)
             except ZenGPSError:
                 zt1._seconds_diff = 59
-                zt1.read_3d()
+                zt1.read_z3d(convert_to_mv=False)
             self.zt_list.append(zt1)
         
             #fill in meta data from the time series file
-            self.meta_data['DATA.DATE0'] = ','+zt1.date_time[0].split(',')[0]
-            self.meta_data['DATA.TIME0'] = ','+zt1.date_time[0].split(',')[1]
+            self.meta_data['DATA.DATE0'] = ','+zt1.schedule.Date
+            self.meta_data['DATA.TIME0'] = ','+zt1.schedule.Time
             self.meta_data['TS.ADFREQ'] = ',{0}'.format(int(zt1.df))
             self.meta_data['CH.FACTOR'] += ','+self._ch_factor 
             self.meta_data['CH.GAIN'] += ','+self._ch_gain
-            self.meta_data['CH.CMP'] += ','+zt1.ch_cmp.upper()
-            self.meta_data['CH.LENGTH'] += ','+zt1.ch_length
+            self.meta_data['CH.CMP'] += ','+zt1.metadata.ch_cmp.upper()
+            self.meta_data['CH.LENGTH'] += ','+zt1.metadata.ch_length
             self.meta_data['CH.EXTGAIN'] += ',1'
             self.meta_data['CH.NOTCH'] += ',NONE'
             self.meta_data['CH.HIGHPASS'] += ',NONE'
             self.meta_data['CH.LOWPASS'] += ','+\
                                        self._ch_lowpass_dict[str(int(zt1.df))]
-            self.meta_data['CH.ADCARDSN'] += ','+zt1.ch_adcard_sn
-            self.meta_data['CH.NUMBER'] += ',{0}'.format(zt1.ch_number)
-            self.meta_data['RX.STN'] += ','+zt1.rx_stn
+            self.meta_data['CH.ADCARDSN'] += ','+zt1.header.channelserial
+            self.meta_data['CH.NUMBER'] += ',{0}'.format(zt1.metadata.ch_number)
+            self.meta_data['RX.STN'] += ','+zt1.station
             
         #make sure all files have the same sampling rate
         self.check_sampling_rate(self.zt_list)
         
         #make sure the length of time series is the same for all channels
-        self.ts, ts_len = self.check_time_series(self.zt_list,
-                                                 decimate=decimate)
+        self.ts, ts_len, temp_fn = self.check_time_series(self.zt_list,
+                                                          decimate=decimate)
         
         self.meta_data['TS.NPNT'] = ',{0}'.format(ts_len)
         
@@ -665,12 +740,11 @@ class ZenCache(object):
         cfid.write(struct.pack('<i', cal_len+2))
         
         #--> write data
-        
         ts_block_len = int(ts_len)*n_fn*4+2
         
         #--> Need to scale the time series into counts cause that is apparently
         #    what MTFT24 expects
-        self.ts = self.ts.astype(np.int32)
+        #self.ts = self.ts.astype(np.int32)
         
         #--> make sure none of the data is above the allowed level
         self.ts[np.where(self.ts>2.14e9)] = 2.14e9
@@ -681,13 +755,22 @@ class ZenCache(object):
         cfid.write(struct.pack('<i', self._flag))
         cfid.write(struct.pack('<h', self._type_dict['ts']))
         
-        #--> need to pack the data as signed integers
-        for zz in range(ts_len):
-            cfid.write(struct.pack('<'+'i'*n_fn, *self.ts[zz]))
-                                
+#        #--> need to pack the data as signed integers
+#        for zz in range(ts_len):
+#            cfid.write(struct.pack('<'+'i'*n_fn, *self.ts[zz]))
+
+        ## write in chunks, should be faster
+        chunk_size = 2048
+        ts_flat = self.ts.flatten()
+        for chunk in range(int(ts_len/chunk_size)):
+            index_0 = chunk*chunk_size
+            index_1 = (chunk+1)*chunk_size
+            cfid.write(struct.pack('<'+'i'*chunk_size,
+                                   *ts_flat[index_0:index_1]))                           
+        # write the last bit
+        cfid.write(struct.pack('<'+'i'*len(ts_flat[index_1:]),
+                               *ts_flat[index_1:]))
         cfid.write(struct.pack('<i', ts_block_len))
-         
-        
         cfid.close()
         
         if self.verbose:
@@ -696,6 +779,9 @@ class ZenCache(object):
         self.log_lines.append('Saved File to: \n')
         self.log_lines.append(' '*4+'{0}\n'.format(self.save_fn))
         self.log_lines.append('='*72+'\n')
+        
+        #del self.ts
+        #os.remove(temp_fn)
     
     #==================================================    
     def rewrite_cache_file(self):
@@ -1118,7 +1204,7 @@ def merge_3d_files(fn_list, save_path=None, verbose=False,
     start_time = time.ctime()
     merge_list = np.array([[fn]+\
                           os.path.basename(fn)[:-4].split('_')
-                          for fn in fn_list if fn[-4:]=='.Z3D'])
+                          for fn in fn_list if fn.endswith('.Z3D')])
                               
     merge_list = np.array([merge_list[:,0], 
                           merge_list[:,1],  
@@ -1127,7 +1213,9 @@ def merge_3d_files(fn_list, save_path=None, verbose=False,
                           merge_list[:,4],
                           merge_list[:,5]])
     merge_list = merge_list.T
-                              
+            
+    station_name = merge_list[0, 1]
+                  
     time_counts = Counter(merge_list[:,2])
     time_list = time_counts.keys()
     
@@ -1137,23 +1225,26 @@ def merge_3d_files(fn_list, save_path=None, verbose=False,
     for tt in time_list:
         log_lines.append('+'*72+'\n')
         log_lines.append('Files Being Merged: \n')
-        cache_fn_list = merge_list[np.where(merge_list==tt)[0],0].tolist()
+        cache_fn_list = merge_list[np.where(merge_list == tt)[0], 0].tolist()
         
         for cfn in cache_fn_list:
             log_lines.append(' '*4+cfn+'\n')
         if save_path is None:
             save_path = os.path.dirname(cache_fn_list[0])
-            station_name = merge_list[np.where(merge_list==tt)[0][0],1]
+            
         else:
             save_path = save_path
-            station_name = 'ZEN'
             
         zc = ZenCache()
         zc.verbose = verbose
         zc.write_cache_file(cache_fn_list, save_path, station=station_name)
             
         for zt in zc.zt_list:
-            log_lines.append(zt.log_lines)
+            try:
+                log_lines.append(zt.log_lines)
+            except AttributeError:
+                pass
+            
         merged_fn_list.append(zc.save_fn)
         log_lines.append('\n---> Merged Time Series Lengths and Start Time \n')
         log_lines.append(zc.log_lines)
